@@ -17,10 +17,6 @@ fi
 # yay installation
 bash "$SCRIPT_DIR/Resources/Scripts/yay.sh"
 
-# Package installation
-echo "=== Package Installation ==="
-bash "$SCRIPT_DIR/Resources/Scripts/packinstall.sh"
-
 echo ""
 
 CONFIG_DIR="$TARGET_HOME/.config"

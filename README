@@ -1,2 +1,5 @@
 # TODO
 
+- updater every boot check if git repo updated, ask to update, pull and rsync
+
+

@@ -1,0 +1,2 @@
+flatseal
+org.telegram.desktop

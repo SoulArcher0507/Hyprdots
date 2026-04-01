@@ -9,5 +9,9 @@ else
     TARGET_HOME="$HOME"
 fi
 
+# Package installation
+echo "=== Package Installation ==="
+bash "$SCRIPT_DIR/Resources/Scripts/packinstall.sh laptop"
+
 rsync -av --progress "$SCRIPT_DIR/CorradsLaptop/config" "$CONFIG_DIR/"
 

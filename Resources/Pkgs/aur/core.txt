@@ -1,0 +1,9 @@
+bibata-cursor-theme
+epson-inkget-printer-escpr2
+kora-icon-theme
+pacseek
+qt6ct-kde
+quickshell
+ttf-fira-sans
+ttf-font-awesome
+webapp-manager
