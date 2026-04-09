@@ -13,5 +13,6 @@ fi
 echo "=== Package Installation ==="
 bash "$SCRIPT_DIR/Resources/Scripts/packinstall.sh laptop"
 
+rsync -av --progress "$SCRIPT_DIR/Resources/Configs" "$CONFIG_DIR/"
 rsync -av --progress "$SCRIPT_DIR/CorradsLaptop/config" "$CONFIG_DIR/"
 
