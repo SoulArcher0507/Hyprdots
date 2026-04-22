@@ -22,6 +22,10 @@ echo ""
 CONFIG_DIR="$TARGET_HOME/.config"
 mkdir -p "$CONFIG_DIR"
 
+mkdir -p "$HOME/Desktop" "$HOME/Documents" "$HOME/Downloads" "$HOME/Music" \
+    "$HOME/Packages" "$HOME/Pictures" "$HOME/Public" "$HOME/Templates" \
+    "$HOME/Videos"
+
 # Theme selection
 echo "=== Theme Selection ==="
 
@@ -61,14 +65,16 @@ select LABEL in "${THEME_LABELS[@]}"; do
   fi
 done
 
-mkdir -p "$HOME/Desktop" "$HOME/Documents" "$HOME/Downloads" "$HOME/Music" \
-    "$HOME/Packages" "$HOME/Pictures" "$HOME/Public" "$HOME/Templates" \
-    "$HOME/Videos"
+sudo bash "$SCRIPT_DIR/Resources/Grub/grubsouls-theme/install_theme.sh"
+bash "$SCRIPT_DIR/Resources/Scripts/dolphin-terminal.sh"
+bash "$SCRIPT_DIR/Resources/Scripts/install_sddm.sh"
+sudo bash "$SCRIPT_DIR/Resources/Scripts/change_sddm_avatar.sh $(whoami) $SCRIPT_DIR/Resources/Wallpapers/shadow_army.jpg"
+bash "$SCRIPT_DIR/Resources/Scripts/install_plymouth_repo_theme.sh" "colorful_loop" "$SCRIPT_DIR/Resources/Plymouth/plymouth-themes"
+bash "$SCRIPT_DIR/Resources/Scripts/zsh_enabler.sh"
+bash "$SCRIPT_DIR/Resources/Scripts/dynamic_swap_file.sh"
+bash "$SCRIPT_DIR/Resources/Scripts/default_webapps.sh"
 
+rsync -av --progress "$SCRIPT_DIR/Resources/Wallpapers" "$HOME/Pictures/Wallpapers"
+rsync -av --progress "$SCRIPT_DIR/Resources/Icons" "$HOME/Pictures/Icons"
 
-bash "$script_dir/scripts/dolphin-terminal.sh"
-bash "$script_dir/scripts/corradspc-installer.sh"
-
-cp -r "Resources/Wallpapers" "$HOME/Pictures/Wallpapers"
-cp -r "Resources/Icons" "$HOME/Pictures/Icons"
 

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <g transform="rotate(45 12 12)" fill="#ffffff">
+    <!-- Top detailing -->
+    <rect x="10.5" y="0.5" width="3" height="1.5" rx="0.75"/>
+    <!-- Main Bulb body - cylindrical and rounded, no flare -->
+    <rect x="9" y="1.5" width="6" height="8.5" rx="3"/>
+    <!-- Transition collar -->
+    <rect x="10" y="9.5" width="4" height="2" rx="0.5"/>
+    <!-- Glass tube -->
+    <rect x="11" y="11.5" width="2" height="9" rx="0"/>
+    <!-- Tapered tip -->
+    <path d="M11 20.5 L13 20.5 L12 23.5 Z"/>
+  </g>
+</svg>

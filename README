@@ -1,5 +1,30 @@
-# TODO
+# Hyprdots 1.0
 
-- updater every boot check if git repo updated, ask to update, pull and rsync
+Hyprdots is my personal Arch Linux + Hyprland configuration built around Hyprland and Quickshell.
 
+## Previeew
+[TODO]
+
+## Features
+- Dynamic colors generated from wallpapers with pywal
+- Custom Quickshell UI with smooth animations
+
+## Default Apps
+- Terminal: Kitty
+- Editor: Neovim
+- Zsh
+
+## Installation
+```bash
+git clone https://gitea.corradoenea.com/CorradoEnea/Hyprdots.git
+cd Hyprdots
+./install.sh
+```
+
+## Upcoming Feature
+- Animated wallpapers support with mpvpaper, using a different script with the wallpaper picker
+- Mouse icon with dynamic colors
+- More battery saving for laptops with tlp
+- File picker with dynamic colors
+- Better nvim esthetic
 

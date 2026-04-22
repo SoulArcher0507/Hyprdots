@@ -70,7 +70,7 @@ def main():
             "q": query,
             "vqd": vqd,
             "f": ",,,size:Wallpaper,",
-            "p": "-1",  # -1 = Off, 1 = Moderate, 2 = Strict
+            "p": "-1",  
             "ex": "-1"
         }
 

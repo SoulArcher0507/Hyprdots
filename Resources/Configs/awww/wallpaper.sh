@@ -27,7 +27,6 @@ fi
 
 log "Applying wallpaper: $PAPER"
 
-# --- awww ---
 TRANSITION="any"
 TRANSITION_FPS=60
 TRANSITION_DURATION=1.0

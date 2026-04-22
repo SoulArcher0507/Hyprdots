@@ -1,0 +1,11 @@
+## Git
+
+```
+⇡N ahead
+⇣N behind
++N staged
+~N unstaged
+?N untracked
+!N conflicti
+*N stash
+```

@@ -56,7 +56,6 @@ python3 -u "$SCRIPT_DIR/get_ddg_links.py" "$QUERY" | while IFS='|' read -r thumb
 
     curl -s -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" "$thumb_url" -o "$tmppath"
 
-    # 4. Check state again AFTER the long curl block
     state=$(cat "$CONTROL_FILE" 2>/dev/null | tr -d '[:space:]')
     if [[ "$state" == "stop" ]]; then 
         echo "Stop signal received during download. Discarding." >> "$LOG_FILE"
