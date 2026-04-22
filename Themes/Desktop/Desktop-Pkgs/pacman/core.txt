@@ -1,3 +1,6 @@
+digikam
+pika-backup
 solaar
 sunshine
+nvtop
 

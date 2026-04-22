@@ -1,0 +1,2 @@
+app.fluxer.Fluxer
+com.heroicgameslauncher.hgl

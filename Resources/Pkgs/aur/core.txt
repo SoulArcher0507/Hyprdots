@@ -1,8 +1,12 @@
+adwsteamgtk
 bibata-cursor-theme
 epson-inkget-printer-escpr2
+feishin-bin
 kora-icon-theme
+localsend-bin
 pacseek
 qt6ct-kde
+timeshift-autosnap
 ttf-fira-sans
 ttf-font-awesome
 webapp-manager

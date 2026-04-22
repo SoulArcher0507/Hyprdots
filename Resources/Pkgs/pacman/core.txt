@@ -1,7 +1,9 @@
 archlinux-xdg-menu
+ark
 awww
 baloo
 bash-completion
+bleachbit
 blueman
 bluez
 bluez-utils
@@ -17,8 +19,11 @@ dolphin
 dolphin-plugins
 dosfstools
 dotnet-sdk
+easyeffects
 fastfetch
 ffmpegthumbs
+firefox
+firewall-config
 firewalld
 flatpak
 fzf
@@ -38,6 +43,7 @@ kdesdk-thumbnailers
 kimageformats
 kio-admin
 kompare
+ksnip
 kvantum
 lact
 layer-shell-qt
@@ -46,7 +52,9 @@ libnotify
 libplasma
 libpulse
 libvlc
+lsp-plugins
 man-db
+moonlight-qt
 mtools
 neovim
 networkmanager
@@ -55,7 +63,10 @@ obs-studio
 obsidian
 okular
 openmpi
+packseek
 pacman-contrib
+partitionmanager
+pavucontrol
 pciutils
 pipewire-pulse
 playerctl
@@ -64,6 +75,7 @@ polkit-kde-agent
 polkit-qt6
 python
 python-pywal
+qalculate-qt
 qqc2-breeze-style
 qt6-base
 qt6-declarative
@@ -79,6 +91,8 @@ speedtest-cli
 syncthing
 tesseract
 timeshift
+tor
+torbrowser-launcher
 traceroute
 tree
 ttf-hack
@@ -90,6 +104,7 @@ vivaldi
 vlc
 vlc-plugin-ffmpeg
 wine
+winetricks
 wireshark-qt
 wl-clipboard
 wlroots0.18
