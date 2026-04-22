@@ -102,6 +102,6 @@ run_target_cmd mkdir -p "$TARGET_HOME/Pictures/Wallpapers" "$TARGET_HOME/Picture
 run_target_cmd rsync -av --progress "$SCRIPT_DIR/Resources/Wallpapers/" "$TARGET_HOME/Pictures/Wallpapers/"
 run_target_cmd rsync -av --progress "$SCRIPT_DIR/Resources/Icons/" "$TARGET_HOME/Pictures/Icons/"
 
-$TARGET_HOME/.config/awww/wallpaper.sh "$TARGET_HOME/Pictures/Wallpapers/shadow_army.jpg"
+run_target_cmd $TARGET_HOME/.config/awww/wallpaper.sh "$TARGET_HOME/Pictures/Wallpapers/shadow_army.jpg"
 
 echo "=== END OF INSTALLATION ==="

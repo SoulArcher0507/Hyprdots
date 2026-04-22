@@ -35,16 +35,6 @@ log() {
     printf '\033[1;36m[SilentSDDM]\033[0m %s\n' "$*"
 }
 
-backup_file() {
-    local file="$1"
-    if [[ -f "$file" ]]; then
-        local ts
-        ts="$(date +%Y%m%d-%H%M%S)"
-        $SUDO cp -a "$file" "${file}.${ts}.bak"
-        log "Backup created: ${file}.${ts}.bak"
-    fi
-}
-
 set_ini_value() {
     local file="$1"
     local section="$2"
@@ -104,7 +94,7 @@ set_ini_value() {
         }
     }' "$file" > "$tmp"
 
-    mv "$tmp" "$file"
+    command mv -f "$tmp" "$file"
 }
 
 log "Copying theme to ${TARGET_THEME_DIR} ..."
@@ -125,7 +115,6 @@ if command -v fc-cache >/dev/null 2>&1; then
 fi
 
 log "Updating ${SDDM_CONF} ..."
-backup_file "$SDDM_CONF"
 
 TMP_CONF="$(mktemp)"
 if [[ -f "$SDDM_CONF" ]]; then

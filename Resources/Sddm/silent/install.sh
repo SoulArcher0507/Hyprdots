@@ -42,9 +42,6 @@ copy_fonts () {
 apply_theme () {
     echo -e "${grey}Editing '/etc/sddm.conf'...${reset}"
     if [[ -f /etc/sddm.conf ]]; then
-        sudo cp -f /etc/sddm.conf /etc/sddm.conf.bkp
-        echo -e "${green}Backup for SDDM config saved in '/etc/sddm.conf.bkp'${reset}"
-
         if grep -Pzq '\[Theme\]\nCurrent=' /etc/sddm.conf; then
             sudo sed -i '/^\[Theme\]$/{N;s/\(Current=\).*/\1silent/;}' /etc/sddm.conf
         else
