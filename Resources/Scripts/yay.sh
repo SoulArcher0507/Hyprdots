@@ -15,6 +15,19 @@ if pacman -Qi yay &>/dev/null; then
     exit 0
 fi
 
+PACMAN_DEPS=(git base-devel debugedit fakeroot)
+MISSING_DEPS=()
+
+for dep in "${PACMAN_DEPS[@]}"; do
+    if ! pacman -Qi "$dep" &>/dev/null; then
+        MISSING_DEPS+=("$dep")
+    fi
+done
+
+if [[ ${#MISSING_DEPS[@]} -gt 0 ]]; then
+    sudo pacman -S --needed --noconfirm "${MISSING_DEPS[@]}"
+fi
+
 echo "=== Installing yay (AUR) ==="
 
 TMP_DIR="$(mktemp -d)"
