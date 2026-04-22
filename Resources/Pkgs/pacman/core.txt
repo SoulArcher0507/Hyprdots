@@ -91,7 +91,8 @@ sddm
 slurp
 speedtest-cli
 syncthing
-tesseract
+tesseract-data-eng
+tesseract-data-ita
 timeshift
 tor
 torbrowser-launcher
