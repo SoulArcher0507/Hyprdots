@@ -4,6 +4,7 @@ set -Eeuo pipefail
 
 WALL_DIR="${HOME}/Pictures/Wallpapers"
 ACTIVE_DIR="${WALL_DIR}/active"
+SYNC_COLORS="${WALLPAPER_SYNC_COLORS:-0}"
 mkdir -p "$ACTIVE_DIR"
 
 log() { printf '[wallpaper] %s\n' "$*" >&2; }
@@ -66,12 +67,19 @@ if command -v magick >/dev/null 2>&1; then
   ) >/dev/null 2>&1 &
 fi
 
-(
+run_dynamic_colors() {
   if [[ -x "$HOME/.config/wal/colors.sh" ]]; then
     "$HOME/.config/wal/colors.sh" "$PAPER" || true
   elif command -v wal >/dev/null 2>&1; then
     wal -i "$PAPER" -n -q || true
   fi
-) >/dev/null 2>&1 &
+}
 
+if [[ "$SYNC_COLORS" == "1" ]]; then
+  run_dynamic_colors
+else
+  (
+    run_dynamic_colors
+  ) >/dev/null 2>&1 &
+fi
 

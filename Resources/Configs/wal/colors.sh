@@ -245,6 +245,7 @@ apply_icon_theme() {
   local plasma_changeicons_bin=""
   plasma_changeicons_bin="$(find_plasma_changeicons || true)"
 
+  set_generic_ini_key "$KDEGLOBALS" "Icons" "Theme" "$ICON_THEME_NAME"
   set_ini_key kdeglobals Icons Theme "$ICON_THEME_NAME"
   set_generic_ini_key "$QT6CT_CONF" "Appearance" "icon_theme" "$ICON_THEME_NAME"
 
@@ -672,6 +673,9 @@ inactiveForeground=${rgb8}
 EOF_KDE
 
 echo "[OK] KDE color scheme scritto in: $KDE_COLORS"
+
+set_generic_ini_key "$KDEGLOBALS" "General" "ColorScheme" "Dynamic"
+set_generic_ini_key "$KDEGLOBALS" "KDE" "colorScheme" "Dynamic"
 
 if command -v plasma-apply-colorscheme >/dev/null 2>&1; then
   plasma-apply-colorscheme Dynamic >/dev/null 2>&1 || true

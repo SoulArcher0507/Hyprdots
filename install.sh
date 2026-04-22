@@ -90,6 +90,8 @@ select LABEL in "${THEME_LABELS[@]}"; do
     echo ""
 done
 
+sudo pacman -R --noconfirm dunst
+
 sudo bash "$SCRIPT_DIR/Resources/Grub/grubsouls-theme/install_theme.sh"
 bash "$SCRIPT_DIR/Resources/Scripts/install_sddm.sh"
 sudo bash "$SCRIPT_DIR/Resources/Scripts/change_sddm_avatar.sh" "$TARGET_USER" "$SCRIPT_DIR/Resources/Wallpapers/shadow_army.jpg"
@@ -102,4 +104,15 @@ run_target_cmd mkdir -p "$TARGET_HOME/Pictures/Wallpapers" "$TARGET_HOME/Picture
 run_target_cmd rsync -av --progress "$SCRIPT_DIR/Resources/Wallpapers/" "$TARGET_HOME/Pictures/Wallpapers/"
 run_target_cmd rsync -av --progress "$SCRIPT_DIR/Resources/Icons/" "$TARGET_HOME/Pictures/Icons/"
 
-run_target_cmd $TARGET_HOME/.config/awww/wallpaper.sh "$TARGET_HOME/Pictures/Wallpapers/shadow_army.jpg"
+run_target_cmd env WALLPAPER_SYNC_COLORS=1 "$TARGET_HOME/.config/awww/wallpaper.sh" "$TARGET_HOME/Pictures/Wallpapers/shadow_army.jpg"
+
+sudo systemctl enable --now bluetooth.service
+sudo systemctl enable --now power-profiles-daemon.service
+sudo systemctl enable --now cups.service 
+sudo usermod -aG lp $USER   # add user to printer group
+sudo systemctl enable --now NetworkManager.service
+sudo systemctl enable --now firewalld
+sudo systemctl enable --now tailscaled
+sudo systemctl enable --now syncthing
+
+echo "=== INSTALLATION COMPLETE ==="

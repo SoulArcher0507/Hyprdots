@@ -102,6 +102,7 @@ tree
 typst
 kitty
 otf-font-awesome
+tailscale
 ttf-hack
 ttf-cascadia-code-nerd
 ttf-jetbrains-mono-nerd
