@@ -1,18 +1,21 @@
 #!/bin/bash
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_DIR="$TARGET_HOME/.config"
-# Home directory user
+set -euo pipefail
+
+THEME_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$THEME_DIR/../.." && pwd)"
+
 if [[ -n "${SUDO_USER-}" ]]; then
     TARGET_HOME="$(eval echo "~$SUDO_USER")"
 else
     TARGET_HOME="$HOME"
 fi
 
-# Package installation
+CONFIG_DIR="$TARGET_HOME/.config"
+
 echo "=== Package Installation ==="
-bash "$SCRIPT_DIR/Resources/Scripts/packinstall.sh laptop"
+bash "$REPO_ROOT/Resources/Scripts/packinstall.sh" laptop
 
-rsync -av --progress "$SCRIPT_DIR/Resources/Configs" "$CONFIG_DIR/"
-rsync -av --progress "$SCRIPT_DIR/CorradsLaptop/config" "$CONFIG_DIR/"
-
+mkdir -p "$CONFIG_DIR"
+rsync -av --progress "$REPO_ROOT/Resources/Configs/" "$CONFIG_DIR/"
+rsync -av --progress "$THEME_DIR/config/" "$CONFIG_DIR/"

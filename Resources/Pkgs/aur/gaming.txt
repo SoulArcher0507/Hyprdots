@@ -1,1 +1,1 @@
-vesktop
+vesktop-bin

@@ -20,14 +20,14 @@ if [[ $# -gt 0 ]]; then
   esac
 fi
 
-# Root dir of the project (where install.sh lives)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-BASE_PKGS="$SCRIPT_DIR/Resources/Pkgs"
+BASE_PKGS="$REPO_ROOT/Resources/Pkgs"
 
 case "$THEME" in
-  pc)     THEME_PKGS="$SCRIPT_DIR/Themes/CorradsPC/PC-Pkgs" ;;
-  laptop) THEME_PKGS="$SCRIPT_DIR/Themes/CorradsLaptop/Laptop-Pkgs" ;;
+  pc)     THEME_PKGS="$REPO_ROOT/Themes/Desktop/Desktop-Pkgs" ;;
+  laptop) THEME_PKGS="$REPO_ROOT/Themes/Laptop/Laptop-Pkgs" ;;
   *)      THEME_PKGS="" ;;
 esac
 
@@ -182,4 +182,3 @@ if [ ${#FLAT_PACKAGES[@]} -gt 0 ]; then
   echo "=== Installing Flatpak packages ==="
   install_flat_pkgs "${FLAT_PACKAGES[@]}"
 fi
-
