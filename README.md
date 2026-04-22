@@ -2,7 +2,7 @@
 
 Hyprdots is my personal Arch Linux + Hyprland configuration built around Hyprland and Quickshell.
 
-## Previeew
+## Preview
 [TODO]
 
 ## Features
