@@ -260,9 +260,10 @@ update_systemd_boot_entries() {
 
 regenerate_initramfs_and_set_theme() {
   local theme="$1"
+  have_cmd plymouth-set-default-theme || die "plymouth-set-default-theme not found. Install plymouth and rerun."
+  have_cmd mkinitcpio || die "mkinitcpio not found."
   plymouth-set-default-theme -R "$theme" >/dev/null
   log "Set Plymouth theme to '$theme' and rebuilt initramfs."
-  # Extra safety in case the local setup does not rebuild all presets as expected.
   mkinitcpio -P >/dev/null
   log "mkinitcpio presets regenerated."
 }
