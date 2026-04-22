@@ -40,14 +40,36 @@ cp "$PACMAN_CONF" "$BACKUP"
 echo "Backup of $PACMAN_CONF created at $BACKUP"
 
 awk '
-  /^[[:space:]]*#[[:space:]]*\[multilib\][[:space:]]*$/ && !/testing/ {
-    sub(/^([[:space:]]*)#[[:space:]]*/, "\\1")
+  /^[[:space:]]*\\1\[multilib\][[:space:]]*$/ && !/testing/ {
+    sub(/^[[:space:]]*\\1/, "")
     found=1
     print
     next
   }
+  /^[[:space:]]*#[[:space:]]*\[multilib\][[:space:]]*$/ && !/testing/ {
+    sub(/^[[:space:]]*#[[:space:]]*/, "")
+    found=1
+    print
+    next
+  }
+  /^[[:space:]]*\[multilib\][[:space:]]*$/ && !/testing/ {
+    found=1
+    print
+    next
+  }
+  found && /^[[:space:]]*\\1Include[[:space:]]*=/ {
+    sub(/^[[:space:]]*\\1/, "")
+    found=0
+    print
+    next
+  }
   found && /^[[:space:]]*#[[:space:]]*Include[[:space:]]*=/ {
-    sub(/^([[:space:]]*)#[[:space:]]*/, "\\1")
+    sub(/^[[:space:]]*#[[:space:]]*/, "")
+    found=0
+    print
+    next
+  }
+  found && /^[[:space:]]*Include[[:space:]]*=/ {
     found=0
     print
     next
