@@ -70,8 +70,6 @@ PopupWindow {
 
     color: "transparent"
 
-    grabFocus: true
-
     width: popupCardWidth
     height: popupCardHeight
 
@@ -148,6 +146,7 @@ PopupWindow {
 
     Shortcut {
         sequence: "Escape"
+        context: Qt.ApplicationShortcut
         enabled: root.visible
         onActivated: root.beginAnimatedClose()
     }
