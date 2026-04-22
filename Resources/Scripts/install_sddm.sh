@@ -118,7 +118,7 @@ log "Updating ${SDDM_CONF} ..."
 
 TMP_CONF="$(mktemp)"
 if [[ -f "$SDDM_CONF" ]]; then
-    $SUDO cp -a "$SDDM_CONF" "$TMP_CONF"
+    $SUDO cat "$SDDM_CONF" > "$TMP_CONF"
 else
     : > "$TMP_CONF"
 fi
