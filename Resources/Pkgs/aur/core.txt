@@ -6,6 +6,5 @@ kora-icon-theme
 localsend-bin
 pacseek
 qt6ct-kde
-timeshift-autosnap
 ttf-fira-sans
 webapp-manager
