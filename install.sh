@@ -92,10 +92,9 @@ done
 
 sudo pacman -R --noconfirm dunst
 
-sudo bash "$SCRIPT_DIR/Resources/Grub/grubsouls-theme/install_theme.sh"
 bash "$SCRIPT_DIR/Resources/Scripts/install_sddm.sh"
 sudo bash "$SCRIPT_DIR/Resources/Scripts/change_sddm_avatar.sh" "$TARGET_USER" "$SCRIPT_DIR/Resources/Wallpapers/elden.jpg"
-sudo bash "$SCRIPT_DIR/Resources/Scripts/install_plymouth_theme.sh" "colorful_loop" "$SCRIPT_DIR/Resources/Plymouth/plymouth-themes"
+sudo bash "$SCRIPT_DIR/Resources/Scripts/install_plymouth_theme.sh" "lone" "$SCRIPT_DIR/Resources/Plymouth/plymouth-themes"
 run_target_bash "$SCRIPT_DIR/Resources/Scripts/zsh_enabler.sh"
 sudo bash "$SCRIPT_DIR/Resources/Scripts/dynamic_swap_file.sh"
 run_target_bash "$SCRIPT_DIR/Resources/Scripts/default_webapps.sh"
@@ -107,7 +106,6 @@ run_target_cmd rsync -av --progress "$SCRIPT_DIR/Resources/Icons/" "$TARGET_HOME
 run_target_cmd env WALLPAPER_SYNC_COLORS=1 "$TARGET_HOME/.config/awww/wallpaper.sh" "$TARGET_HOME/Pictures/Wallpapers/default.jpg"
 
 sudo systemctl enable --now bluetooth.service
-sudo systemctl enable --now power-profiles-daemon.service
 sudo systemctl enable --now cups.service 
 sudo usermod -aG lp $USER   # add user to printer group
 sudo systemctl enable --now NetworkManager.service

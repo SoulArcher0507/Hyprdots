@@ -45,6 +45,9 @@ kio-admin
 kompare
 ksnip
 kvantum
+kwallet
+kwalletmanager
+kwallet-pam
 lact
 layer-shell-qt
 libappimage
@@ -105,9 +108,6 @@ otf-font-awesome
 tailscale
 ttf-hack
 ttf-cascadia-code-nerd
-ttf-iosevka-nerd
-ttf-jetbrains-mono
-ttf-jetbrains-mono-nerd
 ttf-nerd-fonts-symbols-mono
 upower
 vivaldi

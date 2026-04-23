@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 
-REPO_URL = "https://gitea.corradoenea.com/CorradoEnea/Hyprdots.git"
+REPO_URL = "https://github.com/SoulArcher0507/Hyprdots.git"
 REPO_DIR = Path(os.path.expanduser("~/Documents/Git/Hyprdots"))
 CACHE_FILE = Path(os.path.expanduser("~/.cache/quickshell/dotfiles_updates.json"))
 

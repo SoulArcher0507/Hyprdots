@@ -75,6 +75,9 @@ alias l='ls -CF'
 alias ..='cd ..'
 alias ...='cd ../..'
 alias grep='grep --color=auto'
+alias launcher='qs -c ~/.config/quickshell/launcher -d'
+alias gamelauncher='qs -c ~/.config/quickshell/gamelauncher -d'
+alias overview='qs -c ~/.config/quickshell/overview -d'
 
 if (( $+commands[zoxide] )); then
   eval "$(zoxide init zsh)"
