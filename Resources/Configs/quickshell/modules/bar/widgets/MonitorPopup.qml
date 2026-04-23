@@ -1482,7 +1482,7 @@ Item {
                             Behavior on color { ColorAnimation { duration: 150 } }
                         }
                         Text {
-                            font.family: "JetBrains Mono"; font.weight: Font.Black; font.pixelSize: 13
+                            font.family: "Fira Sans Semibold"; font.weight: Font.Black; font.pixelSize: 13
                             color: root.applyFillLevel > 0.05 ? root.text : root.crust
                             text: monitorsModel.count > 1 ? "Apply All" : "Apply"
                             Behavior on color { ColorAnimation { duration: 150 } }

@@ -167,6 +167,7 @@ Item {
     readonly property color maroon: ThemePkg.Theme.c1
     readonly property color peach: ThemePkg.Theme.warning
     readonly property color panelBorderColor: ThemePkg.Theme.mix(ThemePkg.Theme.background, ThemePkg.Theme.foreground, 0.35)
+    readonly property string textFont: "Fira Sans Semibold"
 
     readonly property string scriptsDir: Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/network"
     readonly property string trafficScriptPath: window.scriptsDir + "/traffic_panel_logic.sh"
@@ -1782,7 +1783,7 @@ Item {
                                 }
                                 Text {
                                     Layout.alignment: Qt.AlignHCenter
-                                    font.family: "JetBrains Mono"
+                                    font.family: window.textFont
                                     font.weight: Font.Bold
                                     font.pixelSize: 14 - (3 * coreContainer.multiShift)
                                     color: window.overlay0
@@ -1824,7 +1825,7 @@ Item {
                                         Layout.alignment: Qt.AlignHCenter
                                         Layout.maximumWidth: 150 - (50 * coreContainer.multiShift)
                                         horizontalAlignment: Text.AlignHCenter
-                                        font.family: "JetBrains Mono"
+                                        font.family: window.textFont
                                         font.weight: Font.Black
                                         font.pixelSize: 16 - (4 * coreContainer.multiShift)
                                         color: isMyDisconnecting ? window.overlay1 : window.crust
@@ -1838,7 +1839,7 @@ Item {
                                     }
                                     Text {
                                         Layout.alignment: Qt.AlignHCenter
-                                        font.family: "JetBrains Mono"
+                                        font.family: window.textFont
                                         font.weight: Font.Bold
                                         font.pixelSize: 11
                                         color: isMyDisconnecting ? window.overlay1 : (coreMa.containsMouse ? window.crust : "#99000000")
@@ -1879,7 +1880,7 @@ Item {
                                             Layout.alignment: Qt.AlignHCenter
                                             Layout.maximumWidth: 150 - (50 * coreContainer.multiShift)
                                             horizontalAlignment: Text.AlignHCenter
-                                            font.family: "JetBrains Mono"
+                                            font.family: window.textFont
                                             font.weight: Font.Black
                                             font.pixelSize: 16 - (4 * coreContainer.multiShift)
                                             color: window.text
@@ -1888,7 +1889,7 @@ Item {
                                         }
                                         Text {
                                             Layout.alignment: Qt.AlignHCenter
-                                            font.family: "JetBrains Mono"
+                                            font.family: window.textFont
                                             font.weight: Font.Bold
                                             font.pixelSize: 11
                                             color: window.text
@@ -2922,7 +2923,7 @@ Item {
                                 }
                             }
                             Text {
-                                font.family: "JetBrains Mono"
+                                font.family: window.textFont
                                 font.weight: Font.Black
                                 font.pixelSize: 13
                                 color: window.activeMode === "wifi" ? window.crust : window.text
@@ -2998,7 +2999,7 @@ Item {
                                 }
                             }
                             Text {
-                                font.family: "JetBrains Mono"
+                                font.family: window.textFont
                                 font.weight: Font.Black
                                 font.pixelSize: 13
                                 color: window.activeMode === "bt" ? window.crust : window.text

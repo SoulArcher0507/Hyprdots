@@ -66,9 +66,9 @@ Singleton {
 
             property QtObject font: QtObject {
                 property QtObject family: QtObject {
-                    property string main: root.readString("appearance.font.family.main", "sans-serif")
-                    property string title: root.readString("appearance.font.family.title", "sans-serif")
-                    property string expressive: root.readString("appearance.font.family.expressive", "sans-serif")
+                    property string main: root.readString("appearance.font.family.main", "Fira Sans Semibold")
+                    property string title: root.readString("appearance.font.family.title", "Fira Sans Semibold")
+                    property string expressive: root.readString("appearance.font.family.expressive", "Fira Sans Semibold")
                 }
 
                 property QtObject pixelSize: QtObject {

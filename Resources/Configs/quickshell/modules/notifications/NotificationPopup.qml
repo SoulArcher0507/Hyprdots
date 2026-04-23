@@ -961,6 +961,8 @@ Item {
         property string valueText: ""
         property string labelText: ""
         property string tip: ""
+        property string valueFontFamily: "JetBrains Mono"
+        property string labelFontFamily: "JetBrains Mono"
         property bool buttonEnabled: true
         property real fillLevel: 0.0
         property bool triggered: false
@@ -1072,7 +1074,7 @@ Item {
                 text: holdCard.valueText
                 color: root.text
                 font.pixelSize: 15
-                font.family: "JetBrains Mono"
+                font.family: holdCard.valueFontFamily
                 font.weight: Font.Black
                 anchors.horizontalCenter: parent.horizontalCenter
             }
@@ -1083,7 +1085,7 @@ Item {
                 visible: holdCard.labelText !== ""
                 color: root.subtext0
                 font.pixelSize: 10
-                font.family: "JetBrains Mono"
+                font.family: holdCard.labelFontFamily
                 font.weight: Font.Bold
                 anchors.horizontalCenter: parent.horizontalCenter
             }
@@ -1512,6 +1514,8 @@ Item {
                         Layout.preferredWidth: width
                         valueText: "Clear all"
                         labelText: ""
+                        valueFontFamily: "Fira Sans Semibold"
+                        labelFontFamily: "Fira Sans Semibold"
 
                         onActivated: {
                             root.dismissAllNotifications();

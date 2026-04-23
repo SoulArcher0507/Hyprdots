@@ -134,6 +134,7 @@ Item {
     readonly property color ambientSecondary: ThemePkg.Theme.c5
 
     readonly property color activeColor: root.accent
+    readonly property string textFont: "Fira Sans Semibold"
 
     property real globalOrbitAngle: 0
     property bool autolockNotificationPending: false
@@ -1299,7 +1300,7 @@ Item {
                             Text {
                                 text: root.upHours.toString().padStart(2, '0')
                                 font.pixelSize: 17
-                                font.family: "Noto Sans"
+                                font.family: root.textFont
                                 font.weight: Font.Black
                                 color: root.ambientPrimary
                                 anchors.horizontalCenter: parent.horizontalCenter
@@ -1312,7 +1313,7 @@ Item {
                             Text {
                                 text: "HR"
                                 font.pixelSize: 7
-                                font.family: "Noto Sans"
+                                font.family: root.textFont
                                 font.weight: Font.Bold
                                 color: root.subtext0
                                 anchors.horizontalCenter: parent.horizontalCenter
@@ -1324,7 +1325,7 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                         text: ":"
                         font.pixelSize: 20
-                        font.family: "Noto Sans"
+                        font.family: root.textFont
                         font.weight: Font.Black
                         color: root.ambientPrimary
                         Behavior on color {
@@ -1373,7 +1374,7 @@ Item {
                             Text {
                                 text: root.upMins.toString().padStart(2, '0')
                                 font.pixelSize: 17
-                                font.family: "Noto Sans"
+                                font.family: root.textFont
                                 font.weight: Font.Black
                                 color: root.ambientSecondary
                                 anchors.horizontalCenter: parent.horizontalCenter
@@ -1386,7 +1387,7 @@ Item {
                             Text {
                                 text: "MIN"
                                 font.pixelSize: 7
-                                font.family: "Noto Sans"
+                                font.family: root.textFont
                                 font.weight: Font.Bold
                                 color: root.subtext0
                                 anchors.horizontalCenter: parent.horizontalCenter
@@ -1398,7 +1399,7 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                         text: ":"
                         font.pixelSize: 20
-                        font.family: "Noto Sans"
+                        font.family: root.textFont
                         font.weight: Font.Black
                         color: root.ambientSecondary
                         Behavior on color {
@@ -1447,7 +1448,7 @@ Item {
                             Text {
                                 text: root.upSecs.toString().padStart(2, '0')
                                 font.pixelSize: 17
-                                font.family: "Noto Sans"
+                                font.family: root.textFont
                                 font.weight: Font.Black
                                 color: root.accent2
                                 anchors.horizontalCenter: parent.horizontalCenter
@@ -1460,7 +1461,7 @@ Item {
                             Text {
                                 text: "SEC"
                                 font.pixelSize: 7
-                                font.family: "Noto Sans"
+                                font.family: root.textFont
                                 font.weight: Font.Bold
                                 color: root.subtext0
                                 anchors.horizontalCenter: parent.horizontalCenter
@@ -1548,7 +1549,7 @@ Item {
                                     verticalAlignment: Text.AlignVCenter
                                     renderType: Text.NativeRendering
                                     font.pixelSize: Math.round(parent.height * 0.5)
-                                    font.family: "Noto Sans"
+                                    font.family: root.textFont
                                     font.weight: Font.Black
                                 }
                             }
@@ -2117,7 +2118,7 @@ Item {
                                     text: root.resourceTitle(root.visibleDetailsKey) + " deep monitor"
                                     color: root.text
                                     font.pixelSize: 18
-                                    font.family: "Noto Sans"
+                                    font.family: root.textFont
                                     font.weight: Font.Black
                                 }
 
@@ -2127,7 +2128,7 @@ Item {
                                     text: root.expandedResourceLoading ? "Refreshing live telemetry..." : "Hold another tile to switch section. Click the close button to collapse."
                                     color: root.subtext0
                                     font.pixelSize: 11
-                                    font.family: "Noto Sans"
+                                    font.family: root.textFont
                                 }
                             }
 
@@ -2430,7 +2431,7 @@ Item {
                         text: updatesListPopup.titleStr
                         color: root.text
                         font.pixelSize: 22
-                        font.family: "Noto Sans"
+                        font.family: root.textFont
                         font.weight: Font.Black
                         Layout.alignment: Qt.AlignHCenter
                         Layout.fillWidth: true
@@ -2453,7 +2454,7 @@ Item {
                         radius: 10
                     }
 
-                    font.family: "Noto Sans"
+                    font.family: root.textFont
                     font.pixelSize: 14
 
                     padding: 8
@@ -2506,7 +2507,7 @@ Item {
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: "Fetching packages..."
                             color: root.subtext0
-                            font.family: "Noto Sans"
+                            font.family: root.textFont
                             font.pixelSize: 14
                             font.weight: Font.Bold
                         }
@@ -2529,7 +2530,7 @@ Item {
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: updatesSearch.text !== "" ? "No packages match your search." : "System is up to date."
                             color: root.subtext0
-                            font.family: "Noto Sans"
+                            font.family: root.textFont
                             font.pixelSize: 14
                             font.weight: Font.Bold
                         }
@@ -2612,7 +2613,7 @@ Item {
                                     text: "󰏔"
                                     color: root.accent
                                     font.pixelSize: 12
-                                    font.family: "Noto Sans"
+                                    font.family: root.textFont
                                 }
                             }
 
@@ -2620,7 +2621,7 @@ Item {
                                 text: model.pkgName
                                 color: root.text
                                 font.pixelSize: 13
-                                font.family: "Noto Sans"
+                                font.family: root.textFont
                                 Layout.fillWidth: true
                                 verticalAlignment: Text.AlignVCenter
                                 elide: Text.ElideRight
@@ -2695,7 +2696,7 @@ Item {
                         text: "Details: " + updatesListPopup.currentPackageName
                         color: root.text
                         font.pixelSize: 18
-                        font.family: "Noto Sans"
+                        font.family: root.textFont
                         font.weight: Font.Black
                         Layout.fillWidth: true
                         elide: Text.ElideRight
@@ -2904,7 +2905,7 @@ Item {
                     text: detailSection.title
                     color: root.text
                     font.pixelSize: 13
-                    font.family: "Noto Sans"
+                    font.family: root.textFont
                     font.weight: Font.Black
                 }
             }
@@ -2916,7 +2917,7 @@ Item {
                 wrapMode: Text.Wrap
                 color: root.subtext0
                 font.pixelSize: 10
-                font.family: "Noto Sans"
+                font.family: root.textFont
             }
 
             Column {
@@ -2958,7 +2959,7 @@ Item {
                 text: detailMetric.label
                 color: detailMetric.accentColor
                 font.pixelSize: 10
-                font.family: "Noto Sans"
+                font.family: root.textFont
                 font.weight: Font.Bold
             }
 
@@ -2968,7 +2969,7 @@ Item {
                 wrapMode: Text.Wrap
                 color: root.text
                 font.pixelSize: 15
-                font.family: "Noto Sans"
+                font.family: root.textFont
                 font.weight: Font.Black
             }
 
@@ -2979,7 +2980,7 @@ Item {
                 wrapMode: Text.Wrap
                 color: root.subtext0
                 font.pixelSize: 9
-                font.family: "Noto Sans"
+                font.family: root.textFont
             }
         }
     }
@@ -3022,7 +3023,7 @@ Item {
                     text: detailEntryRow.title
                     color: root.text
                     font.pixelSize: 12
-                    font.family: "Noto Sans"
+                    font.family: root.textFont
                     font.weight: Font.Bold
                     elide: Text.ElideRight
                 }
@@ -3033,7 +3034,7 @@ Item {
                     text: detailEntryRow.subtitle
                     color: root.subtext0
                     font.pixelSize: 10
-                    font.family: "Noto Sans"
+                    font.family: root.textFont
                     elide: Text.ElideRight
                 }
             }
@@ -3048,7 +3049,7 @@ Item {
                     text: detailEntryRow.primaryValue
                     color: detailEntryRow.accentColor
                     font.pixelSize: 11
-                    font.family: "Noto Sans"
+                    font.family: root.textFont
                     font.weight: Font.Black
                     horizontalAlignment: Text.AlignRight
                 }
@@ -3059,7 +3060,7 @@ Item {
                     text: detailEntryRow.secondaryValue
                     color: root.subtext0
                     font.pixelSize: 10
-                    font.family: "Noto Sans"
+                    font.family: root.textFont
                     horizontalAlignment: Text.AlignRight
                 }
             }
@@ -3089,7 +3090,7 @@ Item {
                     text: Math.round((chart.maxValue / 4) * index) + (chart.maxValue === 100 ? "%" : "")
                     color: ThemePkg.Theme.withAlpha(root.text, 0.40)
                     font.pixelSize: 8
-                    font.family: "Noto Sans"
+                    font.family: root.textFont
                     font.weight: Font.Bold
                     horizontalAlignment: Text.AlignRight
                 }
@@ -3186,7 +3187,7 @@ Item {
                     text: "Collecting live data for " + root.resourceTitle(root.visibleDetailsKey) + "..."
                     color: root.text
                     font.pixelSize: 13
-                    font.family: "Noto Sans"
+                    font.family: root.textFont
                     font.weight: Font.Bold
                 }
             }
@@ -3212,7 +3213,7 @@ Item {
                     text: root.expandedResourceError
                     color: root.text
                     font.pixelSize: 12
-                    font.family: "Noto Sans"
+                    font.family: root.textFont
                 }
             }
         }
@@ -3324,7 +3325,7 @@ Item {
                             text: "No process telemetry available right now."
                             color: root.subtext0
                             font.pixelSize: 11
-                            font.family: "Noto Sans"
+                            font.family: root.textFont
                         }
 
                         Repeater {
@@ -3440,7 +3441,7 @@ Item {
                             text: "No process telemetry available right now."
                             color: root.subtext0
                             font.pixelSize: 11
-                            font.family: "Noto Sans"
+                            font.family: root.textFont
                         }
 
                         Repeater {
@@ -3536,7 +3537,7 @@ Item {
                             text: "No block devices detected."
                             color: root.subtext0
                             font.pixelSize: 11
-                            font.family: "Noto Sans"
+                            font.family: root.textFont
                         }
 
                         Repeater {
@@ -3570,7 +3571,7 @@ Item {
                                                 text: modelData.name + (modelData.model ? "  " + modelData.model : "")
                                                 color: root.text
                                                 font.pixelSize: 12
-                                                font.family: "Noto Sans"
+                                                font.family: root.textFont
                                                 font.weight: Font.Black
                                                 wrapMode: Text.Wrap
                                             }
@@ -3579,7 +3580,7 @@ Item {
                                                 text: (modelData.transport ? modelData.transport.toUpperCase() + "  •  " : "") + root.formatBytes(modelData.total_bytes)
                                                 color: root.subtext0
                                                 font.pixelSize: 10
-                                                font.family: "Noto Sans"
+                                                font.family: root.textFont
                                             }
                                         }
 
@@ -3593,7 +3594,7 @@ Item {
                                                 text: root.formatBytes(modelData.used_bytes) + " / " + root.formatBytes(modelData.total_bytes)
                                                 color: root.resourceAccent("disk")
                                                 font.pixelSize: 11
-                                                font.family: "Noto Sans"
+                                                font.family: root.textFont
                                                 font.weight: Font.Black
                                                 horizontalAlignment: Text.AlignRight
                                             }
@@ -3603,7 +3604,7 @@ Item {
                                                 text: root.formatPercent(modelData.percent, 1)
                                                 color: root.subtext0
                                                 font.pixelSize: 10
-                                                font.family: "Noto Sans"
+                                                font.family: root.textFont
                                                 horizontalAlignment: Text.AlignRight
                                             }
                                         }
@@ -3617,14 +3618,14 @@ Item {
                                             text: "Read  " + root.formatRate(modelData.read_bps)
                                             color: root.text
                                             font.pixelSize: 10
-                                            font.family: "Noto Sans"
+                                            font.family: root.textFont
                                         }
 
                                         Text {
                                             text: "Write  " + root.formatRate(modelData.write_bps)
                                             color: root.text
                                             font.pixelSize: 10
-                                            font.family: "Noto Sans"
+                                            font.family: root.textFont
                                         }
                                     }
 
@@ -3660,7 +3661,7 @@ Item {
                             text: "No active disk-heavy processes detected in this sample window."
                             color: root.subtext0
                             font.pixelSize: 11
-                            font.family: "Noto Sans"
+                            font.family: root.textFont
                         }
 
                         Repeater {
@@ -3754,7 +3755,7 @@ Item {
                         text: gpuData.message
                         color: root.subtext0
                         font.pixelSize: 10
-                        font.family: "Noto Sans"
+                        font.family: root.textFont
                     }
                 }
 
@@ -3786,7 +3787,7 @@ Item {
                             text: gpuData.available ? "No active GPU processes reported in this sample." : "Detailed GPU process telemetry is not available for the current session."
                             color: root.subtext0
                             font.pixelSize: 11
-                            font.family: "Noto Sans"
+                            font.family: root.textFont
                         }
 
                         Repeater {
@@ -4037,7 +4038,7 @@ Item {
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: bubble.value
-                font.family: "Noto Sans"
+                font.family: root.textFont
                 font.weight: Font.Black
                 font.pixelSize: bubble.showUpdateState ? (bubble.compact ? 18 : 32) : (bubble.compact ? 22 : 42)
                 color: bubble.bubblePrimaryTextColor
@@ -4045,7 +4046,7 @@ Item {
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: bubble.fillLevel > 0.01 ? "Hold..." : bubble.label
-                font.family: "Noto Sans"
+                font.family: root.textFont
                 font.weight: Font.Bold
                 font.pixelSize: bubble.compact ? 9 : 11
                 color: bubble.fillLevel > 0.01 ? bubble.bubblePrimaryTextColor : bubble.bubbleSecondaryTextColor
@@ -4070,7 +4071,7 @@ Item {
                 Text {
                     Layout.alignment: Qt.AlignHCenter
                     text: bubble.value
-                    font.family: "Noto Sans"
+                    font.family: root.textFont
                     font.weight: Font.Black
                     font.pixelSize: bubble.showUpdateState ? (bubble.compact ? 18 : 32) : (bubble.compact ? 22 : 42)
                     color: root.text
@@ -4078,7 +4079,7 @@ Item {
                 Text {
                     Layout.alignment: Qt.AlignHCenter
                     text: bubble.fillLevel > 0.01 ? "Hold..." : bubble.label
-                    font.family: "Noto Sans"
+                    font.family: root.textFont
                     font.weight: Font.Bold
                     font.pixelSize: bubble.compact ? 9 : 11
                     color: root.text
@@ -4585,7 +4586,7 @@ Item {
                 text: resCardRoot.value
                 color: resCardRoot.selected ? resCardRoot.accentColor : root.text
                 font.pixelSize: 20
-                font.family: "Noto Sans"
+                font.family: root.textFont
                 font.weight: Font.Black
                 anchors.horizontalCenter: parent.horizontalCenter
             }
@@ -4593,7 +4594,7 @@ Item {
                 text: resCardRoot.fillLevel > 0.01 ? "Hold..." : resCardRoot.title
                 color: root.subtext0
                 font.pixelSize: 10
-                font.family: "Noto Sans"
+                font.family: root.textFont
                 font.weight: Font.Bold
                 anchors.horizontalCenter: parent.horizontalCenter
             }
@@ -4616,7 +4617,7 @@ Item {
                     text: resCardRoot.value
                     color: root.crust
                     font.pixelSize: 20
-                    font.family: "Noto Sans"
+                    font.family: root.textFont
                     font.weight: Font.Black
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
@@ -4624,7 +4625,7 @@ Item {
                     text: resCardRoot.fillLevel > 0.01 ? "Hold..." : resCardRoot.title
                     color: root.crust
                     font.pixelSize: 10
-                    font.family: "Noto Sans"
+                    font.family: root.textFont
                     font.weight: Font.Bold
                     anchors.horizontalCenter: parent.horizontalCenter
                 }

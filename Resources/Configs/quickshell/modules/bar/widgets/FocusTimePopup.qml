@@ -39,6 +39,7 @@ Item {
     readonly property var monthNames: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
     readonly property var weekDayNames: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     readonly property var weekDayLongNames: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    readonly property string textFont: "Fira Sans Semibold"
     property var globalDate: new Date()
     property var appDate: new Date()
     readonly property var activeDate: root.selectedAppClass === "" ? root.globalDate : root.appDate
@@ -767,7 +768,7 @@ Item {
                                         text: root.showAppDetail ? root.selectedAppName : (root.showWeekOverview ? "Week Overview" : (root.isTodaySelected ? "Today" : Qt.formatDate(root.activeDate, "dddd")))
                                         color: root.text
                                         font.pixelSize: 18
-                                        font.family: "Fira Sans"
+                                        font.family: root.textFont
                                         font.weight: Font.DemiBold
                                         horizontalAlignment: Text.AlignHCenter
                                     }
@@ -779,7 +780,7 @@ Item {
                                     text: root.showAppDetail ? Qt.formatDate(root.activeDate, "dddd, MMM d") : (root.weekRange !== "" ? root.weekRange : root.currentTitle)
                                     color: root.subtext0
                                     font.pixelSize: 11
-                                    font.family: "JetBrains Mono"
+                                    font.family: root.textFont
                                     horizontalAlignment: Text.AlignHCenter
                                 }
 
@@ -886,7 +887,7 @@ Item {
 
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
-                                font.family: "JetBrains Mono"
+                                font.family: root.textFont
                                 font.pixelSize: 12
                                 color: root.subtext0
                                 text: "Daily average"
@@ -894,7 +895,7 @@ Item {
 
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
-                                font.family: "JetBrains Mono"
+                                font.family: root.textFont
                                 font.weight: Font.Bold
                                 font.pixelSize: 19
                                 color: root.text
@@ -919,7 +920,7 @@ Item {
 
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
-                                font.family: "JetBrains Mono"
+                                font.family: root.textFont
                                 font.pixelSize: 12
                                 color: root.accent
                                 text: "Total Time"
@@ -927,7 +928,7 @@ Item {
 
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
-                                font.family: "JetBrains Mono"
+                                font.family: root.textFont
                                 font.weight: Font.Bold
                                 font.pixelSize: 24
                                 color: root.text
@@ -952,7 +953,7 @@ Item {
 
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
-                                font.family: "JetBrains Mono"
+                                font.family: root.textFont
                                 font.pixelSize: 12
                                 color: root.subtext0
                                 text: "vs Yesterday"
@@ -964,7 +965,7 @@ Item {
 
                                 Text {
                                     visible: root.totalSeconds !== root.yesterdaySeconds
-                                    font.family: "JetBrains Mono"
+                                    font.family: root.textFont
                                     font.weight: Font.Bold
                                     font.pixelSize: 20
                                     color: (root.totalSeconds - root.yesterdaySeconds) > 0 ? root.peach : root.green
@@ -973,7 +974,7 @@ Item {
 
                                 Text {
                                     visible: root.totalSeconds !== root.yesterdaySeconds
-                                    font.family: "JetBrains Mono"
+                                    font.family: root.textFont
                                     font.weight: Font.Bold
                                     font.pixelSize: 20
                                     color: (root.totalSeconds - root.yesterdaySeconds) > 0 ? root.peach : root.green
@@ -982,7 +983,7 @@ Item {
 
                                 Text {
                                     visible: root.totalSeconds === root.yesterdaySeconds
-                                    font.family: "JetBrains Mono"
+                                    font.family: root.textFont
                                     font.weight: Font.DemiBold
                                     font.pixelSize: 13
                                     color: root.overlay0
@@ -1075,7 +1076,7 @@ Item {
 
                                         anchors.bottom: parent.bottom
                                         anchors.horizontalCenter: parent.horizontalCenter
-                                        font.family: "JetBrains Mono"
+                                        font.family: root.textFont
                                         font.pixelSize: 12
                                         color: isTarget ? root.text : root.overlay0
                                         text: dayName
@@ -1105,7 +1106,7 @@ Item {
 
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
-                                font.family: "JetBrains Mono"
+                                font.family: root.textFont
                                 font.weight: Font.DemiBold
                                 font.pixelSize: 14
                                 color: root.text
@@ -1183,7 +1184,7 @@ Item {
 
                                     Text {
                                         Layout.preferredWidth: 68
-                                        font.family: "JetBrains Mono"
+                                        font.family: root.textFont
                                         font.pixelSize: 12
                                         color: root.subtext0
                                         text: root.weekDayLongNames[dayIndex]
@@ -1245,7 +1246,7 @@ Item {
                                 }
 
                                 Text {
-                                    font.family: "JetBrains Mono"
+                                    font.family: root.textFont
                                     font.pixelSize: 11
                                     color: root.overlay0
                                     text: "00:00"
@@ -1256,7 +1257,7 @@ Item {
                                 }
 
                                 Text {
-                                    font.family: "JetBrains Mono"
+                                    font.family: root.textFont
                                     font.pixelSize: 11
                                     color: root.overlay0
                                     text: "06:00"
@@ -1267,7 +1268,7 @@ Item {
                                 }
 
                                 Text {
-                                    font.family: "JetBrains Mono"
+                                    font.family: root.textFont
                                     font.pixelSize: 11
                                     color: root.overlay0
                                     text: "12:00"
@@ -1278,7 +1279,7 @@ Item {
                                 }
 
                                 Text {
-                                    font.family: "JetBrains Mono"
+                                    font.family: root.textFont
                                     font.pixelSize: 11
                                     color: root.overlay0
                                     text: "18:00"
@@ -1289,7 +1290,7 @@ Item {
                                 }
 
                                 Text {
-                                    font.family: "JetBrains Mono"
+                                    font.family: root.textFont
                                     font.pixelSize: 11
                                     color: root.overlay0
                                     text: "23:00"
@@ -1316,7 +1317,7 @@ Item {
 
                                     Text {
                                         Layout.alignment: Qt.AlignHCenter
-                                        font.family: "JetBrains Mono"
+                                        font.family: root.textFont
                                         font.pixelSize: 12
                                         color: root.subtext0
                                         text: "Daily average"
@@ -1324,7 +1325,7 @@ Item {
 
                                     Text {
                                         Layout.alignment: Qt.AlignHCenter
-                                        font.family: "JetBrains Mono"
+                                        font.family: root.textFont
                                         font.weight: Font.Bold
                                         font.pixelSize: 18
                                         color: root.text
@@ -1347,7 +1348,7 @@ Item {
 
                                     Text {
                                         Layout.alignment: Qt.AlignHCenter
-                                        font.family: "JetBrains Mono"
+                                        font.family: root.textFont
                                         font.pixelSize: 12
                                         color: root.subtext0
                                         text: "Peak hours"
@@ -1355,7 +1356,7 @@ Item {
 
                                     Text {
                                         Layout.alignment: Qt.AlignHCenter
-                                        font.family: "JetBrains Mono"
+                                        font.family: root.textFont
                                         font.weight: Font.Bold
                                         font.pixelSize: 14
                                         color: root.text
@@ -1389,7 +1390,7 @@ Item {
                             Layout.fillWidth: true
 
                             Text {
-                                font.family: "JetBrains Mono"
+                                font.family: root.textFont
                                 font.weight: Font.DemiBold
                                 font.pixelSize: 14
                                 color: root.text
@@ -1477,7 +1478,7 @@ Item {
 
                                         Text {
                                             Layout.fillWidth: true
-                                            font.family: "JetBrains Mono"
+                                            font.family: root.textFont
                                             font.weight: Font.DemiBold
                                             font.pixelSize: 15
                                             color: root.text
@@ -1486,7 +1487,7 @@ Item {
                                         }
 
                                         Text {
-                                            font.family: "JetBrains Mono"
+                                            font.family: root.textFont
                                             font.weight: Font.Medium
                                             font.pixelSize: 14
                                             color: root.subtext0
@@ -1538,7 +1539,7 @@ Item {
                         Text {
                             Layout.alignment: Qt.AlignHCenter
                             visible: appListModel.count === 0
-                            font.family: "JetBrains Mono"
+                            font.family: root.textFont
                             font.pixelSize: 13
                             color: root.overlay0
                             text: "No app activity for this day"
@@ -1565,7 +1566,7 @@ Item {
                             Layout.fillWidth: true
 
                             Text {
-                                font.family: "JetBrains Mono"
+                                font.family: root.textFont
                                 font.weight: Font.DemiBold
                                 font.pixelSize: 14
                                 color: root.text
@@ -1654,7 +1655,7 @@ Item {
 
                                         Text {
                                             Layout.fillWidth: true
-                                            font.family: "JetBrains Mono"
+                                            font.family: root.textFont
                                             font.weight: Font.DemiBold
                                             font.pixelSize: 15
                                             color: root.text
@@ -1663,7 +1664,7 @@ Item {
                                         }
 
                                         Text {
-                                            font.family: "JetBrains Mono"
+                                            font.family: root.textFont
                                             font.weight: Font.Medium
                                             font.pixelSize: 14
                                             color: root.subtext0
@@ -1715,7 +1716,7 @@ Item {
                         Text {
                             Layout.alignment: Qt.AlignHCenter
                             visible: weekAppListModel.count === 0
-                            font.family: "JetBrains Mono"
+                            font.family: root.textFont
                             font.pixelSize: 13
                             color: root.overlay0
                             text: "No activity recorded in this week"
@@ -1818,7 +1819,7 @@ Item {
 
                                                     anchors.bottom: parent.bottom
                                                     anchors.horizontalCenter: parent.horizontalCenter
-                                                    font.family: "JetBrains Mono"
+                                                    font.family: root.textFont
                                                     font.pixelSize: 9
                                                     color: isTarget ? root.text : root.overlay0
                                                     text: dayName
@@ -1849,7 +1850,7 @@ Item {
 
                                     Text {
                                         Layout.alignment: Qt.AlignHCenter
-                                        font.family: "JetBrains Mono"
+                                        font.family: root.textFont
                                         font.weight: Font.DemiBold
                                         font.pixelSize: 12
                                         color: root.text
@@ -1914,7 +1915,7 @@ Item {
 
                                     Text {
                                         anchors.centerIn: parent
-                                        font.family: "JetBrains Mono"
+                                        font.family: root.textFont
                                         font.weight: Font.DemiBold
                                         font.pixelSize: 13
                                         color: root.text
@@ -1931,7 +1932,7 @@ Item {
 
                                         Text {
                                             anchors.centerIn: parent
-                                            font.family: "JetBrains Mono"
+                                            font.family: root.textFont
                                             font.weight: Font.Bold
                                             font.pixelSize: 13
                                             color: root.text
@@ -1979,7 +1980,7 @@ Item {
                                         anchors.bottom: parent.bottom
 
                                         Text {
-                                            font.family: "JetBrains Mono"
+                                            font.family: root.textFont
                                             font.pixelSize: 11
                                             color: root.overlay0
                                             text: "00:00"
@@ -1990,7 +1991,7 @@ Item {
                                         }
 
                                         Text {
-                                            font.family: "JetBrains Mono"
+                                            font.family: root.textFont
                                             font.pixelSize: 11
                                             color: root.overlay0
                                             text: "06:00"
@@ -2001,7 +2002,7 @@ Item {
                                         }
 
                                         Text {
-                                            font.family: "JetBrains Mono"
+                                            font.family: root.textFont
                                             font.pixelSize: 11
                                             color: root.overlay0
                                             text: "12:00"
@@ -2012,7 +2013,7 @@ Item {
                                         }
 
                                         Text {
-                                            font.family: "JetBrains Mono"
+                                            font.family: root.textFont
                                             font.pixelSize: 11
                                             color: root.overlay0
                                             text: "18:00"
@@ -2023,7 +2024,7 @@ Item {
                                         }
 
                                         Text {
-                                            font.family: "JetBrains Mono"
+                                            font.family: root.textFont
                                             font.pixelSize: 11
                                             color: root.overlay0
                                             text: "23:00"
@@ -2143,7 +2144,7 @@ Item {
             text: actionRoot.label
             color: root.text
             font.pixelSize: 14
-            font.family: "JetBrains Mono"
+            font.family: root.textFont
             font.weight: Font.DemiBold
         }
 

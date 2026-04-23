@@ -7,6 +7,7 @@ import "../theme" as ThemePkg
 
 Scope {
     id: root
+    readonly property string textFont: "Fira Sans Semibold"
 
     readonly property string triggerPath: Quickshell.env("HOME") + "/.cache/quickshell/brightness-overlay.trigger"
     property real globalOrbitAngle: 0
@@ -321,7 +322,7 @@ Scope {
                             anchors.centerIn: parent
                             text: win.stateLabel
                             color: win.subtext0
-                            font.family: "JetBrains Mono"
+                            font.family: root.textFont
                             font.pixelSize: 11
                             font.weight: Font.DemiBold
                         }
@@ -478,7 +479,7 @@ Scope {
                                     y: 46
                                     text: win.available ? (win.brightnessPct + "%") : "--"
                                     color: win.available ? win.text : win.subtext0
-                                    font.family: "JetBrains Mono"
+                                    font.family: root.textFont
                                     font.pixelSize: 24
                                     font.weight: Font.Black
                                     Behavior on color { ColorAnimation { duration: 200 } }
@@ -498,7 +499,7 @@ Scope {
                                         y: 46 - (core.height - waveClipItem.height)
                                         text: win.brightnessPct + "%"
                                         color: win.crust
-                                        font.family: "JetBrains Mono"
+                                        font.family: root.textFont
                                         font.pixelSize: 24
                                         font.weight: Font.Black
                                     }

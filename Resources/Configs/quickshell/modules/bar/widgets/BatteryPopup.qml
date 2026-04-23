@@ -103,6 +103,7 @@ Item {
     readonly property color sapphire: ThemePkg.Theme.c4
     readonly property color blue: ThemePkg.Theme.c4
     readonly property color panelBorderColor: ThemePkg.Theme.mix(ThemePkg.Theme.background, ThemePkg.Theme.foreground, 0.35)
+    readonly property string textFont: "Fira Sans Semibold"
 
     property int batCapacity: 0
     property string batStatus: "Unknown"
@@ -523,7 +524,7 @@ Item {
                     Text {
                         text: window.batteryEtaHoursText
                         font.pixelSize: 18
-                        font.family: "JetBrains Mono"
+                        font.family: window.textFont
                         font.weight: Font.Black
                         color: window.ambientPrimary
                         Behavior on color {
@@ -536,7 +537,7 @@ Item {
                     Text {
                         text: "HR"
                         font.pixelSize: 8
-                        font.family: "JetBrains Mono"
+                        font.family: window.textFont
                         font.weight: Font.Bold
                         color: window.subtext0
                         anchors.horizontalCenter: parent.horizontalCenter
@@ -548,7 +549,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 text: ":"
                 font.pixelSize: 22
-                font.family: "JetBrains Mono"
+                font.family: window.textFont
                 font.weight: Font.Black
                 color: window.ambientPrimary
                 Behavior on color {
@@ -599,7 +600,7 @@ Item {
                     Text {
                         text: window.batteryEtaMinsText
                         font.pixelSize: 18
-                        font.family: "JetBrains Mono"
+                        font.family: window.textFont
                         font.weight: Font.Black
                         color: window.ambientSecondary
                         Behavior on color {
@@ -612,7 +613,7 @@ Item {
                     Text {
                         text: "MIN"
                         font.pixelSize: 8
-                        font.family: "JetBrains Mono"
+                        font.family: window.textFont
                         font.weight: Font.Bold
                         color: window.subtext0
                         anchors.horizontalCenter: parent.horizontalCenter
@@ -864,7 +865,7 @@ Item {
 
                         Text {
                             Layout.alignment: Qt.AlignHCenter
-                            font.family: "JetBrains Mono"
+                            font.family: window.textFont
                             font.weight: Font.Black
                             font.pixelSize: Math.round(window.animCapacity) >= 100 ? 32 : 40
                             color: window.text
@@ -873,7 +874,7 @@ Item {
 
                         Text {
                             Layout.alignment: Qt.AlignHCenter
-                            font.family: "JetBrains Mono"
+                            font.family: window.textFont
                             font.weight: Font.Bold
                             font.pixelSize: 11
 
@@ -1136,7 +1137,7 @@ Item {
                                         }
                                     }
                                     Text {
-                                        font.family: "JetBrains Mono"
+                                        font.family: window.textFont
                                         font.weight: Font.Black
                                         font.pixelSize: 13
                                         color: window.powerProfile === name ? window.crust : (profileMa.containsMouse ? window.text : window.subtext0)

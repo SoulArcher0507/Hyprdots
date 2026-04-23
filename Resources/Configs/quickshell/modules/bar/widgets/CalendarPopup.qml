@@ -80,6 +80,7 @@ Item {
     readonly property color yellow: ThemePkg.Theme.c3
     readonly property color teal: ThemePkg.Theme.c6
     readonly property color green: ThemePkg.Theme.success
+    readonly property string textFont: "Fira Sans Semibold"
     readonly property int panelMargin: 16
     readonly property int sidePanelWidth: 308
     readonly property int sidePanelHeight: 538
@@ -655,7 +656,7 @@ Item {
                         spacing: 2
                         Text {
                             text: Qt.formatTime(window.currentTime, "HH:mm")
-                            font.family: "JetBrains Mono"
+                            font.family: window.textFont
                             font.weight: Font.Black
                             font.pixelSize: 68
                             color: window.text
@@ -663,7 +664,7 @@ Item {
                         }
                         Text {
                             text: Qt.formatTime(window.currentTime, ":ss")
-                            font.family: "JetBrains Mono"
+                            font.family: window.textFont
                             font.weight: Font.Bold
                             font.pixelSize: 24
                             color: window.textAccent
@@ -678,7 +679,7 @@ Item {
                     Text {
                         Layout.alignment: Qt.AlignHCenter
                         text: Qt.formatDateTime(window.currentTime, "dddd, MMMM dd")
-                        font.family: "JetBrains Mono"
+                        font.family: window.textFont
                         font.weight: Font.Bold
                         font.pixelSize: 14
                         color: window.subtext0
@@ -796,7 +797,7 @@ Item {
                                     Text { 
                                         Layout.alignment: Qt.AlignHCenter
                                         text: modelData.time
-                                        font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: 11
+                                        font.family: window.textFont; font.weight: Font.Bold; font.pixelSize: 11
                                         color: isHighlighted ? window.base : (hrMa.containsMouse ? window.text : window.overlay1)
                                     }
                                     
@@ -815,7 +816,7 @@ Item {
                                     
                                     Text { 
                                         Layout.alignment: Qt.AlignHCenter; text: modelData.temp + "°"
-                                        font.family: "JetBrains Mono"; font.weight: Font.Black; font.pixelSize: 13
+                                        font.family: window.textFont; font.weight: Font.Black; font.pixelSize: 13
                                         color: isHighlighted ? window.base : window.text 
                                     }
                                 }
@@ -863,7 +864,7 @@ Item {
                         Text {
                             Layout.fillWidth: true
                             text: window.targetMonthName.toUpperCase()
-                            font.family: "JetBrains Mono"
+                            font.family: window.textFont
                             font.weight: Font.Black
                             font.pixelSize: 16
                             color: window.text
@@ -890,7 +891,7 @@ Item {
                             Text {
                                 Layout.fillWidth: true
                                 text: modelData
-                                font.family: "JetBrains Mono"
+                                font.family: window.textFont
                                 font.weight: Font.Black
                                 font.pixelSize: 13
                                 color: window.overlay0
@@ -933,7 +934,7 @@ Item {
                                 Text {
                                     anchors.centerIn: parent
                                     text: dayNum
-                                    font.family: "JetBrains Mono"
+                                    font.family: window.textFont
                                     font.weight: isToday ? Font.Black : Font.Bold
                                     font.pixelSize: 15
                                     color: isToday ? window.base : (isCurrentMonth ? window.text : window.surface0)
@@ -997,7 +998,7 @@ Item {
                             Layout.preferredWidth: 110
                             horizontalAlignment: Text.AlignHCenter
                             text: window.weatherData && window.weatherData.forecast[window.weatherView] ? window.weatherData.forecast[window.weatherView].day_full.toUpperCase() : "LOADING..."
-                            font.family: "JetBrains Mono"
+                            font.family: window.textFont
                             font.weight: Font.Black
                             font.pixelSize: 16
                             color: window.text
@@ -1035,7 +1036,7 @@ Item {
                         Text {
                             Layout.alignment: Qt.AlignHCenter 
                             text: Math.round(window.displayedTemp) + "°"
-                            font.family: "JetBrains Mono"
+                            font.family: window.textFont
                             font.weight: Font.Black
                             font.pixelSize: 64
                             color: window.tempGlowColor
@@ -1049,7 +1050,7 @@ Item {
                         Text {
                             Layout.alignment: Qt.AlignHCenter
                             text: window.weatherData && window.weatherData.forecast[window.weatherView] ? window.weatherData.forecast[window.weatherView].desc : ""
-                            font.family: "JetBrains Mono"
+                            font.family: window.textFont
                             font.weight: Font.Bold
                             font.pixelSize: 13
                             color: window.textAccent
@@ -1160,7 +1161,7 @@ Item {
                                     Text {
                                         anchors.centerIn: parent
                                         text: parent.parent.gaugeVal
-                                        font.family: "JetBrains Mono"
+                                        font.family: window.textFont
                                         font.weight: Font.Black
                                         font.pixelSize: 12
                                         color: window.text
@@ -1185,7 +1186,7 @@ Item {
                                     }
                                     Text { 
                                         text: parent.parent.gaugeLbl
-                                        font.family: "JetBrains Mono"
+                                        font.family: window.textFont
                                         font.weight: Font.Bold
                                         font.pixelSize: 11
                                         color: window.overlay0 

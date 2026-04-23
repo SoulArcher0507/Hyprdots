@@ -43,6 +43,7 @@ Item {
     readonly property color mauve: ThemePkg.Theme.c5
     readonly property color peach: ThemePkg.Theme.warning
     readonly property color pink: ThemePkg.Theme.c13
+    readonly property string textFont: "Fira Sans Semibold"
 
     property color moduleColor: ThemePkg.Theme.surface(0.10)
     property color moduleBorderColor: ThemePkg.Theme.mix(ThemePkg.Theme.background, ThemePkg.Theme.foreground, 0.35)
@@ -571,7 +572,7 @@ Item {
 
                                     Text {
                                         anchors.centerIn: parent
-                                        font.family: "JetBrains Mono"
+                                        font.family: root.textFont
                                         font.weight: Font.Black
                                         font.pixelSize: 32
                                         color: root.activeMute ? root.red : root.text
@@ -597,7 +598,7 @@ Item {
                                         Text {
                                             x: waveClipItem.width / 2 - width / 2
                                             y: (centralCore.height / 2) - (height / 2) - (centralCore.height - waveClipItem.height)
-                                            font.family: "JetBrains Mono"
+                                            font.family: root.textFont
                                             font.weight: Font.Black
                                             font.pixelSize: 32
                                             color: root.crust
@@ -628,13 +629,13 @@ Item {
                                     spacing: 2
                                     Text {
                                         Layout.fillWidth: true; elide: Text.ElideRight
-                                        font.family: "JetBrains Mono"; font.weight: Font.Black; font.pixelSize: 20
+                                        font.family: root.textFont; font.weight: Font.Black; font.pixelSize: 20
                                         color: root.text
                                         text: root.activeName
                                     }
                                     Text {
                                         Layout.fillWidth: true; elide: Text.ElideRight
-                                        font.family: "JetBrains Mono"; font.pixelSize: 13
+                                        font.family: root.textFont; font.pixelSize: 13
                                         color: root.subtext0
                                         text: root.activeTab === "apps" ? "Master Output Volume" : root.activeDesc
                                     }
@@ -825,7 +826,7 @@ Item {
                                             Behavior on color { ColorAnimation { duration: 200 } }
                                         }
                                         Text {
-                                            font.family: "JetBrains Mono"; font.weight: Font.Black; font.pixelSize: 13
+                                            font.family: root.textFont; font.weight: Font.Black; font.pixelSize: 13
                                             color: root.activeTab === tabId ? root.crust : (tabMa.containsMouse ? root.text : root.subtext0)
                                             text: label
                                             Behavior on color { ColorAnimation { duration: 200 } }
@@ -907,7 +908,7 @@ Item {
                                     anchors.centerIn: parent
                                     spacing: 10
                                     Text { Layout.alignment: Qt.AlignHCenter; font.family: "CaskaydiaMono Nerd Font"; font.pixelSize: 32; color: root.surface2; text: "󰖁" }
-                                    Text { Layout.alignment: Qt.AlignHCenter; font.family: "JetBrains Mono"; font.pixelSize: 14; color: root.overlay0; text: "No active streams" }
+                                    Text { Layout.alignment: Qt.AlignHCenter; font.family: root.textFont; font.pixelSize: 14; color: root.overlay0; text: "No active streams" }
                                 }
                             }
 
@@ -984,13 +985,13 @@ Item {
                                             spacing: 2
                                             Text {
                                                 Layout.fillWidth: true; elide: Text.ElideRight
-                                                font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: 14
+                                                font.family: root.textFont; font.weight: Font.Bold; font.pixelSize: 14
                                                 color: isActiveNode ? root.crust : root.text
                                                 text: model.description
                                             }
                                             Text {
                                                 Layout.fillWidth: true; elide: Text.ElideRight
-                                                font.family: "JetBrains Mono"; font.pixelSize: 11
+                                                font.family: root.textFont; font.pixelSize: 11
                                                 color: isActiveNode ? Qt.darker(root.crust, 1.5) : root.subtext0
                                                 text: isActiveNode ? "Active Default" : model.name
                                             }
@@ -1100,7 +1101,7 @@ Item {
 
                                         Text {
                                             Layout.preferredWidth: 35
-                                            font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: 12
+                                            font.family: root.textFont; font.weight: Font.Bold; font.pixelSize: 12
                                             color: root.subtext0
                                             text: model.volume + "%"
                                             horizontalAlignment: Text.AlignRight
