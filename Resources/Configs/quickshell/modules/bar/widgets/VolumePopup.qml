@@ -43,7 +43,7 @@ Item {
     readonly property color mauve: ThemePkg.Theme.c5
     readonly property color peach: ThemePkg.Theme.warning
     readonly property color pink: ThemePkg.Theme.c13
-    readonly property string textFont: "Fira Sans Semibold"
+    readonly property string textFont: "Fira Sans"
 
     property color moduleColor: ThemePkg.Theme.surface(0.10)
     property color moduleBorderColor: ThemePkg.Theme.mix(ThemePkg.Theme.background, ThemePkg.Theme.foreground, 0.35)

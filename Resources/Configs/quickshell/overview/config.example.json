@@ -18,9 +18,9 @@
     },
     "font": {
       "family": {
-        "main": "Fira Sans Semibold",
-        "title": "Fira Sans Semibold",
-        "expressive": "Fira Sans Semibold"
+        "main": "Fira Sans",
+        "title": "Fira Sans",
+        "expressive": "Fira Sans"
       },
       "pixelSize": {
         "smaller": 12,

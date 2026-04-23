@@ -7,7 +7,7 @@ import "../theme" as ThemePkg
 
 Scope {
     id: root
-    readonly property string textFont: "Fira Sans Semibold"
+    readonly property string textFont: "Fira Sans"
 
     readonly property string triggerPath: Quickshell.env("HOME") + "/.cache/quickshell/brightness-overlay.trigger"
     property real globalOrbitAngle: 0

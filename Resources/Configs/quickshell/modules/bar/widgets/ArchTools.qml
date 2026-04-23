@@ -134,7 +134,7 @@ Item {
     readonly property color ambientSecondary: ThemePkg.Theme.c5
 
     readonly property color activeColor: root.accent
-    readonly property string textFont: "Fira Sans Semibold"
+    readonly property string textFont: "Fira Sans"
 
     property real globalOrbitAngle: 0
     property bool autolockNotificationPending: false

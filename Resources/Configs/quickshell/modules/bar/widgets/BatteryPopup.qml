@@ -103,7 +103,7 @@ Item {
     readonly property color sapphire: ThemePkg.Theme.c4
     readonly property color blue: ThemePkg.Theme.c4
     readonly property color panelBorderColor: ThemePkg.Theme.mix(ThemePkg.Theme.background, ThemePkg.Theme.foreground, 0.35)
-    readonly property string textFont: "Fira Sans Semibold"
+    readonly property string textFont: "Fira Sans"
 
     property int batCapacity: 0
     property string batStatus: "Unknown"

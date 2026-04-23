@@ -80,7 +80,7 @@ Item {
     readonly property color yellow: ThemePkg.Theme.c3
     readonly property color teal: ThemePkg.Theme.c6
     readonly property color green: ThemePkg.Theme.success
-    readonly property string textFont: "Fira Sans Semibold"
+    readonly property string textFont: "Fira Sans"
     readonly property int panelMargin: 16
     readonly property int sidePanelWidth: 308
     readonly property int sidePanelHeight: 538

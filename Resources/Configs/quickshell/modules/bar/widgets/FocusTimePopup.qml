@@ -39,7 +39,7 @@ Item {
     readonly property var monthNames: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
     readonly property var weekDayNames: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     readonly property var weekDayLongNames: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-    readonly property string textFont: "Fira Sans Semibold"
+    readonly property string textFont: "Fira Sans"
     property var globalDate: new Date()
     property var appDate: new Date()
     readonly property var activeDate: root.selectedAppClass === "" ? root.globalDate : root.appDate

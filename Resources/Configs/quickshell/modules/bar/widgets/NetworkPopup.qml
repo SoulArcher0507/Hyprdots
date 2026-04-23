@@ -167,7 +167,7 @@ Item {
     readonly property color maroon: ThemePkg.Theme.c1
     readonly property color peach: ThemePkg.Theme.warning
     readonly property color panelBorderColor: ThemePkg.Theme.mix(ThemePkg.Theme.background, ThemePkg.Theme.foreground, 0.35)
-    readonly property string textFont: "Fira Sans Semibold"
+    readonly property string textFont: "Fira Sans"
 
     readonly property string scriptsDir: Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/network"
     readonly property string trafficScriptPath: window.scriptsDir + "/traffic_panel_logic.sh"

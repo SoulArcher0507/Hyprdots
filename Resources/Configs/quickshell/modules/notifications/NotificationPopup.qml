@@ -1514,8 +1514,8 @@ Item {
                         Layout.preferredWidth: width
                         valueText: "Clear all"
                         labelText: ""
-                        valueFontFamily: "Fira Sans Semibold"
-                        labelFontFamily: "Fira Sans Semibold"
+                        valueFontFamily: "Fira Sans"
+                        labelFontFamily: "Fira Sans"
 
                         onActivated: {
                             root.dismissAllNotifications();

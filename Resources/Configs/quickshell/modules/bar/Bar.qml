@@ -725,7 +725,7 @@ Variants {
                                 verticalAlignment: Text.AlignVCenter
                                 renderType: Text.NativeRendering
                                 font.pixelSize: Math.round(parent.height * 0.5)
-                                font.family: "Fira Sans Semibold"
+                                font.family: "Fira Sans"
                                 font.weight: Font.Black
                             }
                         }
