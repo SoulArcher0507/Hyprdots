@@ -90,7 +90,9 @@ select LABEL in "${THEME_LABELS[@]}"; do
     echo ""
 done
 
-sudo pacman -R --noconfirm dunst
+if pacman -Q dunst >/dev/null 2>&1; then
+    sudo pacman -R --noconfirm dunst
+fi
 
 bash "$SCRIPT_DIR/Resources/Scripts/install_sddm.sh"
 sudo bash "$SCRIPT_DIR/Resources/Scripts/change_sddm_avatar.sh" "$TARGET_USER" "$SCRIPT_DIR/Resources/Wallpapers/hyprland.jpg"

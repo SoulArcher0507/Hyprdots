@@ -18,6 +18,7 @@ Hyprdots is my personal Arch Linux + Hyprland configuration built around Hyprlan
 ```bash
 git clone https://gitea.corradoenea.com/CorradoEnea/Hyprdots.git
 cd Hyprdots
+chmod +x install.sh
 ./install.sh
 ```
 
