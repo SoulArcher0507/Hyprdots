@@ -95,7 +95,7 @@ if pacman -Q dunst >/dev/null 2>&1; then
 fi
 
 bash "$SCRIPT_DIR/Resources/Scripts/install_sddm.sh"
-sudo bash "$SCRIPT_DIR/Resources/Scripts/change_sddm_avatar.sh" "$TARGET_USER" "$SCRIPT_DIR/Resources/Wallpapers/hyprland.jpg"
+sudo bash "$SCRIPT_DIR/Resources/Scripts/change_sddm_avatar.sh" "$TARGET_USER" "$SCRIPT_DIR/Resources/Wallpapers/elden.png"
 sudo bash "$SCRIPT_DIR/Resources/Scripts/install_plymouth_theme.sh" "lone" "$SCRIPT_DIR/Resources/Plymouth/plymouth-themes"
 run_target_bash "$SCRIPT_DIR/Resources/Scripts/zsh_enabler.sh"
 sudo bash "$SCRIPT_DIR/Resources/Scripts/dynamic_swap_file.sh"
@@ -113,6 +113,5 @@ sudo usermod -aG lp $USER   # add user to printer group
 sudo systemctl enable --now NetworkManager.service
 sudo systemctl enable --now firewalld
 sudo systemctl enable --now tailscaled
-sudo systemctl enable --now syncthing
 
 echo "=== INSTALLATION COMPLETE ==="

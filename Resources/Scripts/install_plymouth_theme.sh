@@ -68,6 +68,62 @@ copy_theme() {
   log "Theme copied to $target_dir"
 }
 
+resize_png_in_place() {
+  local image_path="$1"
+  local resize_percent="$2"
+  local resized_image=""
+
+  resized_image="$(mktemp --suffix=.png)"
+  if have_cmd magick; then
+    magick "$image_path" -resize "$resize_percent" "$resized_image"
+    mv -f "$resized_image" "$image_path"
+    return 0
+  fi
+
+  if have_cmd convert; then
+    convert "$image_path" -resize "$resize_percent" "$resized_image"
+    mv -f "$resized_image" "$image_path"
+    return 0
+  fi
+
+  rm -f "$resized_image"
+  return 1
+}
+
+resize_progress_frames() {
+  local theme_dir="$THEMES_DIR/$THEME_NAME"
+  local frame resized_any=0
+  local progress_frames=("$theme_dir"/progress-*.png)
+
+  shopt -s nullglob
+  progress_frames=("$theme_dir"/progress-*.png)
+  shopt -u nullglob
+
+  [[ ${#progress_frames[@]} -gt 0 ]] || return 0
+
+  for frame in "${progress_frames[@]}"; do
+    if resize_png_in_place "$frame" "50%"; then
+      resized_any=1
+    else
+      warn "ImageMagick not found, keeping loading animation at its original size."
+      return 1
+    fi
+  done
+
+  [[ $resized_any -eq 1 ]] && log "Loading animation resized to 50%."
+}
+
+reposition_loading_animation() {
+  local script_file="$1"
+  local old_y='flyingman_sprite.SetY(Window.GetY() + (Window.GetHeight(0) / 2 - flyingman_image[0].GetHeight() / 2));'
+  local new_y='flyingman_sprite.SetY(Window.GetY() + (Window.GetHeight(0) - flyingman_image[0].GetHeight() - 50));'
+
+  grep -Fq "$old_y" "$script_file" || die "Could not find the loading animation position in $script_file"
+  sed -i '/^flyingman_sprite\.SetY(Window\.GetY() + (Window\.GetHeight(0) \/ 2 - flyingman_image\[0\]\.GetHeight() \/ 2));$/c\'"$new_y" "$script_file"
+
+  log "Loading animation moved to the bottom of the screen."
+}
+
 inject_arch_logo() {
   local theme_dir="$THEMES_DIR/$THEME_NAME"
   local script_file="$1"
@@ -88,7 +144,7 @@ arch_logo_image = Image("archlinux-logo.png");
 arch_logo_sprite = Sprite();
 arch_logo_sprite.SetImage(arch_logo_image);
 arch_logo_sprite.SetX(Window.GetX() + (Window.GetWidth() / 2 - arch_logo_image.GetWidth() / 2));
-arch_logo_sprite.SetY(Window.GetHeight() - arch_logo_image.GetHeight() - 50);
+arch_logo_sprite.SetY(Window.GetY() + (Window.GetHeight() / 2 - arch_logo_image.GetHeight() / 2));
 # <<< arch-logo <<<
 EOF
 
@@ -277,6 +333,8 @@ main() {
 
   local script_file
   script_file="$(get_theme_script_file "$THEMES_DIR/$THEME_NAME")"
+  resize_progress_frames
+  reposition_loading_animation "$script_file"
   inject_arch_logo "$script_file"
 
   ensure_mkinitcpio_hooks
