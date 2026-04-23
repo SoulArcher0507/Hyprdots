@@ -1055,7 +1055,7 @@ ShellRoot {
                             }
                             Text {
                                 text: screenRoot.kbLayout
-                                font.family: root.monoFont
+                                font.family: "Fira Sans"
                                 font.pixelSize: 14
                                 font.weight: Font.Black
                                 color: root.fg
@@ -1127,7 +1127,7 @@ ShellRoot {
                             }
                             Text {
                                 text: screenRoot.batPct + "%"
-                                font.family: root.monoFont
+                                font.family: "Fira Sans"
                                 font.pixelSize: 14
                                 font.weight: Font.Black
                                 color: batLayoutRow.dynamicBatColor
@@ -1191,7 +1191,7 @@ ShellRoot {
                             }
                             Text {
                                 text: screenRoot.weatherTemp
-                                font.family: root.monoFont
+                                font.family: "Fira Sans"
                                 font.pixelSize: 14
                                 font.weight: Font.Black
                                 color: root.fg
