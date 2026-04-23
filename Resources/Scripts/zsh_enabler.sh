@@ -10,10 +10,20 @@ fi
 
 TARGET_HOME="$(getent passwd "$TARGET_USER" | cut -d: -f6)"
 ZSHENV_FILE="$TARGET_HOME/.zshenv"
-LINE='export ZDOTDIR="$HOME/.config/zsh"'
+BOOTSTRAP='export ZDOTDIR="$HOME/.config/zsh"
+if [[ -r "$ZDOTDIR/.zshenv" ]]; then
+  source "$ZDOTDIR/.zshenv"
+fi'
 
 touch "$ZSHENV_FILE"
 
-grep -Fxq "$LINE" "$ZSHENV_FILE" || echo "$LINE" >> "$ZSHENV_FILE"
+if ! grep -Fq 'source "$ZDOTDIR/.zshenv"' "$ZSHENV_FILE"; then
+  TMP_FILE="$(mktemp)"
+  {
+    printf '%s\n\n' "$BOOTSTRAP"
+    cat "$ZSHENV_FILE"
+  } > "$TMP_FILE"
+  mv "$TMP_FILE" "$ZSHENV_FILE"
+fi
 
 chown "$TARGET_USER:$TARGET_USER" "$ZSHENV_FILE"
