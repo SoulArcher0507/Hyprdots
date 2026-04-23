@@ -20,6 +20,7 @@ mkdir -p "$CONFIG_DIR"
 rsync -av --progress "$REPO_ROOT/Resources/Configs/" "$CONFIG_DIR/"
 rsync -av --progress "$THEME_DIR/config/" "$CONFIG_DIR/"
 
-sudo bash "$REPO_ROOT/Resources/Grub/elegant-grub/install.sh" -t forest
+# TODO
+# sudo bash "$REPO_ROOT/Resources/Grub/elegant-grub/install.sh" -t forest
 
 sudo systemctl enable --now power-profiles-daemon.service
