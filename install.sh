@@ -17,6 +17,8 @@ fi
 
 TARGET_HOME="$(eval echo "~$TARGET_USER")"
 CONFIG_DIR="$TARGET_HOME/.config"
+TARGET_REPO_DIR="$CONFIG_DIR/Hyprdots"
+LEGACY_REPO_LINK="$CONFIG_DIR/hyprdots"
 
 run_target_cmd() {
     if [[ $EUID -eq 0 ]]; then
@@ -32,6 +34,32 @@ run_target_bash() {
     else
         bash "$@"
     fi
+}
+
+finalize_repo_location() {
+    local source_dir
+    source_dir="$(cd -- "$SCRIPT_DIR" && pwd -P)"
+
+    run_target_cmd mkdir -p "$CONFIG_DIR"
+
+    if run_target_cmd test -d "$TARGET_REPO_DIR/.git"; then
+        echo "Hyprdots repo already available in $TARGET_REPO_DIR"
+    elif [[ "$source_dir" == "$TARGET_REPO_DIR" ]]; then
+        echo "Hyprdots repo already installed in $TARGET_REPO_DIR"
+    elif run_target_cmd test -e "$TARGET_REPO_DIR"; then
+        echo "Skipping repo move because $TARGET_REPO_DIR already exists"
+    else
+        echo "Moving Hyprdots repo to $TARGET_REPO_DIR"
+        run_target_cmd mv "$source_dir" "$TARGET_REPO_DIR"
+    fi
+
+    if run_target_cmd test -e "$LEGACY_REPO_LINK" && ! run_target_cmd test -L "$LEGACY_REPO_LINK"; then
+        echo "Skipping legacy link because $LEGACY_REPO_LINK already exists and is not a symlink"
+        return
+    fi
+
+    echo "Linking legacy path $LEGACY_REPO_LINK -> $TARGET_REPO_DIR"
+    run_target_cmd ln -sfn "$TARGET_REPO_DIR" "$LEGACY_REPO_LINK"
 }
 
 echo ""
@@ -113,5 +141,7 @@ sudo usermod -aG lp $USER   # add user to printer group
 sudo systemctl enable --now NetworkManager.service
 sudo systemctl enable --now firewalld
 sudo systemctl enable --now tailscaled
+
+finalize_repo_location
 
 echo "=== INSTALLATION COMPLETE ==="

@@ -11,6 +11,7 @@ import "../../theme" as ThemePkg
 Item {
     id: root
 
+    readonly property int panelMargin: 16
     readonly property real popupOpenWidth: 680
     readonly property real popupOpenHeight: mainColumn.implicitHeight + 40
     readonly property real popupClosedWidth: popupOpenWidth - 44
@@ -347,38 +348,11 @@ Item {
     }
 
     PanelWindow {
-        id: scrim
-        visible: root.popupMounted
-        color: "transparent"
-        anchors { top: true; bottom: true; left: true; right: true }
-        Component.onCompleted: {
-            try {
-                if (scrim.WlrLayershell) {
-                    scrim.WlrLayershell.layer = WlrLayer.Overlay;
-                    scrim.WlrLayershell.keyboardFocus = WlrKeyboardFocus.OnDemand;
-                }
-            } catch(e) {}
-        }
-        Shortcut {
-            sequence: "Escape"
-            context: Qt.WindowShortcut
-            onActivated: root._hideMusicPopup()
-        }
-        MouseArea {
-            anchors.fill: parent
-            onClicked: root._hideMusicPopup()
-        }
-    }
-
-    PanelWindow {
         id: musicWin
         visible: root.popupMounted
-        implicitWidth: root.popupCardWidth
-        implicitHeight: root.popupCardHeight + Math.max(0, root.popupCardLift)
         focusable: root.popupMounted
         color: "transparent"
-        anchors { top: true; left: true }
-        margins { top: 0; left: 16 }
+        anchors { top: true; bottom: true; left: true; right: true }
 
         Component.onCompleted: {
             try {
@@ -391,8 +365,13 @@ Item {
 
         Shortcut {
             sequence: "Escape"
-            context: Qt.WindowShortcut
+            context: Qt.ApplicationShortcut
             onActivated: root._hideMusicPopup()
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: root._hideMusicPopup()
         }
 
         Rectangle {
@@ -400,6 +379,7 @@ Item {
             focus: true
             width: root.popupCardWidth
             height: root.popupCardHeight
+            x: root.panelMargin
             y: root.popupCardLift
             radius: root.popupCardRadius
             opacity: root.popupCardOpacity
@@ -412,6 +392,12 @@ Item {
                 origin.y: musicCard.height / 2
                 xScale: root.popupCardScaleX
                 yScale: root.popupCardScaleY
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.AllButtons
+                onClicked: {}
             }
 
             Rectangle {
