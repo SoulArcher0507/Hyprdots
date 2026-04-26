@@ -2,9 +2,31 @@
 
 set -o pipefail
 
+# Optimization: use all available cores for AUR compilation
+export MAKEFLAGS="-j$(nproc)"
+
+
 PROGRESS_FILE="$HOME/.cache/quickshell/archtools_update.jsonl"
 
+FINISHED=0
+cleanup() {
+    local exit_code=$?
+    if [[ "$FINISHED" == "0" ]]; then
+        local err_msg="Update process was terminated unexpectedly (exit code $exit_code)."
+        emit complete error "total=0" "errors=$err_msg"
+        notify-send -a "ArchTools" -i software-update-urgent -u critical "⚠ Update Interrupted" "$err_msg"
+        rm -f "$PROGRESS_FILE"
+    fi
+    rm -f "/tmp/quickshell_sudo_pass_$$" "/tmp/quickshell_askpass_$$"
+}
+trap cleanup EXIT INT TERM QUIT
+
 has()   { command -v "$1" >/dev/null 2>&1; }
+
+truncate_err() {
+    echo "$1" | tail -n 10
+}
+
 
 emit() {
     local stage="$1" status="$2"; shift 2
@@ -48,48 +70,51 @@ ensure_sudo() {
     if sudo -n true 2>/dev/null; then
         return 0
     fi
-    if [[ -n "$SUDO_ASKPASS" ]] && sudo -A true 2>/dev/null; then
+    if [[ -n "$SUDO_ASKPASS" ]] && [[ -f "$SUDO_ASKPASS" ]]; then
         return 0
     fi
 
-    emit "$stage" waiting_auth "detail=Waiting for sudo authentication"
-    local action
-    action=$(notify-send -a "ArchTools" -u critical -A "open=Open Terminal" "Admin Password Required" "Click here to open a terminal and enter your password for updates.")
-    if [[ "$action" == "open" ]]; then
-        hyprctl --batch "keyword windowrulev2 float,class:^(archtools_auth)$; keyword windowrulev2 center,class:^(archtools_auth)$; keyword windowrulev2 size 50% 50%,class:^(archtools_auth)$" >/dev/null 2>&1
-        
-        export SUDO_PASS_FILE="/tmp/quickshell_sudo_pass_$$"
-        touch "$SUDO_PASS_FILE"
-        chmod 600 "$SUDO_PASS_FILE"
-        
-        local ask_cmd="read -s -p 'Admin Password: ' pass; echo -n \"\$pass\" > '$SUDO_PASS_FILE'"
-        
-        if has kitty; then
-            kitty --class archtools_auth bash -c "$ask_cmd"
-        elif has alacritty; then
-            alacritty --class archtools_auth -e bash -c "$ask_cmd"
-        elif has foot; then
-            foot -a archtools_auth bash -c "$ask_cmd"
-        else
-            xterm -class archtools_auth -e bash -c "$ask_cmd"
-        fi
-        
-        export SUDO_ASKPASS="/tmp/quickshell_askpass_$$"
-        echo '#!/bin/bash' > "$SUDO_ASKPASS"
-        echo "cat '$SUDO_PASS_FILE'" >> "$SUDO_ASKPASS"
-        chmod +x "$SUDO_ASKPASS"
-        
-        if ! sudo -A true 2>/dev/null; then
-            errors+=("$stage: Authentication failed")
-            emit "$stage" error "detail=Authentication failed"
-            return 1
-        fi
+    export SUDO_PASS_FILE="/tmp/quickshell_sudo_pass_$$"
+    export SUDO_ASKPASS="/tmp/quickshell_askpass_$$"
+    export PROGRESS_FILE
+    
+    cat << 'EOF' > "$SUDO_ASKPASS"
+#!/bin/bash
+emit_state() {
+    local json="{\"stage\":\"auth\",\"status\":\"$1\",\"detail\":\"$2\"}"
+    echo "$json" >> "$PROGRESS_FILE"
+}
+
+emit_state waiting_auth "Waiting for sudo authentication"
+
+action=$(notify-send -a "ArchTools" -u critical -A "open=Open Terminal" "Admin Password Required" "Click here to open a terminal and enter your password for updates.")
+if [[ "$action" == "open" ]]; then
+    hyprctl --batch "keyword windowrulev2 float,class:^(archtools_auth)$; keyword windowrulev2 center,class:^(archtools_auth)$; keyword windowrulev2 size 50% 50%,class:^(archtools_auth)$" >/dev/null 2>&1
+    
+    touch "$SUDO_PASS_FILE"
+    chmod 600 "$SUDO_PASS_FILE"
+    
+    ask_cmd="read -s -p 'Admin Password: ' pass; echo -n \"\$pass\" > '$SUDO_PASS_FILE'"
+    
+    if command -v kitty >/dev/null 2>&1; then
+        kitty --class archtools_auth bash -c "$ask_cmd"
+    elif command -v alacritty >/dev/null 2>&1; then
+        alacritty --class archtools_auth -e bash -c "$ask_cmd"
+    elif command -v foot >/dev/null 2>&1; then
+        foot -a archtools_auth bash -c "$ask_cmd"
     else
-        errors+=("$stage: Authentication cancelled")
-        emit "$stage" error "detail=Authentication cancelled"
-        return 1
+        xterm -class archtools_auth -e bash -c "$ask_cmd"
     fi
-    emit "$stage" running "detail=Authentication successful, continuing..."
+    
+    emit_state running "Authentication successful, continuing..."
+    cat "$SUDO_PASS_FILE"
+    rm -f "$SUDO_PASS_FILE"
+else
+    emit_state error "Authentication cancelled"
+    exit 1
+fi
+EOF
+    chmod +x "$SUDO_ASKPASS"
     return 0
 }
 
@@ -125,6 +150,7 @@ run_pacman() {
     local err_output
     if has yay && [[ "$PROVIDER" == "all" ]]; then
         err_output="$(yay -Syu --noconfirm 2>&1)" || {
+            err_output="$(truncate_err "$err_output")"
             errors+=("pacman: $err_output")
             emit pacman error "detail=$err_output"
             return 1
@@ -134,6 +160,7 @@ run_pacman() {
         return 0
     elif has paru && [[ "$PROVIDER" == "all" ]]; then
         err_output="$(paru -Syu --noconfirm 2>&1)" || {
+            err_output="$(truncate_err "$err_output")"
             errors+=("pacman: $err_output")
             emit pacman error "detail=$err_output"
             return 1
@@ -142,7 +169,8 @@ run_pacman() {
         emit pacman done "count=$n_before" "detail=Updated $n_before packages"
         return 0
     else
-        err_output="$(sudo pacman -Syu --noconfirm 2>&1)" || {
+        err_output="$(sudo -A pacman -Syu --noconfirm 2>&1)" || {
+            err_output="$(truncate_err "$err_output")"
             errors+=("pacman: $err_output")
             emit pacman error "detail=$err_output"
             return 1
@@ -194,6 +222,7 @@ run_aur() {
     esac
 
     if [[ $? -ne 0 ]]; then
+        err_output="$(truncate_err "$err_output")"
         errors+=("aur($helper): $err_output")
         emit aur error "detail=$err_output"
         return 1
@@ -225,6 +254,7 @@ run_flatpak() {
 
     local err_output
     err_output="$(flatpak update -y --noninteractive 2>&1)" || {
+        err_output="$(truncate_err "$err_output")"
         errors+=("flatpak: $err_output")
         emit flatpak error "detail=$err_output"
         return 1
@@ -269,7 +299,8 @@ case "$PROVIDER" in
             else
                 emit pacman running "detail=Updating $pac_n_before packages..."
                 if ensure_sudo "pacman"; then
-                    pac_err_output="$(sudo pacman -Syu --noconfirm 2>&1)" || {
+                    pac_err_output="$(sudo -A pacman -Syu --noconfirm 2>&1)" || {
+                        pac_err_output="$(truncate_err "$pac_err_output")"
                         errors+=("pacman: $pac_err_output")
                         emit pacman error "detail=$pac_err_output"
                     }
@@ -315,7 +346,9 @@ else
     notify-send -a "ArchTools" -i system-software-update "✓ Updates Complete" "$notify_body"
 fi
 
+FINISHED=1
 ( sleep 60 && rm -f "$PROGRESS_FILE" ) &
 disown
 
-rm -f "/tmp/quickshell_sudo_pass_$$" "/tmp/quickshell_askpass_$$"
+# The EXIT trap will handle removing the askpass files
+

@@ -386,6 +386,8 @@ FreezeScreen {
     property bool captureReady: false
     property bool captureFailed: false
     property bool selectionQueued: false
+    property int captureRetryCount: 0
+    readonly property int captureMaxRetries: 3
     property var queuedSelection: null
     property string lastOutputPath: ""
     property bool lastSaveWasFile: true
@@ -441,7 +443,28 @@ FreezeScreen {
         interval: 50
         running: false
         repeat: false
-        onTriggered: root.visible = true
+        onTriggered: {
+            if (root.captureReady || root.captureFailed) {
+                root.visible = true
+            } else {
+                showTimer.restart()
+            }
+        }
+    }
+
+    Timer {
+        id: captureTimeoutTimer
+        interval: 5000
+        running: false
+        repeat: false
+        onTriggered: {
+            if (!root.captureReady && captureProcess.running) {
+                console.warn("HyprQuickshot: grim capture timed out after 5s")
+                root.captureReady = false
+                root.captureFailed = true
+                root.visible = true
+            }
+        }
     }
  
     function shellQuote(value) {
@@ -532,6 +555,7 @@ FreezeScreen {
         const quotedTempPath = root.shellQuote(root.tempPath)
         captureProcess.command = ["sh", "-c", `mkdir -p "$(dirname ${quotedTempPath})" && grim ${quotedTempPath}`]
         captureProcess.running = true
+        captureTimeoutTimer.restart()
     }
 
     Component.onCompleted: {
@@ -545,9 +569,14 @@ FreezeScreen {
         running: false
 
         onExited: function(exitCode) {
+            captureTimeoutTimer.stop()
+
             if (exitCode === 0) {
+                root.captureRetryCount = 0
                 root.captureReady = true
                 root.captureFailed = false
+                if (!root.visible)
+                    root.visible = true
                 root.flushQueuedSelection()
                 return
             }
@@ -555,7 +584,32 @@ FreezeScreen {
             root.captureReady = false
             root.captureFailed = true
             console.warn("HyprQuickshot: grim capture failed with exit code", exitCode)
+
+            if (root.selectionQueued && root.captureRetryCount < root.captureMaxRetries) {
+                root.captureRetryCount++
+                console.warn("HyprQuickshot: retrying grim capture (attempt",
+                    root.captureRetryCount, "of", root.captureMaxRetries + ")")
+                captureRetryTimer.restart()
+            } else if (root.selectionQueued) {
+                console.warn("HyprQuickshot: grim capture failed after",
+                    root.captureMaxRetries, "retries, giving up")
+                root.selectionQueued = false
+                root.queuedSelection = null
+                if (!root.visible)
+                    root.visible = true
+            } else {
+                if (!root.visible)
+                    root.visible = true
+            }
         }
+    }
+
+    Timer {
+        id: captureRetryTimer
+        interval: 200
+        running: false
+        repeat: false
+        onTriggered: root.startCapture()
     }
 
     Process {
@@ -765,8 +819,10 @@ FreezeScreen {
         root.queuedSelection = selection
         root.selectionQueued = true
 
-        if (root.captureFailed && !captureProcess.running)
+        if (root.captureFailed && !captureProcess.running) {
+            root.captureRetryCount = 0
             root.startCapture()
+        }
 
         root.flushQueuedSelection()
     }
@@ -776,7 +832,9 @@ FreezeScreen {
             return
 
         root.selectionQueued = false
-        root.saveScreenshot(root.queuedSelection)
+        const sel = root.queuedSelection
+        root.queuedSelection = null
+        root.saveScreenshot(sel)
     }
 
     function saveScreenshot(selection) {
