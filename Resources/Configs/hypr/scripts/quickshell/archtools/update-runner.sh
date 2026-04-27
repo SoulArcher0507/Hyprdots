@@ -2,11 +2,33 @@
 
 set -o pipefail
 
-# Optimization: use all available cores for AUR compilation
-export MAKEFLAGS="-j$(nproc)"
-
-
 PROGRESS_FILE="$HOME/.cache/quickshell/archtools_update.jsonl"
+LOCK_FILE="$HOME/.cache/quickshell/archtools_update.lock"
+MAX_ERROR_LINES="${ARCHTOOLS_UPDATE_MAX_ERROR_LINES:-40}"
+PROGRESS_MAX_LINES="${ARCHTOOLS_UPDATE_PROGRESS_MAX_LINES:-200}"
+PROGRESS_MAX_BYTES="${ARCHTOOLS_UPDATE_PROGRESS_MAX_BYTES:-65536}"
+AUR_BUILD_JOBS="${ARCHTOOLS_AUR_BUILD_JOBS:-}"
+
+[[ "$MAX_ERROR_LINES" =~ ^[0-9]+$ ]] && (( MAX_ERROR_LINES > 0 )) || MAX_ERROR_LINES=40
+[[ "$PROGRESS_MAX_LINES" =~ ^[0-9]+$ ]] && (( PROGRESS_MAX_LINES > 0 )) || PROGRESS_MAX_LINES=200
+[[ "$PROGRESS_MAX_BYTES" =~ ^[0-9]+$ ]] && (( PROGRESS_MAX_BYTES > 0 )) || PROGRESS_MAX_BYTES=65536
+
+if [[ -z "$AUR_BUILD_JOBS" ]]; then
+    cpu_count="$(nproc 2>/dev/null || echo 1)"
+    if (( cpu_count > 4 )); then
+        AUR_BUILD_JOBS=4
+    elif (( cpu_count > 0 )); then
+        AUR_BUILD_JOBS="$cpu_count"
+    else
+        AUR_BUILD_JOBS=1
+    fi
+fi
+
+if [[ "$AUR_BUILD_JOBS" =~ ^[0-9]+$ ]] && (( AUR_BUILD_JOBS > 0 )); then
+    export MAKEFLAGS="-j${AUR_BUILD_JOBS}"
+    export CMAKE_BUILD_PARALLEL_LEVEL="$AUR_BUILD_JOBS"
+    export NINJAFLAGS="-j${AUR_BUILD_JOBS}"
+fi
 
 FINISHED=0
 cleanup() {
@@ -24,7 +46,45 @@ trap cleanup EXIT INT TERM QUIT
 has()   { command -v "$1" >/dev/null 2>&1; }
 
 truncate_err() {
-    echo "$1" | tail -n 10
+    printf '%s\n' "$1" | tail -n "$MAX_ERROR_LINES"
+}
+
+trim_progress_file() {
+    [[ -f "$PROGRESS_FILE" ]] || return 0
+    local size
+    size=$(wc -c < "$PROGRESS_FILE" 2>/dev/null || echo 0)
+    if (( size > PROGRESS_MAX_BYTES )); then
+        local tmp="${PROGRESS_FILE}.$$"
+        tail -n "$PROGRESS_MAX_LINES" "$PROGRESS_FILE" > "$tmp" 2>/dev/null && mv "$tmp" "$PROGRESS_FILE"
+        rm -f "$tmp"
+    fi
+}
+
+run_bounded() {
+    local tmp="/tmp/archtools_update_output_$$"
+    rm -f "$tmp"
+    if "$@" 2>&1 | awk -v max_lines="$MAX_ERROR_LINES" -v max_chars=4000 '
+        {
+            line = $0
+            if (length(line) > max_chars) {
+                line = substr(line, 1, max_chars) "... [truncated]"
+            }
+            idx = NR % max_lines
+            lines[idx] = line
+        }
+        END {
+            start = NR > max_lines ? NR - max_lines + 1 : 1
+            for (i = start; i <= NR; i++) {
+                print lines[i % max_lines]
+            }
+        }
+    ' > "$tmp"; then
+        rm -f "$tmp"
+        return 0
+    fi
+    RUN_BOUNDED_OUTPUT="$(cat "$tmp" 2>/dev/null || true)"
+    rm -f "$tmp"
+    return 1
 }
 
 
@@ -46,6 +106,7 @@ emit() {
     json+="}"
     echo "$json"
     echo "$json" >> "$PROGRESS_FILE"
+    trim_progress_file
 }
 
 PROVIDER="all"
@@ -57,6 +118,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 mkdir -p "$(dirname "$PROGRESS_FILE")"
+exec 9>"$LOCK_FILE"
+if has flock && ! flock -n 9; then
+    echo "{\"stage\":\"complete\",\"status\":\"error\",\"total\":0,\"errors\":\"Another ArchTools update is already running\"}" > "$PROGRESS_FILE"
+    notify-send -a "ArchTools" -i software-update-urgent -u critical "⚠ Update Already Running" "Another ArchTools update is already running."
+    FINISHED=1
+    exit 1
+fi
+
 echo "{\"stage\":\"init\",\"status\":\"starting\",\"provider\":\"$PROVIDER\",\"pid\":$$}" > "$PROGRESS_FILE"
 
 count_pacman=0
@@ -147,34 +216,33 @@ run_pacman() {
         return 1
     fi
 
-    local err_output
     if has yay && [[ "$PROVIDER" == "all" ]]; then
-        err_output="$(yay -Syu --noconfirm 2>&1)" || {
-            err_output="$(truncate_err "$err_output")"
+        if ! run_bounded yay -Syu --noconfirm; then
+            err_output="$(truncate_err "$RUN_BOUNDED_OUTPUT")"
             errors+=("pacman: $err_output")
             emit pacman error "detail=$err_output"
             return 1
-        }
+        fi
         count_pacman=$n_before
         emit pacman done "count=$n_before" "detail=Updated $n_before packages"
         return 0
     elif has paru && [[ "$PROVIDER" == "all" ]]; then
-        err_output="$(paru -Syu --noconfirm 2>&1)" || {
-            err_output="$(truncate_err "$err_output")"
+        if ! run_bounded paru -Syu --noconfirm; then
+            err_output="$(truncate_err "$RUN_BOUNDED_OUTPUT")"
             errors+=("pacman: $err_output")
             emit pacman error "detail=$err_output"
             return 1
-        }
+        fi
         count_pacman=$n_before
         emit pacman done "count=$n_before" "detail=Updated $n_before packages"
         return 0
     else
-        err_output="$(sudo -A pacman -Syu --noconfirm 2>&1)" || {
-            err_output="$(truncate_err "$err_output")"
+        if ! run_bounded sudo -A pacman -Syu --noconfirm; then
+            err_output="$(truncate_err "$RUN_BOUNDED_OUTPUT")"
             errors+=("pacman: $err_output")
             emit pacman error "detail=$err_output"
             return 1
-        }
+        fi
     fi
 
     count_pacman=$n_before
@@ -214,15 +282,14 @@ run_aur() {
         return 1
     fi
 
-    local err_output
     case "$helper" in
-        yay)    err_output="$($helper -Sua --noconfirm 2>&1)" ;;
-        paru)   err_output="$($helper -Sua --noconfirm 2>&1)" ;;
-        pikaur) err_output="$($helper -Sua --noconfirm 2>&1)" ;;
+        yay)    run_bounded "$helper" -Sua --noconfirm ;;
+        paru)   run_bounded "$helper" -Sua --noconfirm ;;
+        pikaur) run_bounded "$helper" -Sua --noconfirm ;;
     esac
 
     if [[ $? -ne 0 ]]; then
-        err_output="$(truncate_err "$err_output")"
+        err_output="$(truncate_err "$RUN_BOUNDED_OUTPUT")"
         errors+=("aur($helper): $err_output")
         emit aur error "detail=$err_output"
         return 1
@@ -252,13 +319,12 @@ run_flatpak() {
 
     emit flatpak running "detail=Updating $n_before Flatpak apps..."
 
-    local err_output
-    err_output="$(flatpak update -y --noninteractive 2>&1)" || {
-        err_output="$(truncate_err "$err_output")"
+    if ! run_bounded flatpak update -y --noninteractive; then
+        err_output="$(truncate_err "$RUN_BOUNDED_OUTPUT")"
         errors+=("flatpak: $err_output")
         emit flatpak error "detail=$err_output"
         return 1
-    }
+    fi
 
     count_flatpak=$n_before
     emit flatpak done "count=$n_before" "detail=Updated $n_before Flatpak apps"
@@ -273,7 +339,6 @@ case "$PROVIDER" in
             if has yay; then aur_helper="yay"; elif has paru; then aur_helper="paru"; fi
             if [[ -n "$aur_helper" ]]; then
                 emit aur starting "detail=AUR handled by $aur_helper -Syu"
-                aur_before="$($aur_helper -Qua --quiet 2>/dev/null || true)"
                 emit aur done "count=0" "detail=Included in $aur_helper -Syu"
             fi
         else
@@ -299,11 +364,11 @@ case "$PROVIDER" in
             else
                 emit pacman running "detail=Updating $pac_n_before packages..."
                 if ensure_sudo "pacman"; then
-                    pac_err_output="$(sudo -A pacman -Syu --noconfirm 2>&1)" || {
-                        pac_err_output="$(truncate_err "$pac_err_output")"
+                    if ! run_bounded sudo -A pacman -Syu --noconfirm; then
+                        pac_err_output="$(truncate_err "$RUN_BOUNDED_OUTPUT")"
                         errors+=("pacman: $pac_err_output")
                         emit pacman error "detail=$pac_err_output"
-                    }
+                    fi
                     if [[ ${#errors[@]} -eq 0 ]]; then
                         count_pacman=$pac_n_before
                         emit pacman done "count=$pac_n_before" "detail=Updated $pac_n_before packages"
@@ -349,6 +414,4 @@ fi
 FINISHED=1
 ( sleep 60 && rm -f "$PROGRESS_FILE" ) &
 disown
-
-# The EXIT trap will handle removing the askpass files
 

@@ -43,6 +43,25 @@ get_icon() {
 CACHE_DIR="/tmp/quickshell_network_cache"
 mkdir -p "$CACHE_DIR"
 
+format_wifi_band() {
+    local freq="$1"
+
+    if [[ ! "$freq" =~ ^[0-9]+$ ]]; then
+        printf '%s\n' "Unknown"
+        return
+    fi
+
+    if (( freq >= 5925 )); then
+        printf '6 GHz (%s MHz)\n' "$freq"
+    elif (( freq >= 4900 )); then
+        printf '5 GHz (%s MHz)\n' "$freq"
+    elif (( freq >= 2400 )); then
+        printf '2.4 GHz (%s MHz)\n' "$freq"
+    else
+        printf '%s MHz\n' "$freq"
+    fi
+}
+
 WIFI_CONN_INFO=$(nmcli -t -f DEVICE,TYPE,STATE,CONNECTION device 2>/dev/null | grep ":wifi:connected" | head -n1)
 
 CONNECTED_JSON="null"
@@ -69,25 +88,16 @@ if [[ -n "$WIFI_CONN_INFO" ]]; then
     SAFE_SSID="${SSID//[^a-zA-Z0-9]/_}"
     CACHE_FILE="$CACHE_DIR/wifi_$SAFE_SSID"
 
-    IP=""
-    FREQ=""
-    if [ -f "$CACHE_FILE" ]; then
-        source "$CACHE_FILE"
+    IP=$(ip -4 addr show dev "$WIFI_IFACE" 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n1)
+    [ -z "$IP" ] && IP="No IP"
+
+    FREQ=$(iw dev "$WIFI_IFACE" link 2>/dev/null | awk '/freq:/{print $2; exit}')
+    if [ -z "$FREQ" ]; then
+        FREQ=$(nmcli -t -f IN-USE,FREQ device wifi list --rescan no 2>/dev/null | awk -F: '$1=="*" {gsub(/[^0-9]/, "", $2); print $2; exit}')
     fi
+    BAND=$(format_wifi_band "$FREQ")
 
-    if [ -z "$IP" ] || [ "$IP" == "No IP" ] || [ -z "$FREQ" ] || [ "$FREQ" == "Unknown" ]; then
-        IP=$(ip -4 addr show dev "$WIFI_IFACE" 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n1)
-        [ -z "$IP" ] && IP="No IP"
-
-        FREQ=$(iw dev "$WIFI_IFACE" link 2>/dev/null | awk '/freq:/{print $2}')
-        if [ -z "$FREQ" ]; then
-            FREQ=$(iw dev "$WIFI_IFACE" info 2>/dev/null | awk '/channel/{gsub(/[()]/,"",$NF); print $(NF-1)}')
-        fi
-        [ -n "$FREQ" ] && FREQ="${FREQ} MHz" || FREQ="Unknown"
-
-        echo "IP=\"$IP\"" > "$CACHE_FILE"
-        echo "FREQ=\"$FREQ\"" >> "$CACHE_FILE"
-    fi
+    echo "IP=\"$IP\"" > "$CACHE_FILE"
 
     CONNECTED_JSON=$(jq -n \
                   --arg id "$SSID" \
@@ -96,7 +106,7 @@ if [[ -n "$WIFI_CONN_INFO" ]]; then
                   --arg signal "$SIGNAL" \
                   --arg security "$SECURITY" \
                   --arg ip "$IP" \
-                  --arg freq "$FREQ" \
+                  --arg freq "$BAND" \
                   '{id: $id, ssid: $ssid, icon: $icon, signal: $signal, security: $security, ip: $ip, freq: $freq}')
 fi
 

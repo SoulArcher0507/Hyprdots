@@ -304,6 +304,10 @@ Item {
         return "'" + String(value === undefined || value === null ? "" : value).replace(/'/g, "'\\''") + "'";
     }
 
+    function progressReadCommand() {
+        return "tail -n 200 " + root.shellQuote(root.progressFile) + " 2>/dev/null || echo ''";
+    }
+
     function scriptRunCommand(fileName, args) {
         var file = String(fileName || "");
         var runner = file.endsWith(".py") ? "python3" : "bash";
@@ -971,7 +975,7 @@ Item {
 
     Io.Process {
         id: updateProgressPollProc
-        command: ["bash", "-c", "cat " + root.progressFile + " 2>/dev/null || echo ''"]
+        command: ["bash", "-c", root.progressReadCommand()]
         stdout: Io.StdioCollector {
             id: progressPollOut
             waitForEnd: true
@@ -984,6 +988,8 @@ Item {
                 return;
             }
             var lines = raw.split("\n");
+            if (root._lastProgressLineCount > lines.length)
+                root._lastProgressLineCount = 0;
             for (var i = root._lastProgressLineCount; i < lines.length; i++) {
                 root.handleUpdateLine(lines[i]);
             }
@@ -1026,7 +1032,7 @@ Item {
 
     Io.Process {
         id: updateProgressInitProc
-        command: ["bash", "-c", "cat " + root.progressFile + " 2>/dev/null || echo ''"]
+        command: ["bash", "-c", root.progressReadCommand()]
         stdout: Io.StdioCollector {
             id: progressInitOut
             waitForEnd: true

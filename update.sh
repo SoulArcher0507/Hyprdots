@@ -48,3 +48,4 @@ select LABEL in "${THEME_LABELS[@]}"; do
   fi
 done
 
+hyprctl reload

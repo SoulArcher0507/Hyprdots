@@ -7,7 +7,8 @@ status_json() {
         --arg state "$1" \
         --arg headline "$2" \
         --arg subline "$3" \
-        '{state:$state, headline:$headline, subline:$subline}'
+        --arg connection_id "${4:-}" \
+        '{state:$state, headline:$headline, subline:$subline, connection_id:$connection_id}'
 }
 
 format_number() {
@@ -37,7 +38,7 @@ run_official_speedtest() {
     down_mbps=$(jq -r '((.download.bandwidth // 0) * 8) / 1000000' <<< "$output")
     up_mbps=$(jq -r '((.upload.bandwidth // 0) * 8) / 1000000' <<< "$output")
 
-    status_json "done" "Ping $(format_number "$ping") ms" "↓$(format_number "$down_mbps") ↑$(format_number "$up_mbps") Mbps"
+    status_json "done" "Ping $(format_number "$ping") ms" "↓$(format_number "$down_mbps") ↑$(format_number "$up_mbps") Mbps" "${SPEEDTEST_CONNECTION_ID:-}"
 }
 
 run_speedtest_cli_json() {
@@ -53,7 +54,7 @@ run_speedtest_cli_json() {
     down_mbps=$(jq -r '(.download // 0) / 1000000' <<< "$output")
     up_mbps=$(jq -r '(.upload // 0) / 1000000' <<< "$output")
 
-    status_json "done" "Ping $(format_number "$ping") ms" "↓$(format_number "$down_mbps") ↑$(format_number "$up_mbps") Mbps"
+    status_json "done" "Ping $(format_number "$ping") ms" "↓$(format_number "$down_mbps") ↑$(format_number "$up_mbps") Mbps" "${SPEEDTEST_CONNECTION_ID:-}"
 }
 
 run_benchmark() {
@@ -79,7 +80,7 @@ run_benchmark() {
     fi
 
     err_line=$(first_non_empty_line "$result")
-    status_json "error" "Speedtest failed" "${err_line:-Unknown error}"
+    status_json "error" "Speedtest failed" "${err_line:-Unknown error}" "${SPEEDTEST_CONNECTION_ID:-}"
     return 1
 }
 
@@ -89,8 +90,9 @@ case "${1:---run}" in
         ;;
     --run-detached)
         cache_file="$2"
+        SPEEDTEST_CONNECTION_ID="${3:-}"
         mkdir -p "$(dirname "$cache_file")"
-        status_json "running" "Speedtest running..." "Measuring download and upload" > "$cache_file"
+        status_json "running" "Speedtest running..." "Measuring download and upload" "$SPEEDTEST_CONNECTION_ID" > "$cache_file"
         result=$(run_benchmark)
         echo "$result" > "$cache_file"
         
@@ -105,6 +107,6 @@ case "${1:---run}" in
         fi
         ;;
     *)
-        status_json "idle" "" ""
+        status_json "idle" "" "" "${SPEEDTEST_CONNECTION_ID:-}"
         ;;
 esac

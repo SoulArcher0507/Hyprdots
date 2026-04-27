@@ -51,13 +51,7 @@ if [[ -f "$STATE_FILE" ]]; then
             if (( delta_tx < 0 )); then delta_tx=0; fi
             down_bps=$((delta_rx * 1000 / delta_ms))
             up_bps=$((delta_tx * 1000 / delta_ms))
-        else
-            down_bps=${prev_down:-0}
-            up_bps=${prev_up:-0}
         fi
-    else
-        down_bps=${prev_down:-0}
-        up_bps=${prev_up:-0}
     fi
 fi
 

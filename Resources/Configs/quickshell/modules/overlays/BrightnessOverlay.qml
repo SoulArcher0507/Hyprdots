@@ -20,10 +20,11 @@ Scope {
     property real popupCardOpacity: 0.0
     property real popupCardScaleX: 0.91
     property real popupCardScaleY: 0.79
-    property real popupCardWidth: 146
-    property real popupCardHeight: 258
+    property real popupCardWidth: 164
+    property real popupCardHeight: 314
     property real popupCardRadius: 36
     property real popupCardLift: 18
+    readonly property bool richAnimationsActive: popupMounted && popupTargetVisible && popupCardOpacity > 0.98 && ThemePkg.Theme.edgeAnimationsEnabled
     property var brightnessState: ({
             available: false,
             percent: 0,
@@ -100,7 +101,7 @@ Scope {
         to: Math.PI * 2
         duration: 90000
         loops: Animation.Infinite
-        running: root.popupMounted
+        running: root.richAnimationsActive
     }
 
     function showPopup() {
@@ -144,8 +145,6 @@ Scope {
             NumberAnimation { target: root; property: "popupCardOpacity"; to: 0.78; duration: 145; easing.type: Easing.OutCubic }
             NumberAnimation { target: root; property: "popupCardScaleX"; to: 0.985; duration: 175; easing.type: Easing.OutCubic }
             NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.94; duration: 190; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardWidth"; to: 158; duration: 190; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardHeight"; to: 292; duration: 200; easing.type: Easing.OutCubic }
             NumberAnimation { target: root; property: "popupCardRadius"; to: 28; duration: 190; easing.type: Easing.OutQuad }
             NumberAnimation { target: root; property: "popupCardLift"; to: 8; duration: 190; easing.type: Easing.OutCubic }
         }
@@ -154,8 +153,6 @@ Scope {
             NumberAnimation { target: root; property: "popupCardOpacity"; to: 1.0; duration: 175; easing.type: Easing.OutCubic }
             NumberAnimation { target: root; property: "popupCardScaleX"; to: 1.0; duration: 205; easing.type: Easing.OutCubic }
             NumberAnimation { target: root; property: "popupCardScaleY"; to: 1.0; duration: 205; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardWidth"; to: 164; duration: 205; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardHeight"; to: 314; duration: 215; easing.type: Easing.OutCubic }
             NumberAnimation { target: root; property: "popupCardRadius"; to: 24; duration: 195; easing.type: Easing.InOutQuad }
             NumberAnimation { target: root; property: "popupCardLift"; to: 0; duration: 205; easing.type: Easing.OutCubic }
         }
@@ -173,8 +170,6 @@ Scope {
         ParallelAnimation {
             NumberAnimation { target: root; property: "popupCardScaleX"; to: 1.04; duration: 85; easing.type: Easing.OutQuad }
             NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.95; duration: 85; easing.type: Easing.OutQuad }
-            NumberAnimation { target: root; property: "popupCardWidth"; to: 172; duration: 95; easing.type: Easing.OutQuad }
-            NumberAnimation { target: root; property: "popupCardHeight"; to: 300; duration: 95; easing.type: Easing.OutQuad }
             NumberAnimation { target: root; property: "popupCardRadius"; to: 30; duration: 95; easing.type: Easing.OutQuad }
             NumberAnimation { target: root; property: "popupCardLift"; to: 5; duration: 95; easing.type: Easing.OutQuad }
             NumberAnimation { target: root; property: "popupCardOpacity"; to: 0.88; duration: 80; easing.type: Easing.OutQuad }
@@ -184,8 +179,6 @@ Scope {
             NumberAnimation { target: root; property: "popupCardOpacity"; to: 0.0; duration: 180; easing.type: Easing.InCubic }
             NumberAnimation { target: root; property: "popupCardScaleX"; to: 0.84; duration: 205; easing.type: Easing.InCubic }
             NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.68; duration: 220; easing.type: Easing.InCubic }
-            NumberAnimation { target: root; property: "popupCardWidth"; to: 146; duration: 200; easing.type: Easing.InCubic }
-            NumberAnimation { target: root; property: "popupCardHeight"; to: 258; duration: 210; easing.type: Easing.InCubic }
             NumberAnimation { target: root; property: "popupCardRadius"; to: 36; duration: 200; easing.type: Easing.InQuad }
             NumberAnimation { target: root; property: "popupCardLift"; to: 24; duration: 200; easing.type: Easing.InCubic }
         }
@@ -352,7 +345,7 @@ Scope {
 
                                 SequentialAnimation on scale {
                                     loops: Animation.Infinite
-                                    running: true
+                                    running: root.richAnimationsActive
                                     NumberAnimation { to: 1.05; duration: 1600; easing.type: Easing.InOutSine }
                                     NumberAnimation { to: 1.0; duration: 1600; easing.type: Easing.InOutSine }
                                 }
@@ -370,7 +363,7 @@ Scope {
 
                                 SequentialAnimation on scale {
                                     loops: Animation.Infinite
-                                    running: true
+                                    running: root.richAnimationsActive
                                     NumberAnimation { to: 1.08; duration: 2200; easing.type: Easing.InOutSine }
                                     NumberAnimation { to: 1.0; duration: 2200; easing.type: Easing.InOutSine }
                                 }
@@ -406,7 +399,7 @@ Scope {
                                     property real wavePhase: 0.0
 
                                     NumberAnimation on wavePhase {
-                                        running: win.available && win.brightnessPct > 0 && win.brightnessPct < 100
+                                        running: root.richAnimationsActive && win.available && win.brightnessPct > 0 && win.brightnessPct < 100
                                         loops: Animation.Infinite
                                         from: 0
                                         to: Math.PI * 2

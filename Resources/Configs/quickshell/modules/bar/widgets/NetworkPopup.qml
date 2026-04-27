@@ -172,7 +172,8 @@ Item {
     readonly property string scriptsDir: Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/network"
     readonly property string trafficScriptPath: window.scriptsDir + "/traffic_panel_logic.sh"
     readonly property string speedtestScriptPath: window.scriptsDir + "/speedtest_panel_logic.sh"
-    readonly property string speedtestCacheFile: Quickshell.env("HOME") + "/.cache/quickshell/speedtest_status.json"
+    readonly property string runtimeDir: Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"
+    readonly property string speedtestCacheFile: window.runtimeDir + "/quickshell/speedtest_status.json"
 
     readonly property color networkAccent: Qt.lighter(window.sapphire, 1.15)
     readonly property color wifiAccent: window.networkAccent
@@ -384,6 +385,10 @@ Item {
         window.speedtestSubline = "";
     }
 
+    function deleteSpeedtestCache() {
+        Quickshell.execDetached(["rm", "-f", window.speedtestCacheFile]);
+    }
+
     function consumeSpeedtestStatus(textData) {
         let trimmed = (textData || "").trim();
         if (trimmed === "") {
@@ -395,6 +400,12 @@ Item {
 
         try {
             let data = JSON.parse(trimmed);
+            if ((data.connection_id || "") !== window.currentNetworkId) {
+                window.resetSpeedtestState();
+                if (window.showInfoView)
+                    window.updateInfoNodes();
+                return;
+            }
             if (data.state === window.speedtestState && data.state !== "running") return;
 
             window.speedtestState = data.state || "idle";
@@ -430,7 +441,7 @@ Item {
         window.speedtestHeadline = "Speedtest running..."
         window.speedtestSubline = "Measuring download and upload";
         
-        Quickshell.execDetached(["bash", window.speedtestScriptPath, "--run-detached", window.speedtestCacheFile]);
+        Quickshell.execDetached(["bash", window.speedtestScriptPath, "--run-detached", window.speedtestCacheFile, window.currentNetworkId]);
         speedtestPollerTimer.start();
         
         if (window.showInfoView)
@@ -443,8 +454,11 @@ Item {
             resetTrafficStats();
             clearSpeedtestSession();
         }
-        if (currentConn)
+        if (currentConn) {
+            if (window.activeMode === "wifi" && !speedtestPollerProc.running)
+                speedtestPollerProc.running = true;
             updateInfoNodes();
+        }
     }
 
     onActiveModeChanged: {
@@ -462,8 +476,11 @@ Item {
         window.clearSpeedtestSession();
         syncCores();
         window.showInfoView = window.currentConn;
-        if (window.showInfoView)
+        if (window.showInfoView) {
+            if (window.activeMode === "wifi" && !speedtestPollerProc.running)
+                speedtestPollerProc.running = true;
             window.updateInfoNodes();
+        }
     }
 
     ListModel {
@@ -581,11 +598,16 @@ Item {
 
     onWifiConnectedChanged: {
         if (window.wifiConnected && window.wifiConnected.ssid) {
-            if (cache.lastWifiSsid !== "" && cache.lastWifiSsid !== window.wifiConnected.ssid)
+            if (cache.lastWifiSsid !== "" && cache.lastWifiSsid !== window.wifiConnected.ssid) {
+                window.deleteSpeedtestCache();
                 window.clearSpeedtestSession();
+            }
             cache.lastWifiSsid = window.wifiConnected.ssid;
         } else {
-            window.clearSpeedtestSession();
+            if (!window.isEthConn) {
+                window.deleteSpeedtestCache();
+                window.clearSpeedtestSession();
+            }
         }
         syncCores();
         if (window.currentConn && window.activeMode === "wifi")
@@ -618,6 +640,22 @@ Item {
         if (activeMode === "wifi")
             return window.isWifiConn || window.isEthConn;
         return window.isBtConn;
+    }
+    readonly property string currentNetworkId: {
+        if (window.isEthConn && window.ethernetData)
+            return "ethernet:" + (window.ethernetData.iface || window.ethernetData.ssid || "wired");
+        if (window.isWifiConn && window.wifiConnected)
+            return "wifi:" + (window.wifiConnected.ssid || "");
+        return "";
+    }
+    property string lastSpeedtestNetworkId: ""
+    onCurrentNetworkIdChanged: {
+        if (window.lastSpeedtestNetworkId !== "" && window.currentNetworkId !== "" && window.currentNetworkId !== window.lastSpeedtestNetworkId) {
+            window.deleteSpeedtestCache();
+            window.clearSpeedtestSession();
+        }
+        if (window.currentNetworkId !== "")
+            window.lastSpeedtestNetworkId = window.currentNetworkId;
     }
     readonly property var currentObjList: {
         if (activeMode === "wifi") {
