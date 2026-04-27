@@ -108,6 +108,23 @@ Variants {
                         stageAur: "",
                         stageFlatpak: ""
                     })
+                    // Scalar mirrors of archUpdateState for reliable QML bindings
+                    property bool archUpdRunning: false
+                    property string archUpdProvider: ""
+                    property string archUpdStage: ""
+                    property string archUpdStatus: ""
+                    property string archUpdDetail: ""
+                    property bool archUpdHadError: false
+                    property string archUpdErrorText: ""
+                    property int archUpdCountPacman: 0
+                    property int archUpdCountAur: 0
+                    property int archUpdCountFlatpak: 0
+                    property int archUpdCountTotal: 0
+                    property real archUpdFinishedTs: 0
+                    property string archUpdStagePacman: ""
+                    property string archUpdStageAur: ""
+                    property string archUpdStageFlatpak: ""
+
                     property string archProgressFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_update.jsonl"
                     property int archProgressLineCount: 0
 
@@ -118,6 +135,25 @@ Variants {
 
                     function archProgressReadCommand() {
                         return "tail -n 200 " + "'" + archProgressFile.replace(/'/g, "'\\''") + "'" + " 2>/dev/null || echo ''";
+                    }
+
+                    function syncArchScalars() {
+                        var s = archUpdateState || ({});
+                        archUpdRunning = !!s.running;
+                        archUpdProvider = s.provider || "";
+                        archUpdStage = s.stage || "";
+                        archUpdStatus = s.status || "";
+                        archUpdDetail = s.detail || "";
+                        archUpdHadError = !!s.hadError;
+                        archUpdErrorText = s.errorText || "";
+                        archUpdCountPacman = Number(s.countPacman || 0);
+                        archUpdCountAur = Number(s.countAur || 0);
+                        archUpdCountFlatpak = Number(s.countFlatpak || 0);
+                        archUpdCountTotal = Number(s.countTotal || 0);
+                        archUpdFinishedTs = Number(s.finishedTimestamp || 0);
+                        archUpdStagePacman = s.stagePacman || "";
+                        archUpdStageAur = s.stageAur || "";
+                        archUpdStageFlatpak = s.stageFlatpak || "";
                     }
 
                     function updateArchState(overrides) {
@@ -140,6 +176,7 @@ Variants {
                             stageAur: o.stageAur !== undefined ? String(o.stageAur || "") : (s.stageAur || ""),
                             stageFlatpak: o.stageFlatpak !== undefined ? String(o.stageFlatpak || "") : (s.stageFlatpak || "")
                         };
+                        syncArchScalars();
                     }
 
                     function clearArchUpdateState() {
@@ -161,6 +198,7 @@ Variants {
                             stageAur: "",
                             stageFlatpak: ""
                         };
+                        syncArchScalars();
                     }
 
                     function handleArchProgressLine(line) {

@@ -58,6 +58,8 @@ Item {
     readonly property color red: ThemePkg.Theme.danger
     readonly property color maroon: ThemePkg.Theme.c1
     readonly property color panelBorderColor: ThemePkg.Theme.mix(ThemePkg.Theme.background, ThemePkg.Theme.foreground, 0.35)
+    readonly property string repoDir: Quickshell.env("HOME") + "/.config/Hyprdots"
+    readonly property string legacyRepoDir: Quickshell.env("HOME") + "/.config/hyprdots"
 
     readonly property string scriptsDir: Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/archtools"
     readonly property string bundledScriptsDir: String(Qt.resolvedUrl("../../../scripts/hypr/quickshell/archtools")).replace("file://", "")
@@ -122,18 +124,18 @@ Item {
     property real detailsContentOpacity: detailsOpen ? 1.0 : 0.0
     property real detailsContentOffset: detailsOpen ? 0 : -10
 
-    property bool updateRunning: !!(switcher && switcher.archUpdateState && switcher.archUpdateState.running)
-    property string updateProvider: (switcher && switcher.archUpdateState) ? (switcher.archUpdateState.provider || "") : ""
-    property string updateStage: (switcher && switcher.archUpdateState) ? (switcher.archUpdateState.stage || "") : ""
-    property string updateStatus: (switcher && switcher.archUpdateState) ? (switcher.archUpdateState.status || "") : ""
-    property string updateDetail: (switcher && switcher.archUpdateState) ? (switcher.archUpdateState.detail || "") : ""
-    property bool updateHadError: !!(switcher && switcher.archUpdateState && switcher.archUpdateState.hadError)
-    property string updateErrorText: (switcher && switcher.archUpdateState) ? (switcher.archUpdateState.errorText || "") : ""
-    property int updateCountPacman: (switcher && switcher.archUpdateState) ? Number(switcher.archUpdateState.countPacman || 0) : 0
-    property int updateCountAur: (switcher && switcher.archUpdateState) ? Number(switcher.archUpdateState.countAur || 0) : 0
-    property int updateCountFlatpak: (switcher && switcher.archUpdateState) ? Number(switcher.archUpdateState.countFlatpak || 0) : 0
-    property int updateCountTotal: (switcher && switcher.archUpdateState) ? Number(switcher.archUpdateState.countTotal || 0) : 0
-    property real updateFinishedTimestamp: (switcher && switcher.archUpdateState) ? Number(switcher.archUpdateState.finishedTimestamp || 0) : 0
+    property bool updateRunning: !!(switcher && switcher.archUpdRunning)
+    property string updateProvider: (switcher ? switcher.archUpdProvider : "")
+    property string updateStage: (switcher ? switcher.archUpdStage : "")
+    property string updateStatus: (switcher ? switcher.archUpdStatus : "")
+    property string updateDetail: (switcher ? switcher.archUpdDetail : "")
+    property bool updateHadError: !!(switcher && switcher.archUpdHadError)
+    property string updateErrorText: (switcher ? switcher.archUpdErrorText : "")
+    property int updateCountPacman: (switcher ? switcher.archUpdCountPacman : 0)
+    property int updateCountAur: (switcher ? switcher.archUpdCountAur : 0)
+    property int updateCountFlatpak: (switcher ? switcher.archUpdCountFlatpak : 0)
+    property int updateCountTotal: (switcher ? switcher.archUpdCountTotal : 0)
+    property real updateFinishedTimestamp: (switcher ? switcher.archUpdFinishedTs : 0)
     readonly property bool updateResultVisible: updateFinishedTimestamp > 0
     readonly property bool updateShowStatus: updateRunning || updateResultVisible
 
@@ -163,9 +165,12 @@ Item {
     property url sddmPickerFolderUrl: "file://" + Quickshell.env("HOME")
     property string sddmPickerSelectedPath: ""
     property string sddmPickerSelectedName: ""
-    property var sddmNameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.mp4", "*.webm", "*.mkv", "*.gif"]
+    readonly property var mediaNameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.mp4", "*.webm", "*.mkv", "*.gif"]
+    readonly property var imageNameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.gif"]
+    property var sddmNameFilters: mediaNameFilters
 
     function openSddmPicker() {
+        root.sddmNameFilters = profileSettingsPopup.activePickerMode === 2 ? root.imageNameFilters : root.mediaNameFilters;
         root.sddmPickerFolderUrl = "file://" + Quickshell.env("HOME") + "/Pictures";
         root.sddmPickerSelectedPath = "";
         root.sddmPickerSelectedName = "";
@@ -248,9 +253,13 @@ Item {
             root.notifyArchTools("SDDM Background", "Updated successfully to " + selectedPath.split('/').pop(), "view-refresh");
         } else if (mode === 1) {
             // Avatar
-            var cmd = "pkexec /home/corradoenea/Documents/Git/Hyprdots/Resources/Scripts/change_sddm_avatar.sh " + Quickshell.env("USER") + " '" + selectedPath.replace(/'/g, "'\\''") + "'";
+            var cmd = root.resourceScriptCommand("change_sddm_avatar.sh", [Quickshell.env("USER"), selectedPath]);
             Quickshell.execDetached(["bash", "-lc", cmd]);
             root.notifyArchTools("Profile Avatar", "Updated successfully to " + selectedPath.split('/').pop(), "view-refresh");
+        } else if (mode === 2) {
+            var cmd = root.archtoolsPkexecCommand("change_hyprgrub_background.sh", [selectedPath]);
+            Quickshell.execDetached(["bash", "-lc", cmd]);
+            root.notifyArchTools("GRUB Background", "Updated successfully to " + selectedPath.split('/').pop(), "image");
         }
     }
 
@@ -267,9 +276,9 @@ Item {
     property real authUnlockFlashOpacity: 0.0
     property int authUnlockHoldDuration: 750
 
-    property string updateStagePacman: (switcher && switcher.archUpdateState) ? (switcher.archUpdateState.stagePacman || "") : ""
-    property string updateStageAur: (switcher && switcher.archUpdateState) ? (switcher.archUpdateState.stageAur || "") : ""
-    property string updateStageFlatpak: (switcher && switcher.archUpdateState) ? (switcher.archUpdateState.stageFlatpak || "") : ""
+    property string updateStagePacman: (switcher ? switcher.archUpdStagePacman : "")
+    property string updateStageAur: (switcher ? switcher.archUpdStageAur : "")
+    property string updateStageFlatpak: (switcher ? switcher.archUpdStageFlatpak : "")
     property bool updateRestoredFromSwitcher: false
 
     readonly property color ambientPrimary: root.accent
@@ -620,6 +629,34 @@ Item {
 
     function shellQuote(value) {
         return "'" + String(value === undefined || value === null ? "" : value).replace(/'/g, "'\\''") + "'";
+    }
+
+    function resourceScriptCommand(fileName, args) {
+        var file = String(fileName || "");
+        var repoPath = root.repoDir + "/Resources/Scripts/" + file;
+        var legacyPath = root.legacyRepoDir + "/Resources/Scripts/" + file;
+        var quotedArgs = (args || []).map(function(arg) {
+            return root.shellQuote(arg);
+        }).join(" ");
+        var suffix = quotedArgs ? " " + quotedArgs : "";
+
+        return "if [ -f " + root.shellQuote(repoPath) + " ]; then pkexec bash " + root.shellQuote(repoPath) + suffix + "; " +
+            "elif [ -f " + root.shellQuote(legacyPath) + " ]; then pkexec bash " + root.shellQuote(legacyPath) + suffix + "; " +
+            "else exit 1; fi";
+    }
+
+    function archtoolsPkexecCommand(fileName, args) {
+        var file = String(fileName || "");
+        var deployed = root.scriptsDir + "/" + file;
+        var bundled = root.bundledScriptsDir + "/" + file;
+        var quotedArgs = (args || []).map(function(arg) {
+            return root.shellQuote(arg);
+        }).join(" ");
+        var suffix = quotedArgs ? " " + quotedArgs : "";
+
+        return "if [ -f " + root.shellQuote(deployed) + " ]; then pkexec bash " + root.shellQuote(deployed) + suffix + "; " +
+            "elif [ -f " + root.shellQuote(bundled) + " ]; then pkexec bash " + root.shellQuote(bundled) + suffix + "; " +
+            "else exit 1; fi";
     }
 
     function progressReadCommand() {
@@ -1239,24 +1276,23 @@ Item {
     }
 
     function restoreUpdateStateFromSwitcher() {
-        if (!root.switcher || !root.switcher.archUpdateState)
+        if (!root.switcher)
             return;
-        var state = root.switcher.archUpdateState;
-        root.updateRunning = !!state.running;
-        root.updateProvider = state.provider || "";
-        root.updateStage = state.stage || "";
-        root.updateStatus = state.status || "";
-        root.updateDetail = state.detail || "";
-        root.updateHadError = !!state.hadError;
-        root.updateErrorText = state.errorText || "";
-        root.updateCountPacman = Number(state.countPacman || 0);
-        root.updateCountAur = Number(state.countAur || 0);
-        root.updateCountFlatpak = Number(state.countFlatpak || 0);
-        root.updateCountTotal = Number(state.countTotal || 0);
-        root.updateFinishedTimestamp = Number(state.finishedTimestamp || 0);
-        root.updateStagePacman = state.stagePacman || "";
-        root.updateStageAur = state.stageAur || "";
-        root.updateStageFlatpak = state.stageFlatpak || "";
+        root.updateRunning = !!root.switcher.archUpdRunning;
+        root.updateProvider = root.switcher.archUpdProvider || "";
+        root.updateStage = root.switcher.archUpdStage || "";
+        root.updateStatus = root.switcher.archUpdStatus || "";
+        root.updateDetail = root.switcher.archUpdDetail || "";
+        root.updateHadError = !!root.switcher.archUpdHadError;
+        root.updateErrorText = root.switcher.archUpdErrorText || "";
+        root.updateCountPacman = root.switcher.archUpdCountPacman || 0;
+        root.updateCountAur = root.switcher.archUpdCountAur || 0;
+        root.updateCountFlatpak = root.switcher.archUpdCountFlatpak || 0;
+        root.updateCountTotal = root.switcher.archUpdCountTotal || 0;
+        root.updateFinishedTimestamp = root.switcher.archUpdFinishedTs || 0;
+        root.updateStagePacman = root.switcher.archUpdStagePacman || "";
+        root.updateStageAur = root.switcher.archUpdStageAur || "";
+        root.updateStageFlatpak = root.switcher.archUpdStageFlatpak || "";
         root.updateRestoredFromSwitcher = root.updateRunning;
         if (root.updateRunning && root.updateStage !== "complete")
             updateProgressPoller.start();
@@ -1302,6 +1338,7 @@ Item {
             stageAur: root.updateStageAur,
             stageFlatpak: root.updateStageFlatpak
         };
+        root.switcher.syncArchScalars();
     }
 
     function startBackgroundUpdate(provider) {
@@ -2292,6 +2329,14 @@ Item {
                         spacing: 6
                         anchors.right: parent.right
                         ToolBtn {
+                            icon: "󰍹"
+                            tip: "HyprGRUB Background"
+                            onBtnClicked: {
+                                profileSettingsPopup.activePickerMode = 2;
+                                root.openSddmPicker();
+                            }
+                        }
+                        ToolBtn {
                             id: borderAnimationsBtn
                             icon: "FX"
                             tip: ThemePkg.Theme.edgeAnimationsEnabled ? "Animations ON" : "Animations OFF"
@@ -2304,7 +2349,7 @@ Item {
                             }
                         }
                         ToolBtn {
-                            icon: "󰒓"
+                            icon: ""
                             tip: "Hyprland Settings"
                             onBtnClicked: {
                                 root.openHyprlandSettings();
@@ -4782,7 +4827,7 @@ Item {
         property real popupCardRadius: 34
         property real popupCardLift: 18
 
-        property int activePickerMode: 0 // 0 = SDDM, 1 = Avatar
+        property int activePickerMode: 0 // 0 = SDDM, 1 = Avatar, 2 = GRUB
 
         function showPopup() {
             popupMounted = true;
@@ -7390,7 +7435,9 @@ Item {
                         Layout.fillWidth: true
                         spacing: 2
                         Text {
-                            text: profileSettingsPopup.activePickerMode === 0 ? "Choose SDDM Image/Video" : "Choose Profile Avatar"
+                            text: profileSettingsPopup.activePickerMode === 0
+                                ? "Choose SDDM Image/Video"
+                                : (profileSettingsPopup.activePickerMode === 1 ? "Choose Profile Avatar" : "Choose GRUB Background")
                             color: root.text
                             font.pixelSize: 19
                             font.family: root.textFont
