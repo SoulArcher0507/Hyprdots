@@ -7,10 +7,13 @@ import Qt.labs.platform 1.1
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Io
+import "." as Hyprshot
 
-FreezeScreen {
+Hyprshot.FreezeScreen {
     id: root
     visible: false
+    property bool autoStart: true
+    property bool sessionActive: false
 
     property var _j: ({
             special: {
@@ -385,6 +388,8 @@ FreezeScreen {
     property string tempPath
     property bool captureReady: false
     property bool captureFailed: false
+    property real captureOffsetX: 0
+    property real captureOffsetY: 0
     property bool selectionQueued: false
     property int captureRetryCount: 0
     readonly property int captureMaxRetries: 3
@@ -435,30 +440,16 @@ FreezeScreen {
                 root.ocrResultVisible = false
                 return
             }
-            Qt.quit()
+            root.finish()
         }
     }
-    Timer {
-        id: showTimer
-        interval: 50
-        running: false
-        repeat: false
-        onTriggered: {
-            if (root.captureReady || root.captureFailed) {
-                root.visible = true
-            } else {
-                showTimer.restart()
-            }
-        }
-    }
-
     Timer {
         id: captureTimeoutTimer
         interval: 5000
         running: false
         repeat: false
         onTriggered: {
-            if (!root.captureReady && captureProcess.running) {
+            if (root.sessionActive && !root.captureReady && captureProcess.running) {
                 console.warn("HyprQuickshot: grim capture timed out after 5s")
                 root.captureReady = false
                 root.captureFailed = true
@@ -492,22 +483,22 @@ FreezeScreen {
     function shapeIconSource(shapeKey) {
         switch (shapeKey) {
         case "circle":
-            return Quickshell.shellPath("icons/circle.svg")
+            return Qt.resolvedUrl("icons/circle.svg")
         case "freehand":
-            return Quickshell.shellPath("icons/freehand.svg")
+            return Qt.resolvedUrl("icons/freehand.svg")
         default:
-            return Quickshell.shellPath("icons/region.svg")
+            return Qt.resolvedUrl("icons/region.svg")
         }
     }
 
     function modeIconSource(modeName) {
         switch (modeName) {
         case "picker":
-            return Quickshell.shellPath("icons/picker.svg")
+            return Qt.resolvedUrl("icons/picker.svg")
         case "ocr":
-            return Quickshell.shellPath("icons/ocr.svg")
+            return Qt.resolvedUrl("icons/ocr.svg")
         case "clipboard":
-            return Quickshell.shellPath("icons/folder.svg")
+            return Qt.resolvedUrl("icons/folder.svg")
         default:
             return ""
         }
@@ -521,7 +512,7 @@ FreezeScreen {
 
     function notifyScreenshotSaved(outputPath, savedToFile) {
         if (!outputPath || outputPath === "") {
-            Qt.quit()
+            root.finish()
             return
         }
 
@@ -544,7 +535,65 @@ FreezeScreen {
         `
 
         Quickshell.execDetached(["sh", "-c", script])
-        Qt.quit()
+        root.finish()
+    }
+
+    function resetSessionState() {
+        if (captureProcess.running)
+            captureProcess.running = false
+        if (screenshotProcess.running)
+            screenshotProcess.running = false
+        if (colorPickProcess.running)
+            colorPickProcess.running = false
+        if (colorPreviewProcess.running)
+            colorPreviewProcess.running = false
+        if (ocrProcess.running)
+            ocrProcess.running = false
+        if (ocrCopyProcess.running)
+            ocrCopyProcess.running = false
+        captureTimeoutTimer.stop()
+        captureRetryTimer.stop()
+        root.visible = false
+        root.captureReady = false
+        root.captureFailed = false
+        root.selectionQueued = false
+        root.captureRetryCount = 0
+        root.queuedSelection = null
+        root.lastOutputPath = ""
+        root.lastSaveWasFile = true
+        root.lastPickedColor = ""
+        root.pickerPreviewColor = root.modeColor("picker")
+        root.lastExtractedText = ""
+        root.ocrStatusText = ""
+        root.ocrResultVisible = false
+        root.saveToFileEnabled = true
+        root.mode = "region"
+        root.selectedRegionShape = "rectangle"
+        root.regionShapeMenuOpen = false
+        regionSelector.resetSelection()
+        windowSelector.resetSelection()
+        colorPickerOverlay.cursorX = colorPickerOverlay.width / 2
+        colorPickerOverlay.cursorY = colorPickerOverlay.height / 2
+    }
+
+    function open() {
+        if (root.sessionActive && (captureProcess.running || screenshotProcess.running || colorPickProcess.running || ocrProcess.running))
+            return
+
+        root.resetSessionState()
+        root.sessionActive = true
+        root.syncActiveScreen()
+        root.startCapture()
+    }
+
+    function finish() {
+        if (root.autoStart) {
+            Qt.quit()
+            return
+        }
+
+        root.sessionActive = false
+        root.resetSessionState()
     }
 
     function startCapture() {
@@ -552,16 +601,22 @@ FreezeScreen {
         root.tempPath = Quickshell.cachePath(`screenshot-${timestamp}.png`)
         root.captureReady = false
         root.captureFailed = false
+        const monitor = root.hyprlandMonitor || {}
+        const outputName = String(monitor.name || "")
+        root.captureOffsetX = outputName !== "" ? 0 : (Number(monitor.x) || 0)
+        root.captureOffsetY = outputName !== "" ? 0 : (Number(monitor.y) || 0)
         const quotedTempPath = root.shellQuote(root.tempPath)
-        captureProcess.command = ["sh", "-c", `mkdir -p "$(dirname ${quotedTempPath})" && grim ${quotedTempPath}`]
+        const captureCommand = outputName !== ""
+            ? `grim -l 0 -o ${root.shellQuote(outputName)} ${quotedTempPath}`
+            : `grim -l 0 ${quotedTempPath}`
+        captureProcess.command = ["sh", "-c", `mkdir -p "$(dirname ${quotedTempPath})" && ${captureCommand}`]
         captureProcess.running = true
         captureTimeoutTimer.restart()
     }
 
     Component.onCompleted: {
-        root.syncActiveScreen()
-        root.startCapture()
-        showTimer.start()
+        if (root.autoStart)
+            root.open()
     }
 
     Process {
@@ -570,6 +625,8 @@ FreezeScreen {
 
         onExited: function(exitCode) {
             captureTimeoutTimer.stop()
+            if (!root.sessionActive)
+                return
 
             if (exitCode === 0) {
                 root.captureRetryCount = 0
@@ -617,6 +674,9 @@ FreezeScreen {
         running: false
 
         onExited: function(exitCode) {
+            if (!root.sessionActive)
+                return
+
             if (exitCode === 0) {
                 root.notifyScreenshotSaved(root.lastOutputPath, root.lastSaveWasFile)
                 return
@@ -642,9 +702,12 @@ FreezeScreen {
         running: false
 
         onExited: function(exitCode) {
+            if (!root.sessionActive)
+                return
+
             if (exitCode === 0) {
                 root.lastPickedColor = colorPickStdout.text.trim()
-                Qt.quit()
+                root.finish()
                 return
             }
 
@@ -688,6 +751,9 @@ FreezeScreen {
         running: false
 
         onExited: function(exitCode) {
+            if (!root.sessionActive)
+                return
+
             root.visible = true
             root.ocrResultVisible = true
 
@@ -770,10 +836,8 @@ FreezeScreen {
     function scaledSelection(selection) {
         const monitor = root.hyprlandMonitor || {}
         const scale = Number(monitor.scale) || 1
-        const monitorX = Number(monitor.x) || 0
-        const monitorY = Number(monitor.y) || 0
-        const scaledX = Math.round((selection.x + monitorX) * scale)
-        const scaledY = Math.round((selection.y + monitorY) * scale)
+        const scaledX = Math.round((selection.x + root.captureOffsetX) * scale)
+        const scaledY = Math.round((selection.y + root.captureOffsetY) * scale)
         const scaledWidth = Math.round(selection.width * scale)
         const scaledHeight = Math.round(selection.height * scale)
         const scaledPoints = (selection.points || []).map(function(point) {
@@ -888,12 +952,10 @@ FreezeScreen {
     function scaledPoint(mouseX, mouseY) {
         const monitor = root.hyprlandMonitor || {}
         const scale = Number(monitor.scale) || 1
-        const monitorX = Number(monitor.x) || 0
-        const monitorY = Number(monitor.y) || 0
 
         return {
-            x: Math.max(0, Math.round((mouseX + monitorX) * scale)),
-            y: Math.max(0, Math.round((mouseY + monitorY) * scale))
+            x: Math.max(0, Math.round((mouseX + root.captureOffsetX) * scale)),
+            y: Math.max(0, Math.round((mouseY + root.captureOffsetY) * scale))
         }
     }
 
@@ -1303,7 +1365,7 @@ FreezeScreen {
         }
     }
 
-    RegionSelector {
+    Hyprshot.RegionSelector {
         visible: (root.mode === "region" || root.mode === "ocr") && !root.ocrResultVisible && !ocrProcess.running
         id: regionSelector
         anchors.fill: parent
@@ -1322,7 +1384,7 @@ FreezeScreen {
         }
     }
  
-    WindowSelector {
+    Hyprshot.WindowSelector {
         visible: root.mode === "window"
         id: windowSelector
         anchors.fill: parent
@@ -1350,8 +1412,8 @@ FreezeScreen {
         readonly property real lensSize: 160
         readonly property real lensZoom: 12
         readonly property real outputScale: Number(root.hyprlandMonitor?.scale) || 1
-        readonly property real monitorOffX: Number(root.hyprlandMonitor?.x) || 0
-        readonly property real monitorOffY: Number(root.hyprlandMonitor?.y) || 0
+        readonly property real monitorOffX: root.captureOffsetX
+        readonly property real monitorOffY: root.captureOffsetY
 
         readonly property real lensTargetX: cursorX - lensSize / 2
         readonly property real lensTargetY: cursorY - lensSize - 55
@@ -2052,7 +2114,7 @@ FreezeScreen {
                             anchors.centerIn: parent
                             width: 24
                             height: 24
-                            source: Quickshell.shellPath("icons/window.svg")
+                            source: Qt.resolvedUrl("icons/window.svg")
                             fillMode: Image.PreserveAspectFit
                             smooth: true
                             visible: false
@@ -2113,7 +2175,7 @@ FreezeScreen {
                             anchors.centerIn: parent
                             width: 24
                             height: 24
-                            source: Quickshell.shellPath("icons/screen.svg")
+                            source: Qt.resolvedUrl("icons/screen.svg")
                             fillMode: Image.PreserveAspectFit
                             smooth: true
                             visible: false

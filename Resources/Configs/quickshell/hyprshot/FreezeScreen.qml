@@ -7,7 +7,7 @@ PanelWindow {
       
     property var targetScreen: Quickshell.screens[0]
     property alias contentItem: root.contentItem  
-    property alias frozenView: screenCopyView
+    readonly property var frozenView: screenCopyLoader.item
 
     screen: targetScreen
 
@@ -22,10 +22,15 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay  
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand  
   
-    ScreencopyView {  
-        id: screenCopyView
-        captureSource: root.targetScreen
-        anchors.fill: parent  
+    Loader {
+        id: screenCopyLoader
+        anchors.fill: parent
         z: -1
-    }  
+        active: root.visible
+
+        sourceComponent: ScreencopyView {
+            captureSource: root.targetScreen
+            anchors.fill: parent
+        }
+    }
 }

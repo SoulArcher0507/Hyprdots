@@ -20,7 +20,6 @@ mkdir -p "$CONFIG_DIR"
 rsync -av --progress "$REPO_ROOT/Resources/Configs/" "$CONFIG_DIR/"
 rsync -av --progress "$THEME_DIR/config/" "$CONFIG_DIR/"
 
-# TODO
-# sudo bash "$REPO_ROOT/Resources/Grub/elegant-grub/install.sh" -t forest
+# GRUB theme installation is handled by the main install.sh flow.
 
 sudo systemctl enable --now power-profiles-daemon.service

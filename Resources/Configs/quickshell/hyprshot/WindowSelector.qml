@@ -26,6 +26,13 @@ Item {
     property real selectionY: 0  
     property real selectionWidth: 0  
     property real selectionHeight: 0  
+
+    function resetSelection() {
+        root.selectionX = 0
+        root.selectionY = 0
+        root.selectionWidth = 0
+        root.selectionHeight = 0
+    }
       
     Behavior on selectionX { SpringAnimation { spring: root.animationSpring; damping: root.animationDamping } }  
     Behavior on selectionY { SpringAnimation { spring: root.animationSpring; damping: root.animationDamping } }  

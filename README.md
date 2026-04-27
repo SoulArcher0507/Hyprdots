@@ -6,17 +6,17 @@ Hyprdots is my personal Arch Linux + Hyprland configuration built around Hyprlan
 [TODO]
 
 ## Features
-- Dynamic colors generated from wallpapers with pywal
 - Custom Quickshell UI with smooth animations
+- Dynamic colors generated from wallpapers with pywal
 
 ## Default Apps
 - Terminal: Kitty
 - Editor: Neovim
-- Zsh
+- Shell: Zsh
 
 ## Installation
 ```bash
-git clone https://gitea.corradoenea.com/CorradoEnea/Hyprdots.git
+git clone https://github.com/SoulArcher0507/Hyprdots.git
 cd Hyprdots
 chmod +x install.sh
 ./install.sh

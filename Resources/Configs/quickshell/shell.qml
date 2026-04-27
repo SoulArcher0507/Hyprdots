@@ -15,6 +15,7 @@ import "modules/bar/widgets" as BarWidgets
 
 ShellRoot {
     id: root
+    property bool hyprshotOpenQueued: false
 
     function hideLauncherProcess() {
         Quickshell.execDetached([
@@ -182,6 +183,13 @@ ShellRoot {
     }
 
     IpcHandler {
+        target: "hyprshot"
+        function open(): void {
+            root.openHyprshot();
+        }
+    }
+
+    IpcHandler {
         target: "global"
         function closeShellPopups(): void {
             ThemePkg.Theme.globalCloseShellPopups();
@@ -224,6 +232,18 @@ ShellRoot {
         function toggle(): void {
             Quickshell.execDetached(["qs", "ipc", "-p", Quickshell.env("HOME") + "/.config/quickshell/gamelauncher", "call", "gamelauncher", "toggle"]);
         }
+    }
+
+    function openHyprshot() {
+        ThemePkg.Theme.globalCloseAllPopups();
+
+        if (hyprshotLoader.item) {
+            hyprshotLoader.item.open();
+            return;
+        }
+
+        root.hyprshotOpenQueued = true;
+        hyprshotLoader.active = true;
     }
 
     Loader {
@@ -319,5 +339,25 @@ ShellRoot {
         active: true
         asynchronous: true
         sourceComponent: focusTimePopupComponent
+    }
+
+    Loader {
+        id: hyprshotLoader
+        active: true
+        asynchronous: true
+
+        Component.onCompleted: {
+            setSource(Qt.resolvedUrl("hyprshot/shell.qml"), {
+                "autoStart": false
+            });
+        }
+
+        onLoaded: {
+            if (!root.hyprshotOpenQueued)
+                return;
+
+            root.hyprshotOpenQueued = false;
+            item.open();
+        }
     }
 }

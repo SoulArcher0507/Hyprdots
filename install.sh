@@ -125,6 +125,11 @@ fi
 bash "$SCRIPT_DIR/Resources/Scripts/install_sddm.sh"
 sudo bash "$SCRIPT_DIR/Resources/Scripts/change_sddm_avatar.sh" "$TARGET_USER" "$SCRIPT_DIR/Resources/Wallpapers/elden.png"
 sudo bash "$SCRIPT_DIR/Resources/Scripts/install_plymouth_theme.sh" "lone" "$SCRIPT_DIR/Resources/Plymouth/plymouth-themes"
+if [[ -f /etc/default/grub ]] || command -v grub-mkconfig >/dev/null 2>&1 || command -v update-grub >/dev/null 2>&1; then
+    sudo bash "$SCRIPT_DIR/Resources/Scripts/install_hyprgrub.sh"
+else
+    echo "Skipping HyprGRUB installation because GRUB was not detected"
+fi
 run_target_bash "$SCRIPT_DIR/Resources/Scripts/zsh_enabler.sh"
 sudo bash "$SCRIPT_DIR/Resources/Scripts/dynamic_swap_file.sh"
 run_target_bash "$SCRIPT_DIR/Resources/Scripts/default_webapps.sh"
