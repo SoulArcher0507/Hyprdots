@@ -167,8 +167,7 @@ Item {
         autolockStatusProc.running = true;
         root._lastProgressLineCount = 0;
         updateProgressInitProc.running = true;
-        archNewsFetchProc.running = true;
-        dotfilesBootCheckProc.running = true;
+        root.refreshArchToolNotifications();
         popupEnterAnim.start();
     }
 
@@ -388,6 +387,13 @@ Item {
             root.autolockDisabled ? "Hypridle disabled" : "Hypridle enabled",
             root.autolockDisabled ? "changes-prevent" : "system-lock-screen"
         );
+    }
+
+    function refreshArchToolNotifications() {
+        if (!archNewsFetchProc.running)
+            archNewsFetchProc.running = true;
+        if (!dotfilesBootCheckProc.running)
+            dotfilesBootCheckProc.running = true;
     }
 
     function openResourceDetails(key) {
@@ -699,7 +705,7 @@ Item {
 
     Io.Process {
         id: dotfilesBootCheckProc
-        command: ["bash", "-lc", root.scriptRunCommand("dotfiles-updates.py")]
+        command: ["bash", "-lc", root.scriptRunCommand("dotfiles-updates.py", ["--fetch"])]
         stdout: Io.StdioCollector {
             id: dotfilesBootCheckOut
             waitForEnd: true

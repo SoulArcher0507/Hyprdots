@@ -1108,12 +1108,21 @@ Item {
                         Rectangle {
                             id: track
                             anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; verticalCenterOffset: -10 }
-                            height: 10; radius: 5; color: root.mantle; border.color: root.crust; border.width: 1
+                            height: 24; radius: 12
+                            color: "#0dffffff"; border.color: "#1affffff"; border.width: 1
+                            clip: true
                             Rectangle {
-                                width: Math.max(knob.width, knob.x + knob.width / 2)
+                                width: parent.width * sliderContainer.visualPct
                                 height: parent.height; radius: parent.radius
-                                color: root.selectedRateAccent
-                                Behavior on color { ColorAnimation { duration: 200 } }
+                                opacity: sliderMa.containsMouse ? 1.0 : 0.85
+                                Behavior on opacity { NumberAnimation { duration: 200 } }
+                                Behavior on width { enabled: !sliderMa.pressed; NumberAnimation { duration: 300; easing.type: Easing.OutQuint } }
+
+                                gradient: Gradient {
+                                    orientation: Gradient.Horizontal
+                                    GradientStop { position: 0.0; color: root.selectedRateAccent; Behavior on color { ColorAnimation { duration: 300 } } }
+                                    GradientStop { position: 1.0; color: Qt.lighter(root.selectedRateAccent, 1.25); Behavior on color { ColorAnimation { duration: 300 } } }
+                                }
                             }
                         }
 
@@ -1121,7 +1130,7 @@ Item {
                             model: sliderContainer.rates.length
                             Item {
                                 x: (index / (sliderContainer.rates.length - 1)) * track.width
-                                y: track.y + 18
+                                y: track.y + track.height + 6
                                 Text {
                                     anchors.horizontalCenter: parent.horizontalCenter
                                     text: sliderContainer.rates[index]
@@ -1131,19 +1140,6 @@ Item {
                                     Behavior on color { ColorAnimation { duration: 200 } }
                                 }
                             }
-                        }
-
-                        Rectangle {
-                            id: knob
-                            width: 22; height: 22; radius: 11
-                            color: sliderMa.containsPress ? root.selectedRateAccent : root.text
-                            anchors.verticalCenter: track.verticalCenter
-                            x: (sliderContainer.visualPct * track.width) - width / 2
-                            Behavior on x { enabled: !sliderMa.pressed; NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            border.width: sliderMa.containsMouse ? 4 : 0
-                            border.color: Qt.alpha(root.selectedRateAccent, 0.3)
-                            Behavior on border.width { NumberAnimation { duration: 150 } }
                         }
 
                         MouseArea {

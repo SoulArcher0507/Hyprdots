@@ -4,8 +4,10 @@ import xml.etree.ElementTree as ET
 import json
 import os
 import subprocess
+import fcntl
 
 CACHE_FILE = os.path.expanduser("~/.cache/quickshell/archnews.json")
+LOCK_FILE = os.path.expanduser("~/.cache/quickshell/archnews.lock")
 
 def load_cache():
     if os.path.exists(CACHE_FILE):
@@ -20,6 +22,10 @@ def save_cache(data):
     os.makedirs(os.path.dirname(CACHE_FILE), exist_ok=True)
     with open(CACHE_FILE, 'w') as f:
         json.dump(data, f)
+
+os.makedirs(os.path.dirname(LOCK_FILE), exist_ok=True)
+lock_handle = open(LOCK_FILE, "w")
+fcntl.flock(lock_handle, fcntl.LOCK_EX)
 
 if len(sys.argv) > 1 and sys.argv[1] == "--clear":
     data = load_cache()

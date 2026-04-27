@@ -206,11 +206,11 @@ def sync_cache_with_status(cache, status, boot_id, last_check_ok=True):
     return cache
 
 
-def boot_check():
+def boot_check(force_fetch=False):
     cache = load_cache()
     boot_id = current_boot_id()
 
-    if boot_id and cache.get("boot_id") == boot_id:
+    if not force_fetch and boot_id and cache.get("boot_id") == boot_id:
         emit(
             unread=int(cache.get("unread", 0)),
             behind=int(cache.get("behind", 0)),
@@ -260,10 +260,15 @@ def boot_check():
         )
         return 0
 
+    previous_remote_head = cache.get("remote_head", "")
+    previous_behind = int(cache.get("behind", 0) or 0)
     sync_cache_with_status(cache, status, boot_id)
     save_cache(cache)
 
-    if status["behind"] > 0:
+    should_notify = status["behind"] > 0 and (
+        not force_fetch or status["remote_head"] != previous_remote_head or previous_behind == 0
+    )
+    if should_notify:
         body = f"{status['behind']} update disponibili in Hyprdots."
         if status["latest_subject"]:
             body += f" Ultimo commit: {status['latest_subject']}"
@@ -389,6 +394,8 @@ def main():
         return print_status()
     if len(sys.argv) > 1 and sys.argv[1] == "--clear":
         return clear_status()
+    if len(sys.argv) > 1 and sys.argv[1] == "--fetch":
+        return boot_check(force_fetch=True)
     return boot_check()
 
 

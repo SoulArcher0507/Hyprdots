@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls 2.15
 import Quickshell
+import Quickshell.Io
 import Quickshell.Services.SystemTray
 import "../../theme" as ThemePkg
 
@@ -13,6 +14,8 @@ Item {
     readonly property color hoverColor: ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.08)
 
     property var activeMenu: null
+    property var launcherIconCache: ({})
+    property int launcherIconCacheRevision: 0
 
     signal menuOpened(var menuId)
     readonly property color borderColor: ThemePkg.Theme.mix(ThemePkg.Theme.background, ThemePkg.Theme.foreground, 0.35)
@@ -28,6 +31,77 @@ Item {
     readonly property int iconPadding: baseIconPadding * scaleFactor
 
     width: Math.max(0, trayRow.children.length * (iconSize + iconSpacing) - iconSpacing)
+
+    readonly property string launcherScriptDir: Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/launcher/"
+
+    function normalizeIconKey(value) {
+        let key = String(value || "").toLowerCase().trim();
+        if (key === "")
+            return "";
+
+        key = key.replace(/^file:\/\//, "");
+        key = key.replace(/^image:\/\/icon\//, "");
+        key = key.split("?")[0].split("/").pop();
+        key = key.replace(/\.desktop$/, "");
+
+        return key.replace(/[^a-z0-9]/g, "");
+    }
+
+    function cacheLauncherIcon(cache, key, iconPath) {
+        const normalized = normalizeIconKey(key);
+        if (normalized !== "" && iconPath && !cache[normalized])
+            cache[normalized] = iconPath;
+    }
+
+    function trayIconSource(trayItem, revision) {
+        revision;
+
+        const nativeIcon = String(trayItem.icon || "");
+        const candidates = [
+            trayItem.id,
+            trayItem.title,
+            trayItem.tooltipTitle,
+            nativeIcon
+        ];
+
+        for (let i = 0; i < candidates.length; i++) {
+            const key = normalizeIconKey(candidates[i]);
+            const iconPath = key !== "" ? launcherIconCache[key] : "";
+            if (iconPath)
+                return iconPath.startsWith("file://") ? iconPath : "file://" + iconPath;
+        }
+
+        return nativeIcon;
+    }
+
+    Process {
+        id: launcherIconLoader
+        command: ["bash", systemTrayWidget.launcherScriptDir + "list_apps.sh"]
+        running: true
+
+        stdout: StdioCollector {
+            waitForEnd: true
+            onStreamFinished: {
+                try {
+                    const apps = JSON.parse(String(text || "[]"));
+                    const cache = {};
+                    for (let i = 0; i < apps.length; i++) {
+                        const app = apps[i];
+                        if (!app || !app.icon)
+                            continue;
+
+                        systemTrayWidget.cacheLauncherIcon(cache, app.name, app.icon);
+                        systemTrayWidget.cacheLauncherIcon(cache, app.desktop, app.icon);
+                        systemTrayWidget.cacheLauncherIcon(cache, app.iconName, app.icon);
+                    }
+                    systemTrayWidget.launcherIconCache = cache;
+                    systemTrayWidget.launcherIconCacheRevision += 1;
+                } catch (e) {
+                    console.warn("SystemTray: failed to parse launcher icon cache:", e);
+                }
+            }
+        }
+    }
 
     Row {
         id: trayRow
@@ -170,7 +244,7 @@ Item {
                     anchors.centerIn: parent
                     width: iconSize - 2
                     height: iconSize - 2
-                    source: trayItem.icon
+                    source: systemTrayWidget.trayIconSource(trayItem, systemTrayWidget.launcherIconCacheRevision)
                     fillMode: Image.PreserveAspectFit
                     smooth: true
 

@@ -121,7 +121,9 @@ for f in /usr/share/applications/*.desktop "$HOME"/.local/share/applications/*.d
 
     iconpath="$(resolve_icon "$icon")"
 
-    apps+=("{\"name\":\"$(json_escape "$name")\",\"exec\":\"$(json_escape "$exec_clean")\",\"icon\":\"$(json_escape "$iconpath")\",\"comment\":\"$(json_escape "$comment")\"}")
+    desktop_id="$(basename "$f")"
+
+    apps+=("{\"name\":\"$(json_escape "$name")\",\"exec\":\"$(json_escape "$exec_clean")\",\"icon\":\"$(json_escape "$iconpath")\",\"iconName\":\"$(json_escape "$icon")\",\"desktop\":\"$(json_escape "$desktop_id")\",\"comment\":\"$(json_escape "$comment")\"}")
 done
 
 printf '['
