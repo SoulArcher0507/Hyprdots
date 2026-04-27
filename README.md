@@ -22,13 +22,9 @@ chmod +x install.sh
 ./install.sh
 ```
 
-You also need to add an openweather api key for the weather widget to work in ~/.config/hypr/scripts/quickshell/weather/.env with the openweather city id like this:
-```bash
-OPENWEATHER_API_KEY="<your-api-key>"
-OPENWEATHER_CITY_ID="1234567"
-```
+You also need to add an openweather api key for the weather widget to work. This can be done via the button in the Arch Tools popup. 
 
-## Upcoming Feature
+## Upcoming Features
 - Animated wallpapers support with mpvpaper, using a different script with the wallpaper picker
 - Mouse icon with dynamic colors
 - More battery saving for laptops with tlp
