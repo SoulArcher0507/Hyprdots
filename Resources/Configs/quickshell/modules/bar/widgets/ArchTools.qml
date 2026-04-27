@@ -2,8 +2,14 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Effects
+import Qt.labs.folderlistmodel
+import QtMultimedia
 import Quickshell
+import Qt.labs.folderlistmodel
+import QtMultimedia
 import Quickshell.Io as Io
+import Qt.labs.folderlistmodel
+import QtMultimedia
 import Quickshell.Hyprland
 import "../../theme" as ThemePkg
 
@@ -68,7 +74,7 @@ Item {
 
     readonly property string cacheFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_cache.json"
     readonly property string progressFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_update.jsonl"
-    property int _lastProgressLineCount: 0  
+    property int _lastProgressLineCount: 0
     property bool startupRefreshStarted: false
     property real lastCacheSaveMs: 0
 
@@ -115,17 +121,17 @@ Item {
     property real detailsContentOffset: detailsOpen ? 0 : -10
 
     property bool updateRunning: false
-    property string updateProvider: ""       
-    property string updateStage: ""          
-    property string updateStatus: ""         
-    property string updateDetail: ""         
+    property string updateProvider: ""
+    property string updateStage: ""
+    property string updateStatus: ""
+    property string updateDetail: ""
     property bool updateHadError: false
-    property string updateErrorText: ""      
+    property string updateErrorText: ""
     property int updateCountPacman: 0
     property int updateCountAur: 0
     property int updateCountFlatpak: 0
     property int updateCountTotal: 0
-    property real updateFinishedTimestamp: 0  
+    property real updateFinishedTimestamp: 0
     readonly property bool updateResultVisible: updateFinishedTimestamp > 0
     readonly property bool updateShowStatus: updateRunning || updateResultVisible
 
@@ -136,6 +142,116 @@ Item {
     property string weatherSaveStatus: ""
     property bool weatherSaveHovered: false
     property bool weatherSavePressed: false
+
+    property bool sddmPickerVisible: false
+    onSddmPickerVisibleChanged: if (sddmPickerVisible)
+        root.forceActiveFocus()
+    property bool sddmPickerMounted: false
+    property bool sddmPickerTargetVisible: false
+    property real sddmPickerCardOpacity: 0.0
+    property real sddmPickerCardScaleX: 0.91
+    property real sddmPickerCardScaleY: 0.79
+    readonly property real sddmPickerDefaultWidth: 1180
+    readonly property real sddmPickerDefaultHeight: 450
+    readonly property real sddmPreviewAspectRatio: 16 / 9
+    property real sddmPickerCardWidth: sddmPickerDefaultWidth
+    property real sddmPickerCardHeight: sddmPickerDefaultHeight
+    property real sddmPickerCardRadius: 34
+    property real sddmPickerCardLift: 18
+    property url sddmPickerFolderUrl: "file://" + Quickshell.env("HOME")
+    property string sddmPickerSelectedPath: ""
+    property string sddmPickerSelectedName: ""
+    property var sddmNameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.mp4", "*.webm", "*.mkv", "*.gif"]
+
+    function openSddmPicker() {
+        root.sddmPickerFolderUrl = "file://" + Quickshell.env("HOME") + "/Pictures";
+        root.sddmPickerSelectedPath = "";
+        root.sddmPickerSelectedName = "";
+        root.sddmPickerMounted = true;
+        root.sddmPickerTargetVisible = true;
+        root.sddmPickerVisible = true;
+        sddmPickerExitAnim.stop();
+        root.sddmPickerCardOpacity = 0.0;
+        root.sddmPickerCardScaleX = 0.91;
+        root.sddmPickerCardScaleY = 0.79;
+        root.sddmPickerCardWidth = root.sddmPickerDefaultWidth;
+        root.sddmPickerCardHeight = root.sddmPickerDefaultHeight;
+        root.sddmPickerCardRadius = 34;
+        root.sddmPickerCardLift = 18;
+        sddmPickerEnterAnim.stop();
+        sddmPickerEnterAnim.start();
+        sddmPickerFolderModel.reload();
+        sddmPreviewPlayer.stop();
+    }
+
+    function closeSddmPicker() {
+        root.sddmPickerTargetVisible = false;
+        root.sddmPickerSelectedPath = "";
+        root.sddmPickerSelectedName = "";
+        sddmPreviewPlayer.stop();
+        if (!root.sddmPickerMounted && root.sddmPickerCardOpacity <= 0.001) {
+            root.sddmPickerVisible = false;
+            return;
+        }
+        sddmPickerEnterAnim.stop();
+        if (!sddmPickerExitAnim.running)
+            sddmPickerExitAnim.start();
+    }
+
+    function openSddmPickerFolder(folderUrl) {
+        if (!folderUrl)
+            return;
+        root.sddmPickerFolderUrl = folderUrl;
+        root.sddmPickerSelectedPath = "";
+        root.sddmPickerSelectedName = "";
+        sddmPreviewPlayer.stop();
+        sddmPickerFolderModel.reload();
+    }
+
+    function selectSddmPickerEntry(filePath, fileName, isDir, fileUrl) {
+        if (isDir) {
+            root.openSddmPickerFolder(fileUrl);
+            return;
+        }
+        root.sddmPickerSelectedPath = String(filePath || "");
+        root.sddmPickerSelectedName = String(fileName || "");
+
+        // start preview
+        sddmPreviewPlayer.stop();
+        var ext = root.sddmPickerSelectedName.split('.').pop().toLowerCase();
+        var isVideo = ["mp4", "webm", "mkv", "avi"].includes(ext);
+        if (isVideo) {
+            sddmPreviewPlayer.source = fileUrl;
+            sddmPreviewPlayer.play();
+        } else {
+            sddmPreviewPlayer.source = "";
+        }
+    }
+
+    function confirmSddmPickerSelection() {
+        if (!root.sddmPickerSelectedPath)
+            return;
+        var selectedPath = root.sddmPickerSelectedPath;
+        root.closeSddmPicker();
+
+        var mode = profileSettingsPopup.activePickerMode;
+        if (mode === 0) {
+            // SDDM background
+            var ext = selectedPath.split('.').pop().toLowerCase();
+            var isVideo = ["mp4", "webm", "mkv", "avi"].includes(ext);
+            var destExt = isVideo ? "mp4" : "jpg"; // simplest fallback
+            var destPath = "/usr/share/sddm/themes/silent/backgrounds/default." + destExt;
+            var cmd = "pkexec cp '" + selectedPath.replace(/'/g, "'\\''") + "' '" + destPath + "'";
+            Quickshell.execDetached(["bash", "-lc", cmd]);
+            root.notifyArchTools("SDDM Background", "Updated successfully to " + selectedPath.split('/').pop(), "view-refresh");
+        } else if (mode === 1) {
+            // Avatar
+            var cmd = "pkexec /home/corradoenea/Documents/Git/Hyprdots/Resources/Scripts/change_sddm_avatar.sh " + Quickshell.env("USER") + " '" + selectedPath.replace(/'/g, "'\\''") + "'";
+            Quickshell.execDetached(["bash", "-lc", cmd]);
+            root.notifyArchTools("Profile Avatar", "Updated successfully to " + selectedPath.split('/').pop(), "view-refresh");
+        }
+    }
+
     property real weatherSaveFillLevel: 0.0
     property bool weatherSaveTriggered: false
     property real weatherSaveFlashOpacity: 0.0
@@ -149,7 +265,7 @@ Item {
     property real authUnlockFlashOpacity: 0.0
     property int authUnlockHoldDuration: 750
 
-    property string updateStagePacman: ""   
+    property string updateStagePacman: ""
     property string updateStageAur: ""
     property string updateStageFlatpak: ""
     property bool updateRestoredFromSwitcher: false
@@ -244,23 +360,107 @@ Item {
         running: false
 
         ParallelAnimation {
-            NumberAnimation { target: root; property: "popupCardOpacity"; to: 0.78; duration: 145; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardScaleX"; to: 0.985; duration: 175; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.94; duration: 190; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardWidth"; to: root.popupOpenWidth - 26; duration: 190; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardHeight"; to: root.popupOpenHeight - 34; duration: 200; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardRadius"; to: 28; duration: 190; easing.type: Easing.OutQuad }
-            NumberAnimation { target: root; property: "popupCardLift"; to: 8; duration: 190; easing.type: Easing.OutCubic }
+            NumberAnimation {
+                target: root
+                property: "popupCardOpacity"
+                to: 0.78
+                duration: 145
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: root
+                property: "popupCardScaleX"
+                to: 0.985
+                duration: 175
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: root
+                property: "popupCardScaleY"
+                to: 0.94
+                duration: 190
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: root
+                property: "popupCardWidth"
+                to: root.popupOpenWidth - 26
+                duration: 190
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: root
+                property: "popupCardHeight"
+                to: root.popupOpenHeight - 34
+                duration: 200
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: root
+                property: "popupCardRadius"
+                to: 28
+                duration: 190
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: root
+                property: "popupCardLift"
+                to: 8
+                duration: 190
+                easing.type: Easing.OutCubic
+            }
         }
 
         ParallelAnimation {
-            NumberAnimation { target: root; property: "popupCardOpacity"; to: 1.0; duration: 175; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardScaleX"; to: 1.0; duration: 205; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardScaleY"; to: 1.0; duration: 205; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardWidth"; to: root.popupOpenWidth; duration: 205; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardHeight"; to: root.popupOpenHeight; duration: 215; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardRadius"; to: root.popupOpenRadius; duration: 195; easing.type: Easing.InOutQuad }
-            NumberAnimation { target: root; property: "popupCardLift"; to: 0; duration: 205; easing.type: Easing.OutCubic }
+            NumberAnimation {
+                target: root
+                property: "popupCardOpacity"
+                to: 1.0
+                duration: 175
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: root
+                property: "popupCardScaleX"
+                to: 1.0
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: root
+                property: "popupCardScaleY"
+                to: 1.0
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: root
+                property: "popupCardWidth"
+                to: root.popupOpenWidth
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: root
+                property: "popupCardHeight"
+                to: root.popupOpenHeight
+                duration: 215
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: root
+                property: "popupCardRadius"
+                to: root.popupOpenRadius
+                duration: 195
+                easing.type: Easing.InOutQuad
+            }
+            NumberAnimation {
+                target: root
+                property: "popupCardLift"
+                to: 0
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
         }
     }
 
@@ -269,23 +469,107 @@ Item {
         running: false
 
         ParallelAnimation {
-            NumberAnimation { target: root; property: "popupCardScaleX"; to: 1.04; duration: 85; easing.type: Easing.OutQuad }
-            NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.95; duration: 85; easing.type: Easing.OutQuad }
-            NumberAnimation { target: root; property: "popupCardWidth"; to: root.popupOpenWidth + 18; duration: 95; easing.type: Easing.OutQuad }
-            NumberAnimation { target: root; property: "popupCardHeight"; to: root.popupOpenHeight - 20; duration: 95; easing.type: Easing.OutQuad }
-            NumberAnimation { target: root; property: "popupCardRadius"; to: 30; duration: 95; easing.type: Easing.OutQuad }
-            NumberAnimation { target: root; property: "popupCardLift"; to: 5; duration: 95; easing.type: Easing.OutQuad }
-            NumberAnimation { target: root; property: "popupCardOpacity"; to: 0.88; duration: 80; easing.type: Easing.OutQuad }
+            NumberAnimation {
+                target: root
+                property: "popupCardScaleX"
+                to: 1.04
+                duration: 85
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: root
+                property: "popupCardScaleY"
+                to: 0.95
+                duration: 85
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: root
+                property: "popupCardWidth"
+                to: root.popupOpenWidth + 18
+                duration: 95
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: root
+                property: "popupCardHeight"
+                to: root.popupOpenHeight - 20
+                duration: 95
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: root
+                property: "popupCardRadius"
+                to: 30
+                duration: 95
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: root
+                property: "popupCardLift"
+                to: 5
+                duration: 95
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: root
+                property: "popupCardOpacity"
+                to: 0.88
+                duration: 80
+                easing.type: Easing.OutQuad
+            }
         }
 
         ParallelAnimation {
-            NumberAnimation { target: root; property: "popupCardOpacity"; to: 0.0; duration: 180; easing.type: Easing.InCubic }
-            NumberAnimation { target: root; property: "popupCardScaleX"; to: 0.84; duration: 205; easing.type: Easing.InCubic }
-            NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.68; duration: 220; easing.type: Easing.InCubic }
-            NumberAnimation { target: root; property: "popupCardWidth"; to: root.popupClosedWidth; duration: 200; easing.type: Easing.InCubic }
-            NumberAnimation { target: root; property: "popupCardHeight"; to: root.popupClosedHeight; duration: 210; easing.type: Easing.InCubic }
-            NumberAnimation { target: root; property: "popupCardRadius"; to: root.popupClosedRadius; duration: 200; easing.type: Easing.InQuad }
-            NumberAnimation { target: root; property: "popupCardLift"; to: 24; duration: 200; easing.type: Easing.InCubic }
+            NumberAnimation {
+                target: root
+                property: "popupCardOpacity"
+                to: 0.0
+                duration: 180
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: root
+                property: "popupCardScaleX"
+                to: 0.84
+                duration: 205
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: root
+                property: "popupCardScaleY"
+                to: 0.68
+                duration: 220
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: root
+                property: "popupCardWidth"
+                to: root.popupClosedWidth
+                duration: 200
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: root
+                property: "popupCardHeight"
+                to: root.popupClosedHeight
+                duration: 210
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: root
+                property: "popupCardRadius"
+                to: root.popupClosedRadius
+                duration: 200
+                easing.type: Easing.InQuad
+            }
+            NumberAnimation {
+                target: root
+                property: "popupCardLift"
+                to: 24
+                duration: 200
+                easing.type: Easing.InCubic
+            }
         }
     }
 
@@ -413,11 +697,7 @@ Item {
     }
 
     function notifyAutolockState() {
-        root.notifyArchTools(
-            "Autolock",
-            root.autolockDisabled ? "Hypridle disabled" : "Hypridle enabled",
-            root.autolockDisabled ? "changes-prevent" : "system-lock-screen"
-        );
+        root.notifyArchTools("Autolock", root.autolockDisabled ? "Hypridle disabled" : "Hypridle enabled", root.autolockDisabled ? "changes-prevent" : "system-lock-screen");
     }
 
     function refreshArchToolNotifications() {
@@ -652,6 +932,10 @@ Item {
                         root.statDiskRoot = obj.diskRoot;
                     if (obj.diskHome !== undefined)
                         root.statDiskHome = obj.diskHome;
+                    if (obj.unreadNews !== undefined)
+                        root.unreadNews = obj.unreadNews;
+                    if (obj.unreadDotfiles !== undefined)
+                        root.unreadDotfiles = obj.unreadDotfiles;
                 } catch (e) {}
             }
         }
@@ -676,7 +960,9 @@ Item {
             memTotal: root.statMemTotal,
             memPercent: root.statMemPercent,
             diskRoot: root.statDiskRoot,
-            diskHome: root.statDiskHome
+            diskHome: root.statDiskHome,
+            unreadNews: root.unreadNews,
+            unreadDotfiles: root.unreadDotfiles
         };
         saveCacheProc.command = ["bash", "-c", "mkdir -p $(dirname " + root.cacheFile + ") && echo '" + JSON.stringify(obj) + "' > " + root.cacheFile];
         saveCacheProc.running = true;
@@ -790,14 +1076,16 @@ Item {
             onStreamFinished: {
                 try {
                     var obj = JSON.parse(text.trim());
-                    if (obj.unread !== undefined)
+                    if (obj.unread !== undefined) {
                         root.unreadNews = obj.unread;
+                        root.saveCache(true);
+                    }
                 } catch (e) {}
             }
         }
     }
     Timer {
-        interval: 3600000 
+        interval: 3600000
         running: root.startupRefreshStarted
         repeat: true
         onTriggered: archNewsFetchProc.running = true
@@ -810,14 +1098,16 @@ Item {
             id: dotfilesBootCheckOut
             waitForEnd: true
         }
-        onExited: function(exitCode, exitStatus) {
+        onExited: function (exitCode, exitStatus) {
             var raw = (dotfilesBootCheckOut.text || "").trim();
             if (!raw)
                 return;
             try {
                 var obj = JSON.parse(raw);
-                if (obj.unread !== undefined)
+                if (obj.unread !== undefined) {
                     root.unreadDotfiles = Number(obj.unread || 0);
+                    root.saveCache(true);
+                }
             } catch (e) {}
         }
     }
@@ -829,14 +1119,16 @@ Item {
             id: dotfilesStatusOut
             waitForEnd: true
         }
-        onExited: function(exitCode, exitStatus) {
+        onExited: function (exitCode, exitStatus) {
             var raw = (dotfilesStatusOut.text || "").trim();
             if (!raw)
                 return;
             try {
                 var obj = JSON.parse(raw);
-                if (obj.unread !== undefined)
+                if (obj.unread !== undefined) {
                     root.unreadDotfiles = Number(obj.unread || 0);
+                    root.saveCache(true);
+                }
             } catch (e) {}
         }
     }
@@ -1069,9 +1361,12 @@ Item {
             root.updateStatus = status;
             root.updateDetail = detail;
 
-            if (stage === "pacman") root.updateStagePacman = status;
-            else if (stage === "aur") root.updateStageAur = status;
-            else if (stage === "flatpak") root.updateStageFlatpak = status;
+            if (stage === "pacman")
+                root.updateStagePacman = status;
+            else if (stage === "aur")
+                root.updateStageAur = status;
+            else if (stage === "flatpak")
+                root.updateStageFlatpak = status;
 
             if (status === "error") {
                 root.updateHadError = true;
@@ -1107,20 +1402,27 @@ Item {
             }
 
             root.persistUpdateStateToSwitcher();
-        } catch (e) {
-        }
+        } catch (e) {}
     }
 
     function updateStatusIcon(status) {
         switch (status) {
-        case "starting": return "⟳";
-        case "running":  return "⟳";
-        case "queued":   return "⟳";
-        case "done":     return "✓";
-        case "success":  return "✓";
-        case "error":    return "✗";
-        case "skipped":  return "–";
-        default:         return "⟳";
+        case "starting":
+            return "⟳";
+        case "running":
+            return "⟳";
+        case "queued":
+            return "⟳";
+        case "done":
+            return "✓";
+        case "success":
+            return "✓";
+        case "error":
+            return "✗";
+        case "skipped":
+            return "–";
+        default:
+            return "⟳";
         }
     }
 
@@ -1137,9 +1439,15 @@ Item {
     function providerStageStatus(providerLabel) {
         var status = "";
         switch (providerLabel) {
-        case "pacman":  status = root.updateStagePacman; break;
-        case "yay":     status = root.updateStageAur; break;
-        case "flatpak": status = root.updateStageFlatpak; break;
+        case "pacman":
+            status = root.updateStagePacman;
+            break;
+        case "yay":
+            status = root.updateStageAur;
+            break;
+        case "flatpak":
+            status = root.updateStageFlatpak;
+            break;
         }
 
         if (status === "" && root.updateRunning) {
@@ -1153,7 +1461,8 @@ Item {
 
     function providerStatusIcon(providerLabel) {
         var s = root.providerStageStatus(providerLabel);
-        if (!s) return "";
+        if (!s)
+            return "";
         return root.updateStatusIcon(s);
     }
 
@@ -1164,7 +1473,7 @@ Item {
             id: progressPollOut
             waitForEnd: true
         }
-        onExited: function(exitCode, exitStatus) {
+        onExited: function (exitCode, exitStatus) {
             var raw = (progressPollOut.text || "").trim();
             if (!raw) {
                 if (root.updateRestoredFromSwitcher && root.updateRunning && root.updateStage !== "complete") {
@@ -1224,7 +1533,7 @@ Item {
             id: progressInitOut
             waitForEnd: true
         }
-        onExited: function(exitCode, exitStatus) {
+        onExited: function (exitCode, exitStatus) {
             var raw = (progressInitOut.text || "").trim();
             if (!raw) {
                 if (root.updateRestoredFromSwitcher && root.updateRunning)
@@ -1247,7 +1556,7 @@ Item {
 
     Timer {
         id: updateDisplayClearTimer
-        interval: 60000  
+        interval: 60000
         repeat: false
         onTriggered: {
             root.clearUpdateState();
@@ -1308,14 +1617,7 @@ Item {
             return;
         }
         root.authStatus = "Unlocking...";
-        authSubmitProc.command = [
-            "bash",
-            "-lc",
-            "umask 077; printf '%s' \"$1\" > \"$2\"; chmod 600 \"$2\"",
-            "archtools-auth",
-            authPasswordField.text,
-            root.authPassFile
-        ];
+        authSubmitProc.command = ["bash", "-lc", "umask 077; printf '%s' \"$1\" > \"$2\"; chmod 600 \"$2\"", "archtools-auth", authPasswordField.text, root.authPassFile];
         authSubmitProc.running = true;
     }
 
@@ -1331,12 +1633,7 @@ Item {
 
     function saveWeatherSettings() {
         weatherSaveStatus = "Saving...";
-        weatherEnvWriteProc.command = ["bash", "-lc", root.scriptRunCommand("weather-env.sh", [
-            "write",
-            weatherKeyField.text.trim(),
-            weatherCityField.text.trim(),
-            weatherUnitField.text.trim() || "metric"
-        ])];
+        weatherEnvWriteProc.command = ["bash", "-lc", root.scriptRunCommand("weather-env.sh", ["write", weatherKeyField.text.trim(), weatherCityField.text.trim(), weatherUnitField.text.trim() || "metric"])];
         weatherEnvWriteProc.running = true;
     }
 
@@ -1382,7 +1679,7 @@ Item {
             id: weatherEnvReadOut
             waitForEnd: true
         }
-        onExited: function(exitCode, exitStatus) {
+        onExited: function (exitCode, exitStatus) {
             var raw = (weatherEnvReadOut.text || "").trim();
             if (!raw)
                 return;
@@ -1406,7 +1703,7 @@ Item {
 
     Io.Process {
         id: weatherEnvWriteProc
-        onExited: function(exitCode, exitStatus) {
+        onExited: function (exitCode, exitStatus) {
             if (exitCode === 0) {
                 root.weatherApiKey = weatherKeyField.text.trim();
                 root.weatherCityId = weatherCityField.text.trim();
@@ -1422,7 +1719,7 @@ Item {
 
     Io.Process {
         id: authSubmitProc
-        onExited: function(exitCode, exitStatus) {
+        onExited: function (exitCode, exitStatus) {
             if (exitCode === 0) {
                 authPasswordField.text = "";
                 root.authStatus = "";
@@ -1450,7 +1747,9 @@ Item {
                 xScale: root.popupCardScaleX
                 yScale: root.popupCardScaleY
             },
-            Translate { y: root.popupCardLift }
+            Translate {
+                y: root.popupCardLift
+            }
         ]
 
         Rectangle {
@@ -1828,6 +2127,7 @@ Item {
                                 ThemePkg.Theme.globalCloseAllPopups();
                                 Quickshell.execDetached(["xdg-open", "https://archlinux.org/news/"]);
                                 root.unreadNews = 0;
+                                root.saveCache(true);
                                 Quickshell.execDetached(["bash", "-lc", root.scriptRunCommand("arch-news.py", ["--clear"])]);
                             }
 
@@ -1836,7 +2136,7 @@ Item {
                                 visible: root.unreadNews > 0
                                 anchors.right: parent.right
                                 anchors.bottom: parent.bottom
-                                
+
                                 readonly property real badgeDiameter: 20
                                 readonly property real arcInset: parent.radius * (1 - Math.SQRT1_2)
                                 anchors.rightMargin: Math.round(arcInset - (width / 2))
@@ -1944,11 +2244,7 @@ Item {
                             requireHold: true
                             onBtnClicked: {
                                 ThemePkg.Theme.edgeAnimationsEnabled = !ThemePkg.Theme.edgeAnimationsEnabled;
-                                root.notifyArchTools(
-                                    "Animations",
-                                    ThemePkg.Theme.edgeAnimationsEnabled ? "Animations enabled" : "Animations disabled",
-                                    "video-display"
-                                );
+                                root.notifyArchTools("Animations", ThemePkg.Theme.edgeAnimationsEnabled ? "Animations enabled" : "Animations disabled", "video-display");
                             }
                         }
                         ToolBtn {
@@ -1963,6 +2259,13 @@ Item {
                     Row {
                         spacing: 6
                         anchors.right: parent.right
+                        ToolBtn {
+                            icon: "󰙽"
+                            tip: "SDDM Customization"
+                            onBtnClicked: {
+                                profileSettingsPopup.showPopup();
+                            }
+                        }
                         ToolBtn {
                             id: autolockBtn
                             icon: root.autolockDisabled ? "󰌿" : "󰌾"
@@ -2298,7 +2601,9 @@ Item {
                         xScale: root.detailsPanelScale
                         yScale: root.detailsPanelScale
                     },
-                    Translate { y: root.detailsPanelOffset }
+                    Translate {
+                        y: root.detailsPanelOffset
+                    }
                 ]
 
                 Behavior on height {
@@ -2523,7 +2828,9 @@ Item {
             root.authUnlockTriggered = false;
             authPopupEnterAnim.stop();
             authPopupEnterAnim.start();
-            Qt.callLater(function() { authPasswordField.forceActiveFocus(); });
+            Qt.callLater(function () {
+                authPasswordField.forceActiveFocus();
+            });
         }
 
         function hidePopup() {
@@ -2562,7 +2869,9 @@ Item {
                     xScale: authPopup.popupCardScaleX
                     yScale: authPopup.popupCardScaleY
                 },
-                Translate { y: authPopup.popupCardLift }
+                Translate {
+                    y: authPopup.popupCardLift
+                }
             ]
 
             Rectangle {
@@ -2838,10 +3147,12 @@ Item {
         property real popupCardOpacity: 0.0
         property real popupCardScaleX: 0.91
         property real popupCardScaleY: 0.79
-        property real popupCardWidth: 406
-        property real popupCardHeight: 292
+        property real popupCardWidth: 460
+        property real popupCardHeight: 253
         property real popupCardRadius: 34
         property real popupCardLift: 18
+        readonly property real contentMargin: 25
+        readonly property real borderedSpacing: 15
 
         function showPopup() {
             popupMounted = true;
@@ -2850,13 +3161,15 @@ Item {
             popupCardOpacity = 0.0;
             popupCardScaleX = 0.91;
             popupCardScaleY = 0.79;
-            popupCardWidth = 406;
-            popupCardHeight = 292;
+            popupCardWidth = 460;
+            popupCardHeight = 253;
             popupCardRadius = 34;
             popupCardLift = 18;
             weatherSettingsPopupEnterAnim.stop();
             weatherSettingsPopupEnterAnim.start();
-            Qt.callLater(function() { weatherKeyField.forceActiveFocus(); });
+            Qt.callLater(function () {
+                weatherKeyField.forceActiveFocus();
+            });
         }
 
         function hidePopup() {
@@ -2895,7 +3208,9 @@ Item {
                     xScale: weatherSettingsPopup.popupCardScaleX
                     yScale: weatherSettingsPopup.popupCardScaleY
                 },
-                Translate { y: weatherSettingsPopup.popupCardLift }
+                Translate {
+                    y: weatherSettingsPopup.popupCardLift
+                }
             ]
 
             Rectangle {
@@ -2965,11 +3280,8 @@ Item {
                     anchors.right: parent.right
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    anchors.leftMargin: 25
-                    anchors.rightMargin: 25
-                    anchors.topMargin: 49
-                    anchors.bottomMargin: 25
-                    spacing: 7
+                    anchors.margins: weatherSettingsPopup.contentMargin
+                    spacing: weatherSettingsPopup.borderedSpacing
                     z: 1
 
                     TextField {
@@ -2982,7 +3294,7 @@ Item {
                         placeholderTextColor: root.overlay1
                         font.family: root.textFont
                         font.pixelSize: 14
-                        padding: 10
+                        padding: 8
                         leftPadding: 42
                         Keys.onEscapePressed: weatherSettingsPopup.hidePopup()
                         background: Rectangle {
@@ -2993,7 +3305,7 @@ Item {
                         }
                         Text {
                             anchors.left: parent.left
-                            anchors.leftMargin: 13
+                            anchors.leftMargin: weatherSettingsPopup.borderedSpacing
                             anchors.verticalCenter: parent.verticalCenter
                             text: ""
                             font.family: "CaskaydiaMono Nerd Font"
@@ -3012,7 +3324,7 @@ Item {
                         placeholderTextColor: root.overlay1
                         font.family: root.textFont
                         font.pixelSize: 14
-                        padding: 10
+                        padding: 8
                         leftPadding: 42
                         Keys.onEscapePressed: weatherSettingsPopup.hidePopup()
                         background: Rectangle {
@@ -3023,7 +3335,7 @@ Item {
                         }
                         Text {
                             anchors.left: parent.left
-                            anchors.leftMargin: 13
+                            anchors.leftMargin: weatherSettingsPopup.borderedSpacing
                             anchors.verticalCenter: parent.verticalCenter
                             text: "󰍎"
                             font.family: "CaskaydiaMono Nerd Font"
@@ -3042,7 +3354,7 @@ Item {
                         placeholderTextColor: root.overlay1
                         font.family: root.textFont
                         font.pixelSize: 14
-                        padding: 10
+                        padding: 8
                         leftPadding: 42
                         Keys.onEscapePressed: weatherSettingsPopup.hidePopup()
                         background: Rectangle {
@@ -3053,7 +3365,7 @@ Item {
                         }
                         Text {
                             anchors.left: parent.left
-                            anchors.leftMargin: 13
+                            anchors.leftMargin: weatherSettingsPopup.borderedSpacing
                             anchors.verticalCenter: parent.verticalCenter
                             text: "󰔏"
                             font.family: "CaskaydiaMono Nerd Font"
@@ -3064,8 +3376,7 @@ Item {
 
                     RowLayout {
                         Layout.fillWidth: true
-                        Layout.topMargin: 2
-                        spacing: 10
+                        spacing: weatherSettingsPopup.borderedSpacing
 
                         Text {
                             Layout.fillWidth: true
@@ -3216,35 +3527,6 @@ Item {
                         }
                     }
                 }
-
-                Rectangle {
-                    anchors.top: parent.top
-                    anchors.right: parent.right
-                    anchors.topMargin: 9
-                    anchors.rightMargin: 9
-                    width: 30
-                    height: 30
-                    radius: 8
-                    color: weatherCloseMa.containsMouse ? "#20ffffff" : "transparent"
-                    border.color: weatherCloseMa.containsMouse ? root.accent : "transparent"
-                    z: 2
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: ""
-                        font.family: "CaskaydiaMono Nerd Font"
-                        font.pixelSize: 16
-                        color: root.text
-                    }
-
-                    MouseArea {
-                        id: weatherCloseMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: weatherSettingsPopup.hidePopup()
-                    }
-                }
             }
         }
     }
@@ -3287,9 +3569,13 @@ Item {
             updatesListPopupEnterAnim.start();
             if (typeof updatesSearch !== "undefined") {
                 updatesSearch.text = "";
-                Qt.callLater(function() { updatesSearch.forceActiveFocus(); });
+                Qt.callLater(function () {
+                    updatesSearch.forceActiveFocus();
+                });
             } else {
-                Qt.callLater(function() { updatesListPopup.forceActiveFocus(); });
+                Qt.callLater(function () {
+                    updatesListPopup.forceActiveFocus();
+                });
             }
         }
 
@@ -3374,7 +3660,7 @@ Item {
             id: detailsFetcher
             stdout: Io.StdioCollector {
                 onStreamFinished: {
-                    var cleanText = this.text.replace(/\x1b\[[0-9;]*[mK]/g, ""); 
+                    var cleanText = this.text.replace(/\x1b\[[0-9;]*[mK]/g, "");
                     var lines = cleanText.split("\n");
                     var formatted = "";
                     for (var i = 0; i < lines.length; i++) {
@@ -3417,7 +3703,9 @@ Item {
                     xScale: updatesListPopup.popupCardScaleX
                     yScale: updatesListPopup.popupCardScaleY
                 },
-                Translate { y: updatesListPopup.popupCardLift }
+                Translate {
+                    y: updatesListPopup.popupCardLift
+                }
             ]
 
             Rectangle {
@@ -3494,7 +3782,7 @@ Item {
                 MouseArea {
                     anchors.fill: parent
                     onClicked: {}
-                } 
+                }
 
                 ColumnLayout {
                     anchors.fill: parent
@@ -3503,239 +3791,239 @@ Item {
                     z: 1
                     visible: updatesListPopup.currentViewIndex === 0
 
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 8
-
-                    Text {
-                        text: updatesListPopup.titleStr
-                        color: root.text
-                        font.pixelSize: 22
-                        font.family: root.textFont
-                        font.weight: Font.Black
-                        Layout.alignment: Qt.AlignHCenter
+                    RowLayout {
                         Layout.fillWidth: true
-                        horizontalAlignment: Text.AlignLeft
-                    }
-                }
-
-                TextField {
-                    id: updatesSearch
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 34
-                    placeholderText: "Search Updates…"
-                    color: root.text
-                    placeholderTextColor: root.overlay1
-
-                    background: Rectangle {
-                        color: "#0dffffff"
-                        border.color: updatesSearch.activeFocus ? root.accent : "#1affffff"
-                        border.width: 1
-                        radius: 10
-                    }
-
-                    font.family: root.textFont
-                    font.pixelSize: 14
-
-                    padding: 8
-                    leftPadding: 40
-
-                    Text {
-                        text: ""
-                        font.family: "Material Design Icons"
-                        font.pixelSize: 18
-                        color: updatesSearch.activeFocus ? root.accent : root.overlay1
-                        anchors.left: parent.left
-                        anchors.leftMargin: 12
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-
-                    Keys.onEscapePressed: updatesListPopup.hidePopup()
-
-                    onTextChanged: updatesListPopup.applyFilter(text)
-                }
-
-                Item {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-
-                    Column {
-                        anchors.centerIn: parent
-                        spacing: 20
-                        visible: updatesFetcher.running
+                        spacing: 8
 
                         Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: "󰑐"
-                            font.family: "Iosevka Nerd Font"
-                            font.pixelSize: 52
-                            color: root.accent
-                            
-                            layer.enabled: true
-                            layer.smooth: true
-
-                            RotationAnimation on rotation {
-                                from: 0
-                                to: 360
-                                duration: 1200
-                                loops: Animation.Infinite
-                                running: updatesFetcher.running && updatesListPopup.popupMounted
-                            }
-                        }
-
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: "Fetching packages..."
-                            color: root.subtext0
+                            text: updatesListPopup.titleStr
+                            color: root.text
+                            font.pixelSize: 22
                             font.family: root.textFont
-                            font.pixelSize: 14
-                            font.weight: Font.Bold
+                            font.weight: Font.Black
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.fillWidth: true
+                            horizontalAlignment: Text.AlignLeft
                         }
                     }
 
-                    Column {
-                        anchors.centerIn: parent
-                        spacing: 20
-                        visible: !updatesFetcher.running && updatesListModel.count === 0
-
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: updatesSearch.text !== "" ? "󰈉" : "󰄵"
-                            font.family: "Iosevka Nerd Font"
-                            font.pixelSize: 52
-                            color: root.accent
-                        }
-
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: updatesSearch.text !== "" ? "No packages match your search." : "System is up to date."
-                            color: root.subtext0
-                            font.family: root.textFont
-                            font.pixelSize: 14
-                            font.weight: Font.Bold
-                        }
-                    }
-
-                    ListView {
-                        id: updatesListView
-                        anchors.fill: parent
-                        visible: !updatesFetcher.running && updatesListModel.count > 0
-                        clip: true
-
-                    ThemePkg.FastScrollHandler {
-                        anchors.fill: parent
-                        flickable: updatesListView
-                    }
-
-                    ScrollBar.vertical: ScrollBar {
-                        id: vbar
-                        policy: ScrollBar.AsNeeded
-                        hoverEnabled: true
-                        implicitWidth: 10
-                        minimumSize: 0.08
-                        active: hovered || pressed || updatesListView.moving
+                    TextField {
+                        id: updatesSearch
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 34
+                        placeholderText: "Search Updates…"
+                        color: root.text
+                        placeholderTextColor: root.overlay1
 
                         background: Rectangle {
-                            anchors.fill: parent
-                            radius: width / 2
-                            color: root.moduleBorderColor
-                            border.color: root.moduleBorderColor
-                            opacity: vbar.active ? 1.0 : 0.7
-                        }
-
-                        contentItem: Rectangle {
-                            radius: width / 2
+                            color: "#0dffffff"
+                            border.color: updatesSearch.activeFocus ? root.accent : "#1affffff"
                             border.width: 1
-                            border.color: root.moduleBorderColor
-                            color: root.accent
-                        }
-                    }
-                    model: updatesListModel
-                    spacing: 8
-                    delegate: Rectangle {
-                        width: ListView.view.width - 16
-                        height: Math.max(40, mainRow.implicitHeight + 20)
-                        radius: 14
-                        color: hoverMa.containsMouse ? "#0affffff" : "#05ffffff"
-                        border.width: 1
-                        border.color: hoverMa.containsMouse ? root.accent : "#1affffff"
-
-                        Behavior on color {
-                            ColorAnimation {
-                                duration: 150
-                            }
+                            radius: 10
                         }
 
-                        RowLayout {
-                            id: mainRow
+                        font.family: root.textFont
+                        font.pixelSize: 14
+
+                        padding: 8
+                        leftPadding: 40
+
+                        Text {
+                            text: ""
+                            font.family: "Material Design Icons"
+                            font.pixelSize: 18
+                            color: updatesSearch.activeFocus ? root.accent : root.overlay1
                             anchors.left: parent.left
-                            anchors.right: parent.right
+                            anchors.leftMargin: 12
                             anchors.verticalCenter: parent.verticalCenter
-                            anchors.leftMargin: 10
-                            anchors.rightMargin: 10
-                            spacing: 12
+                        }
 
-                            Rectangle {
-                                id: badge
-                                Layout.alignment: Qt.AlignVCenter
-                                Layout.preferredWidth: 32
-                                Layout.preferredHeight: 24
-                                radius: 8
-                                color: "#0dffffff"
-                                border.color: "#1affffff"
-                                border.width: 1
+                        Keys.onEscapePressed: updatesListPopup.hidePopup()
 
-                                Text {
-                                    anchors.fill: parent
-                                    horizontalAlignment: Text.AlignHCenter
-                                    verticalAlignment: Text.AlignVCenter
-                                    bottomPadding: 1
-                                    text: "󰏔"
-                                    color: root.accent
-                                    font.pixelSize: 12
-                                    font.family: root.textFont
+                        onTextChanged: updatesListPopup.applyFilter(text)
+                    }
+
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+
+                        Column {
+                            anchors.centerIn: parent
+                            spacing: 20
+                            visible: updatesFetcher.running
+
+                            Text {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                text: "󰑐"
+                                font.family: "Iosevka Nerd Font"
+                                font.pixelSize: 52
+                                color: root.accent
+
+                                layer.enabled: true
+                                layer.smooth: true
+
+                                RotationAnimation on rotation {
+                                    from: 0
+                                    to: 360
+                                    duration: 1200
+                                    loops: Animation.Infinite
+                                    running: updatesFetcher.running && updatesListPopup.popupMounted
                                 }
                             }
 
                             Text {
-                                text: model.pkgName
-                                color: root.text
-                                font.pixelSize: 13
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                text: "Fetching packages..."
+                                color: root.subtext0
                                 font.family: root.textFont
-                                Layout.fillWidth: true
-                                verticalAlignment: Text.AlignVCenter
-                                elide: Text.ElideRight
+                                font.pixelSize: 14
+                                font.weight: Font.Bold
                             }
                         }
 
-                        MouseArea {
-                            id: hoverMa
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
+                        Column {
+                            anchors.centerIn: parent
+                            spacing: 20
+                            visible: !updatesFetcher.running && updatesListModel.count === 0
 
-                            HoverToolTip {
-                                visible: hoverMa.containsMouse
-                                delay: 200
-                                text: "Click to see details for " + model.pkgName
+                            Text {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                text: updatesSearch.text !== "" ? "󰈉" : "󰄵"
+                                font.family: "Iosevka Nerd Font"
+                                font.pixelSize: 52
+                                color: root.accent
                             }
 
-                            onClicked: {
-                                var mgr = updatesListPopup.managerType;
-                                var pkg = model.pkgName.replace(/[^\w.-]/g, "");
-                                if (pkg.length > 0) {
-                                    updatesListPopup.currentPackageName = pkg;
-                                    updatesListPopup.packageDetailsText = "Loading details for " + pkg + "...";
-                                    updatesListPopup.currentViewIndex = 1;
-                                    detailsFetcher.command = ["bash", "-c", root.updateInfoScript + " " + mgr + " " + pkg];
-                                    detailsFetcher.running = true;
+                            Text {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                text: updatesSearch.text !== "" ? "No packages match your search." : "System is up to date."
+                                color: root.subtext0
+                                font.family: root.textFont
+                                font.pixelSize: 14
+                                font.weight: Font.Bold
+                            }
+                        }
+
+                        ListView {
+                            id: updatesListView
+                            anchors.fill: parent
+                            visible: !updatesFetcher.running && updatesListModel.count > 0
+                            clip: true
+
+                            ThemePkg.FastScrollHandler {
+                                anchors.fill: parent
+                                flickable: updatesListView
+                            }
+
+                            ScrollBar.vertical: ScrollBar {
+                                id: vbar
+                                policy: ScrollBar.AsNeeded
+                                hoverEnabled: true
+                                implicitWidth: 10
+                                minimumSize: 0.08
+                                active: hovered || pressed || updatesListView.moving
+
+                                background: Rectangle {
+                                    anchors.fill: parent
+                                    radius: width / 2
+                                    color: root.moduleBorderColor
+                                    border.color: root.moduleBorderColor
+                                    opacity: vbar.active ? 1.0 : 0.7
+                                }
+
+                                contentItem: Rectangle {
+                                    radius: width / 2
+                                    border.width: 1
+                                    border.color: root.moduleBorderColor
+                                    color: root.accent
+                                }
+                            }
+                            model: updatesListModel
+                            spacing: 8
+                            delegate: Rectangle {
+                                width: ListView.view.width - 16
+                                height: Math.max(40, mainRow.implicitHeight + 20)
+                                radius: 14
+                                color: hoverMa.containsMouse ? "#0affffff" : "#05ffffff"
+                                border.width: 1
+                                border.color: hoverMa.containsMouse ? root.accent : "#1affffff"
+
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: 150
+                                    }
+                                }
+
+                                RowLayout {
+                                    id: mainRow
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    anchors.leftMargin: 10
+                                    anchors.rightMargin: 10
+                                    spacing: 12
+
+                                    Rectangle {
+                                        id: badge
+                                        Layout.alignment: Qt.AlignVCenter
+                                        Layout.preferredWidth: 32
+                                        Layout.preferredHeight: 24
+                                        radius: 8
+                                        color: "#0dffffff"
+                                        border.color: "#1affffff"
+                                        border.width: 1
+
+                                        Text {
+                                            anchors.fill: parent
+                                            horizontalAlignment: Text.AlignHCenter
+                                            verticalAlignment: Text.AlignVCenter
+                                            bottomPadding: 1
+                                            text: "󰏔"
+                                            color: root.accent
+                                            font.pixelSize: 12
+                                            font.family: root.textFont
+                                        }
+                                    }
+
+                                    Text {
+                                        text: model.pkgName
+                                        color: root.text
+                                        font.pixelSize: 13
+                                        font.family: root.textFont
+                                        Layout.fillWidth: true
+                                        verticalAlignment: Text.AlignVCenter
+                                        elide: Text.ElideRight
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: hoverMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+
+                                    HoverToolTip {
+                                        visible: hoverMa.containsMouse
+                                        delay: 200
+                                        text: "Click to see details for " + model.pkgName
+                                    }
+
+                                    onClicked: {
+                                        var mgr = updatesListPopup.managerType;
+                                        var pkg = model.pkgName.replace(/[^\w.-]/g, "");
+                                        if (pkg.length > 0) {
+                                            updatesListPopup.currentPackageName = pkg;
+                                            updatesListPopup.packageDetailsText = "Loading details for " + pkg + "...";
+                                            updatesListPopup.currentViewIndex = 1;
+                                            detailsFetcher.command = ["bash", "-c", root.updateInfoScript + " " + mgr + " " + pkg];
+                                            detailsFetcher.running = true;
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
-                }
-            }
 
                 ColumnLayout {
                     anchors.fill: parent
@@ -3744,102 +4032,102 @@ Item {
                     z: 1
                     visible: updatesListPopup.currentViewIndex === 1
 
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 12
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 12
 
-                    Rectangle {
-                        width: 32
-                        height: 32
-                        radius: 8
-                        color: backBtnMa.containsMouse ? "#20ffffff" : "transparent"
-                        border.color: backBtnMa.containsMouse ? root.accent : "transparent"
+                        Rectangle {
+                            width: 32
+                            height: 32
+                            radius: 8
+                            color: backBtnMa.containsMouse ? "#20ffffff" : "transparent"
+                            border.color: backBtnMa.containsMouse ? root.accent : "transparent"
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "󰁍"
+                                font.family: "Iosevka Nerd Font"
+                                font.pixelSize: 20
+                                color: root.text
+                            }
+
+                            MouseArea {
+                                id: backBtnMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: updatesListPopup.currentViewIndex = 0
+                            }
+                        }
 
                         Text {
-                            anchors.centerIn: parent
-                            text: "󰁍" 
-                            font.family: "Iosevka Nerd Font"
-                            font.pixelSize: 20
+                            text: "Details: " + updatesListPopup.currentPackageName
                             color: root.text
-                        }
-
-                        MouseArea {
-                            id: backBtnMa
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: updatesListPopup.currentViewIndex = 0
+                            font.pixelSize: 18
+                            font.family: root.textFont
+                            font.weight: Font.Black
+                            Layout.fillWidth: true
+                            elide: Text.ElideRight
                         }
                     }
 
-                    Text {
-                        text: "Details: " + updatesListPopup.currentPackageName
-                        color: root.text
-                        font.pixelSize: 18
-                        font.family: root.textFont
-                        font.weight: Font.Black
+                    Flickable {
+                        id: detailsFlickable
                         Layout.fillWidth: true
-                        elide: Text.ElideRight
-                    }
-                }
+                        Layout.fillHeight: true
+                        clip: true
+                        contentWidth: width
+                        contentHeight: detailsText.implicitHeight
 
-                Flickable {
-                    id: detailsFlickable
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    clip: true
-                    contentWidth: width
-                    contentHeight: detailsText.implicitHeight
-
-                    ThemePkg.FastScrollHandler {
-                        anchors.fill: parent
-                        flickable: detailsFlickable
-                    }
-
-                    TextArea {
-                        id: detailsText
-                        width: parent.width - 16
-                        textFormat: TextEdit.RichText
-                        text: updatesListPopup.packageDetailsText
-                        color: root.text
-                        font.pixelSize: 14
-                        wrapMode: Text.Wrap
-                        readOnly: true
-                        hoverEnabled: true
-                        selectByMouse: true
-                        onLinkActivated: link => Qt.openUrlExternally(link)
-                        background: Item {} 
-                    }
-
-                    HoverHandler {
-                        cursorShape: detailsText.hoveredLink !== "" ? Qt.PointingHandCursor : Qt.IBeamCursor
-                    }
-
-                    ScrollBar.vertical: ScrollBar {
-                        id: vbarDetails
-                        policy: ScrollBar.AsNeeded
-                        hoverEnabled: true
-                        implicitWidth: 10
-                        minimumSize: 0.08
-                        active: hovered || pressed || detailsFlickable.moving
-
-                        background: Rectangle {
+                        ThemePkg.FastScrollHandler {
                             anchors.fill: parent
-                            radius: width / 2
-                            color: root.moduleBorderColor
-                            border.color: root.moduleBorderColor
-                            opacity: vbarDetails.active ? 1.0 : 0.7
+                            flickable: detailsFlickable
                         }
 
-                        contentItem: Rectangle {
-                            radius: width / 2
-                            border.width: 1
-                            border.color: root.moduleBorderColor
-                            color: root.accent
+                        TextArea {
+                            id: detailsText
+                            width: parent.width - 16
+                            textFormat: TextEdit.RichText
+                            text: updatesListPopup.packageDetailsText
+                            color: root.text
+                            font.pixelSize: 14
+                            wrapMode: Text.Wrap
+                            readOnly: true
+                            hoverEnabled: true
+                            selectByMouse: true
+                            onLinkActivated: link => Qt.openUrlExternally(link)
+                            background: Item {}
+                        }
+
+                        HoverHandler {
+                            cursorShape: detailsText.hoveredLink !== "" ? Qt.PointingHandCursor : Qt.IBeamCursor
+                        }
+
+                        ScrollBar.vertical: ScrollBar {
+                            id: vbarDetails
+                            policy: ScrollBar.AsNeeded
+                            hoverEnabled: true
+                            implicitWidth: 10
+                            minimumSize: 0.08
+                            active: hovered || pressed || detailsFlickable.moving
+
+                            background: Rectangle {
+                                anchors.fill: parent
+                                radius: width / 2
+                                color: root.moduleBorderColor
+                                border.color: root.moduleBorderColor
+                                opacity: vbarDetails.active ? 1.0 : 0.7
+                            }
+
+                            contentItem: Rectangle {
+                                radius: width / 2
+                                border.width: 1
+                                border.color: root.moduleBorderColor
+                                color: root.accent
+                            }
                         }
                     }
                 }
-            }
 
                 Rectangle {
                     anchors.top: parent.top
@@ -3961,23 +4249,107 @@ Item {
         }
 
         ParallelAnimation {
-            NumberAnimation { target: authPopup; property: "popupCardOpacity"; to: 0.78; duration: 145; easing.type: Easing.OutCubic }
-            NumberAnimation { target: authPopup; property: "popupCardScaleX"; to: 0.985; duration: 175; easing.type: Easing.OutCubic }
-            NumberAnimation { target: authPopup; property: "popupCardScaleY"; to: 0.94; duration: 190; easing.type: Easing.OutCubic }
-            NumberAnimation { target: authPopup; property: "popupCardWidth"; to: 434; duration: 190; easing.type: Easing.OutCubic }
-            NumberAnimation { target: authPopup; property: "popupCardHeight"; to: 150; duration: 200; easing.type: Easing.OutCubic }
-            NumberAnimation { target: authPopup; property: "popupCardRadius"; to: 28; duration: 190; easing.type: Easing.OutQuad }
-            NumberAnimation { target: authPopup; property: "popupCardLift"; to: 8; duration: 190; easing.type: Easing.OutCubic }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardOpacity"
+                to: 0.78
+                duration: 145
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardScaleX"
+                to: 0.985
+                duration: 175
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardScaleY"
+                to: 0.94
+                duration: 190
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardWidth"
+                to: 434
+                duration: 190
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardHeight"
+                to: 150
+                duration: 200
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardRadius"
+                to: 28
+                duration: 190
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardLift"
+                to: 8
+                duration: 190
+                easing.type: Easing.OutCubic
+            }
         }
 
         ParallelAnimation {
-            NumberAnimation { target: authPopup; property: "popupCardOpacity"; to: 1.0; duration: 175; easing.type: Easing.OutCubic }
-            NumberAnimation { target: authPopup; property: "popupCardScaleX"; to: 1.0; duration: 205; easing.type: Easing.OutCubic }
-            NumberAnimation { target: authPopup; property: "popupCardScaleY"; to: 1.0; duration: 205; easing.type: Easing.OutCubic }
-            NumberAnimation { target: authPopup; property: "popupCardWidth"; to: 460; duration: 205; easing.type: Easing.OutCubic }
-            NumberAnimation { target: authPopup; property: "popupCardHeight"; to: 154; duration: 215; easing.type: Easing.OutCubic }
-            NumberAnimation { target: authPopup; property: "popupCardRadius"; to: 20; duration: 195; easing.type: Easing.InOutQuad }
-            NumberAnimation { target: authPopup; property: "popupCardLift"; to: 0; duration: 205; easing.type: Easing.OutCubic }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardOpacity"
+                to: 1.0
+                duration: 175
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardScaleX"
+                to: 1.0
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardScaleY"
+                to: 1.0
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardWidth"
+                to: 460
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardHeight"
+                to: 154
+                duration: 215
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardRadius"
+                to: 20
+                duration: 195
+                easing.type: Easing.InOutQuad
+            }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardLift"
+                to: 0
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
         }
     }
 
@@ -3993,23 +4365,107 @@ Item {
         }
 
         ParallelAnimation {
-            NumberAnimation { target: authPopup; property: "popupCardScaleX"; to: 1.04; duration: 85; easing.type: Easing.OutQuad }
-            NumberAnimation { target: authPopup; property: "popupCardScaleY"; to: 0.95; duration: 85; easing.type: Easing.OutQuad }
-            NumberAnimation { target: authPopup; property: "popupCardWidth"; to: 478; duration: 95; easing.type: Easing.OutQuad }
-            NumberAnimation { target: authPopup; property: "popupCardHeight"; to: 150; duration: 95; easing.type: Easing.OutQuad }
-            NumberAnimation { target: authPopup; property: "popupCardRadius"; to: 30; duration: 95; easing.type: Easing.OutQuad }
-            NumberAnimation { target: authPopup; property: "popupCardLift"; to: 5; duration: 95; easing.type: Easing.OutQuad }
-            NumberAnimation { target: authPopup; property: "popupCardOpacity"; to: 0.88; duration: 80; easing.type: Easing.OutQuad }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardScaleX"
+                to: 1.04
+                duration: 85
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardScaleY"
+                to: 0.95
+                duration: 85
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardWidth"
+                to: 478
+                duration: 95
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardHeight"
+                to: 150
+                duration: 95
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardRadius"
+                to: 30
+                duration: 95
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardLift"
+                to: 5
+                duration: 95
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardOpacity"
+                to: 0.88
+                duration: 80
+                easing.type: Easing.OutQuad
+            }
         }
 
         ParallelAnimation {
-            NumberAnimation { target: authPopup; property: "popupCardOpacity"; to: 0.0; duration: 180; easing.type: Easing.InCubic }
-            NumberAnimation { target: authPopup; property: "popupCardScaleX"; to: 0.84; duration: 205; easing.type: Easing.InCubic }
-            NumberAnimation { target: authPopup; property: "popupCardScaleY"; to: 0.68; duration: 220; easing.type: Easing.InCubic }
-            NumberAnimation { target: authPopup; property: "popupCardWidth"; to: 406; duration: 200; easing.type: Easing.InCubic }
-            NumberAnimation { target: authPopup; property: "popupCardHeight"; to: 142; duration: 210; easing.type: Easing.InCubic }
-            NumberAnimation { target: authPopup; property: "popupCardRadius"; to: 34; duration: 200; easing.type: Easing.InQuad }
-            NumberAnimation { target: authPopup; property: "popupCardLift"; to: 24; duration: 200; easing.type: Easing.InCubic }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardOpacity"
+                to: 0.0
+                duration: 180
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardScaleX"
+                to: 0.84
+                duration: 205
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardScaleY"
+                to: 0.68
+                duration: 220
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardWidth"
+                to: 406
+                duration: 200
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardHeight"
+                to: 142
+                duration: 210
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardRadius"
+                to: 34
+                duration: 200
+                easing.type: Easing.InQuad
+            }
+            NumberAnimation {
+                target: authPopup
+                property: "popupCardLift"
+                to: 24
+                duration: 200
+                easing.type: Easing.InCubic
+            }
         }
     }
 
@@ -4025,23 +4481,107 @@ Item {
         }
 
         ParallelAnimation {
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardOpacity"; to: 0.78; duration: 145; easing.type: Easing.OutCubic }
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardScaleX"; to: 0.985; duration: 175; easing.type: Easing.OutCubic }
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardScaleY"; to: 0.94; duration: 190; easing.type: Easing.OutCubic }
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardWidth"; to: 434; duration: 190; easing.type: Easing.OutCubic }
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardHeight"; to: 300; duration: 200; easing.type: Easing.OutCubic }
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardRadius"; to: 28; duration: 190; easing.type: Easing.OutQuad }
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardLift"; to: 8; duration: 190; easing.type: Easing.OutCubic }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardOpacity"
+                to: 0.78
+                duration: 145
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardScaleX"
+                to: 0.985
+                duration: 175
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardScaleY"
+                to: 0.94
+                duration: 190
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardWidth"
+                to: 434
+                duration: 190
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardHeight"
+                to: 238
+                duration: 200
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardRadius"
+                to: 28
+                duration: 190
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardLift"
+                to: 8
+                duration: 190
+                easing.type: Easing.OutCubic
+            }
         }
 
         ParallelAnimation {
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardOpacity"; to: 1.0; duration: 175; easing.type: Easing.OutCubic }
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardScaleX"; to: 1.0; duration: 205; easing.type: Easing.OutCubic }
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardScaleY"; to: 1.0; duration: 205; easing.type: Easing.OutCubic }
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardWidth"; to: 460; duration: 205; easing.type: Easing.OutCubic }
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardHeight"; to: 320; duration: 215; easing.type: Easing.OutCubic }
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardRadius"; to: 20; duration: 195; easing.type: Easing.InOutQuad }
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardLift"; to: 0; duration: 205; easing.type: Easing.OutCubic }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardOpacity"
+                to: 1.0
+                duration: 175
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardScaleX"
+                to: 1.0
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardScaleY"
+                to: 1.0
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardWidth"
+                to: 460
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardHeight"
+                to: 253
+                duration: 215
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardRadius"
+                to: 20
+                duration: 195
+                easing.type: Easing.InOutQuad
+            }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardLift"
+                to: 0
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
         }
     }
 
@@ -4057,23 +4597,568 @@ Item {
         }
 
         ParallelAnimation {
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardScaleX"; to: 1.04; duration: 85; easing.type: Easing.OutQuad }
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardScaleY"; to: 0.95; duration: 85; easing.type: Easing.OutQuad }
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardWidth"; to: 478; duration: 95; easing.type: Easing.OutQuad }
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardHeight"; to: 306; duration: 95; easing.type: Easing.OutQuad }
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardRadius"; to: 30; duration: 95; easing.type: Easing.OutQuad }
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardLift"; to: 5; duration: 95; easing.type: Easing.OutQuad }
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardOpacity"; to: 0.88; duration: 80; easing.type: Easing.OutQuad }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardScaleX"
+                to: 1.04
+                duration: 85
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardScaleY"
+                to: 0.95
+                duration: 85
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardWidth"
+                to: 478
+                duration: 95
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardHeight"
+                to: 239
+                duration: 95
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardRadius"
+                to: 30
+                duration: 95
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardLift"
+                to: 5
+                duration: 95
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardOpacity"
+                to: 0.88
+                duration: 80
+                easing.type: Easing.OutQuad
+            }
         }
 
         ParallelAnimation {
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardOpacity"; to: 0.0; duration: 180; easing.type: Easing.InCubic }
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardScaleX"; to: 0.84; duration: 205; easing.type: Easing.InCubic }
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardScaleY"; to: 0.68; duration: 220; easing.type: Easing.InCubic }
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardWidth"; to: 406; duration: 200; easing.type: Easing.InCubic }
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardHeight"; to: 292; duration: 210; easing.type: Easing.InCubic }
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardRadius"; to: 34; duration: 200; easing.type: Easing.InQuad }
-            NumberAnimation { target: weatherSettingsPopup; property: "popupCardLift"; to: 24; duration: 200; easing.type: Easing.InCubic }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardOpacity"
+                to: 0.0
+                duration: 180
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardScaleX"
+                to: 0.84
+                duration: 205
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardScaleY"
+                to: 0.68
+                duration: 220
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardWidth"
+                to: 460
+                duration: 200
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardHeight"
+                to: 253
+                duration: 210
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardRadius"
+                to: 34
+                duration: 200
+                easing.type: Easing.InQuad
+            }
+            NumberAnimation {
+                target: weatherSettingsPopup
+                property: "popupCardLift"
+                to: 24
+                duration: 200
+                easing.type: Easing.InCubic
+            }
+        }
+    }
+
+    Item {
+        id: profileSettingsPopup
+        anchors.fill: parent
+        z: 99
+        visible: popupMounted
+        focus: true
+
+        property bool popupMounted: false
+        property bool popupTargetVisible: false
+        property real popupCardOpacity: 0.0
+        property real popupCardScaleX: 0.91
+        property real popupCardScaleY: 0.79
+        property real popupCardWidth: 460
+        property real popupCardHeight: 165
+        property real popupCardRadius: 34
+        property real popupCardLift: 18
+
+        property int activePickerMode: 0 // 0 = SDDM, 1 = Avatar
+
+        function showPopup() {
+            popupMounted = true;
+            popupTargetVisible = true;
+            profileSettingsPopupExitAnim.stop();
+            popupCardOpacity = 0.0;
+            popupCardScaleX = 0.91;
+            popupCardScaleY = 0.79;
+            popupCardWidth = 460;
+            popupCardHeight = 165;
+            popupCardRadius = 34;
+            popupCardLift = 18;
+            profileSettingsPopupEnterAnim.stop();
+            profileSettingsPopupEnterAnim.start();
+        }
+
+        function hidePopup() {
+            popupTargetVisible = false;
+            profileSettingsPopupEnterAnim.stop();
+            if (!popupMounted && popupCardOpacity <= 0.001) {
+                archPanel.visible = true;
+                return;
+            }
+            if (!profileSettingsPopupExitAnim.running)
+                profileSettingsPopupExitAnim.start();
+        }
+
+        Keys.onReleased: e => {
+            if (e.key === Qt.Key_Escape) {
+                profileSettingsPopup.hidePopup();
+                e.accepted = true;
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: profileSettingsPopup.hidePopup()
+        }
+
+        Item {
+            id: profilePopupShell
+            width: profileSettingsPopup.popupCardWidth
+            height: profileSettingsPopup.popupCardHeight
+            anchors.centerIn: parent
+            opacity: profileSettingsPopup.popupCardOpacity
+            transform: [
+                Scale {
+                    origin.x: profilePopupShell.width / 2
+                    origin.y: profilePopupShell.height / 2
+                    xScale: profileSettingsPopup.popupCardScaleX
+                    yScale: profileSettingsPopup.popupCardScaleY
+                },
+                Translate {
+                    y: profileSettingsPopup.popupCardLift
+                }
+            ]
+
+            Rectangle {
+                width: parent.width
+                height: parent.height
+                anchors.centerIn: parent
+                radius: profileSettingsPopup.popupCardRadius
+                color: root.base
+                border.color: root.panelBorderColor
+                border.width: 1
+                clip: true
+
+                ElectricBorder {
+                    anchors.fill: parent
+                    radius: parent.radius
+                    borderWidth: parent.border.width
+                    accentColor: root.accent
+                    active: profileSettingsPopup.popupMounted
+                }
+
+                property real globalOrbitAngle: 0
+                NumberAnimation on globalOrbitAngle {
+                    from: 0
+                    to: Math.PI * 2
+                    duration: 90000
+                    loops: Animation.Infinite
+                    running: profileSettingsPopup.popupMounted && ThemePkg.Theme.edgeAnimationsEnabled
+                }
+
+                Rectangle {
+                    width: parent.width * 0.72
+                    height: width
+                    radius: width / 2
+                    x: (parent.width * 0.58 - width / 2) + Math.cos(parent.globalOrbitAngle * 1.5) * 70
+                    y: (parent.height * 0.05 - height / 2) + Math.sin(parent.globalOrbitAngle * 1.5) * 80
+                    opacity: 0.05
+                    color: root.accent
+                }
+
+                Rectangle {
+                    width: parent.width * 0.55
+                    height: width
+                    radius: width / 2
+                    x: (parent.width * 0.12 - width / 2) + Math.sin(parent.globalOrbitAngle * 1.2) * -52
+                    y: (parent.height * 0.82 - height / 2) + Math.cos(parent.globalOrbitAngle * 1.2) * -64
+                    opacity: 0.035
+                    color: ThemePkg.Theme.c5
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    anchors.verticalCenterOffset: 10
+                    text: "󰙽"
+                    font.family: "Iosevka Nerd Font"
+                    font.pixelSize: 240
+                    color: root.accent
+                    opacity: 0.035
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: {}
+                }
+
+                ColumnLayout {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    anchors.leftMargin: 25
+                    anchors.rightMargin: 25
+                    anchors.topMargin: 25
+                    anchors.bottomMargin: 25
+                    spacing: 15
+                    z: 1
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 50
+                        radius: 12
+                        color: sddmBtnMa.containsMouse ? "#20ffffff" : "#10ffffff"
+                        border.color: sddmBtnMa.containsMouse ? root.accent : "#20ffffff"
+                        border.width: 1
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.margins: 15
+                            Text {
+                                text: "󰄄"
+                                font.family: "Iosevka Nerd Font"
+                                font.pixelSize: 18
+                                color: root.text
+                            }
+                            Text {
+                                text: "Change SDDM Background"
+                                font.family: root.textFont
+                                font.pixelSize: 14
+                                color: root.text
+                                Layout.fillWidth: true
+                            }
+                        }
+
+                        MouseArea {
+                            id: sddmBtnMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                profileSettingsPopup.activePickerMode = 0;
+                                root.openSddmPicker();
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 50
+                        radius: 12
+                        color: avatarBtnMa.containsMouse ? "#20ffffff" : "#10ffffff"
+                        border.color: avatarBtnMa.containsMouse ? root.accent : "#20ffffff"
+                        border.width: 1
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.margins: 15
+                            Text {
+                                text: "󰙽"
+                                font.family: "Iosevka Nerd Font"
+                                font.pixelSize: 18
+                                color: root.text
+                            }
+                            Text {
+                                text: "Change Profile Avatar"
+                                font.family: root.textFont
+                                font.pixelSize: 14
+                                color: root.text
+                                Layout.fillWidth: true
+                            }
+                        }
+
+                        MouseArea {
+                            id: avatarBtnMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                profileSettingsPopup.activePickerMode = 1;
+                                root.openSddmPicker();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    SequentialAnimation {
+        id: profileSettingsPopupEnterAnim
+        running: false
+
+        onStopped: {
+            if (!profileSettingsPopup.popupTargetVisible && profileSettingsPopup.popupCardOpacity <= 0.001) {
+                profileSettingsPopup.popupMounted = false;
+                archPanel.visible = true;
+            }
+        }
+
+        ParallelAnimation {
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardOpacity"
+                to: 0.78
+                duration: 145
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardScaleX"
+                to: 0.985
+                duration: 175
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardScaleY"
+                to: 0.94
+                duration: 190
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardWidth"
+                to: 434
+                duration: 190
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardHeight"
+                to: 150
+                duration: 200
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardRadius"
+                to: 28
+                duration: 190
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardLift"
+                to: 8
+                duration: 190
+                easing.type: Easing.OutCubic
+            }
+        }
+
+        ParallelAnimation {
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardOpacity"
+                to: 1.0
+                duration: 175
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardScaleX"
+                to: 1.0
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardScaleY"
+                to: 1.0
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardWidth"
+                to: 460
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardHeight"
+                to: 165
+                duration: 215
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardRadius"
+                to: 20
+                duration: 195
+                easing.type: Easing.InOutQuad
+            }
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardLift"
+                to: 0
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
+        }
+    }
+
+    SequentialAnimation {
+        id: profileSettingsPopupExitAnim
+        running: false
+
+        onStopped: {
+            if (!profileSettingsPopup.popupTargetVisible && profileSettingsPopup.popupCardOpacity <= 0.001) {
+                profileSettingsPopup.popupMounted = false;
+                archPanel.visible = true;
+            }
+        }
+
+        ParallelAnimation {
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardScaleX"
+                to: 1.04
+                duration: 85
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardScaleY"
+                to: 0.95
+                duration: 85
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardWidth"
+                to: 478
+                duration: 95
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardHeight"
+                to: 306
+                duration: 95
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardRadius"
+                to: 30
+                duration: 95
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardLift"
+                to: 5
+                duration: 95
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardOpacity"
+                to: 0.88
+                duration: 80
+                easing.type: Easing.OutQuad
+            }
+        }
+
+        ParallelAnimation {
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardOpacity"
+                to: 0.0
+                duration: 180
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardScaleX"
+                to: 0.84
+                duration: 205
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardScaleY"
+                to: 0.68
+                duration: 220
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardWidth"
+                to: 406
+                duration: 200
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardHeight"
+                to: 292
+                duration: 210
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardRadius"
+                to: 34
+                duration: 200
+                easing.type: Easing.InQuad
+            }
+            NumberAnimation {
+                target: profileSettingsPopup
+                property: "popupCardLift"
+                to: 24
+                duration: 200
+                easing.type: Easing.InCubic
+            }
         }
     }
 
@@ -4090,23 +5175,107 @@ Item {
         }
 
         ParallelAnimation {
-            NumberAnimation { target: updatesListPopup; property: "popupCardOpacity"; to: 0.78; duration: 145; easing.type: Easing.OutCubic }
-            NumberAnimation { target: updatesListPopup; property: "popupCardScaleX"; to: 0.985; duration: 175; easing.type: Easing.OutCubic }
-            NumberAnimation { target: updatesListPopup; property: "popupCardScaleY"; to: 0.94; duration: 190; easing.type: Easing.OutCubic }
-            NumberAnimation { target: updatesListPopup; property: "popupCardWidth"; to: 454; duration: 190; easing.type: Easing.OutCubic }
-            NumberAnimation { target: updatesListPopup; property: "popupCardHeight"; to: 566; duration: 200; easing.type: Easing.OutCubic }
-            NumberAnimation { target: updatesListPopup; property: "popupCardRadius"; to: 28; duration: 190; easing.type: Easing.OutQuad }
-            NumberAnimation { target: updatesListPopup; property: "popupCardLift"; to: 8; duration: 190; easing.type: Easing.OutCubic }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardOpacity"
+                to: 0.78
+                duration: 145
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardScaleX"
+                to: 0.985
+                duration: 175
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardScaleY"
+                to: 0.94
+                duration: 190
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardWidth"
+                to: 454
+                duration: 190
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardHeight"
+                to: 566
+                duration: 200
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardRadius"
+                to: 28
+                duration: 190
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardLift"
+                to: 8
+                duration: 190
+                easing.type: Easing.OutCubic
+            }
         }
 
         ParallelAnimation {
-            NumberAnimation { target: updatesListPopup; property: "popupCardOpacity"; to: 1.0; duration: 175; easing.type: Easing.OutCubic }
-            NumberAnimation { target: updatesListPopup; property: "popupCardScaleX"; to: 1.0; duration: 205; easing.type: Easing.OutCubic }
-            NumberAnimation { target: updatesListPopup; property: "popupCardScaleY"; to: 1.0; duration: 205; easing.type: Easing.OutCubic }
-            NumberAnimation { target: updatesListPopup; property: "popupCardWidth"; to: 480; duration: 205; easing.type: Easing.OutCubic }
-            NumberAnimation { target: updatesListPopup; property: "popupCardHeight"; to: 600; duration: 215; easing.type: Easing.OutCubic }
-            NumberAnimation { target: updatesListPopup; property: "popupCardRadius"; to: 20; duration: 195; easing.type: Easing.InOutQuad }
-            NumberAnimation { target: updatesListPopup; property: "popupCardLift"; to: 0; duration: 205; easing.type: Easing.OutCubic }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardOpacity"
+                to: 1.0
+                duration: 175
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardScaleX"
+                to: 1.0
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardScaleY"
+                to: 1.0
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardWidth"
+                to: 480
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardHeight"
+                to: 600
+                duration: 215
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardRadius"
+                to: 20
+                duration: 195
+                easing.type: Easing.InOutQuad
+            }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardLift"
+                to: 0
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
         }
     }
 
@@ -4123,23 +5292,107 @@ Item {
         }
 
         ParallelAnimation {
-            NumberAnimation { target: updatesListPopup; property: "popupCardScaleX"; to: 1.04; duration: 85; easing.type: Easing.OutQuad }
-            NumberAnimation { target: updatesListPopup; property: "popupCardScaleY"; to: 0.95; duration: 85; easing.type: Easing.OutQuad }
-            NumberAnimation { target: updatesListPopup; property: "popupCardWidth"; to: 498; duration: 95; easing.type: Easing.OutQuad }
-            NumberAnimation { target: updatesListPopup; property: "popupCardHeight"; to: 580; duration: 95; easing.type: Easing.OutQuad }
-            NumberAnimation { target: updatesListPopup; property: "popupCardRadius"; to: 30; duration: 95; easing.type: Easing.OutQuad }
-            NumberAnimation { target: updatesListPopup; property: "popupCardLift"; to: 5; duration: 95; easing.type: Easing.OutQuad }
-            NumberAnimation { target: updatesListPopup; property: "popupCardOpacity"; to: 0.88; duration: 80; easing.type: Easing.OutQuad }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardScaleX"
+                to: 1.04
+                duration: 85
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardScaleY"
+                to: 0.95
+                duration: 85
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardWidth"
+                to: 498
+                duration: 95
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardHeight"
+                to: 580
+                duration: 95
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardRadius"
+                to: 30
+                duration: 95
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardLift"
+                to: 5
+                duration: 95
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardOpacity"
+                to: 0.88
+                duration: 80
+                easing.type: Easing.OutQuad
+            }
         }
 
         ParallelAnimation {
-            NumberAnimation { target: updatesListPopup; property: "popupCardOpacity"; to: 0.0; duration: 180; easing.type: Easing.InCubic }
-            NumberAnimation { target: updatesListPopup; property: "popupCardScaleX"; to: 0.84; duration: 205; easing.type: Easing.InCubic }
-            NumberAnimation { target: updatesListPopup; property: "popupCardScaleY"; to: 0.68; duration: 220; easing.type: Easing.InCubic }
-            NumberAnimation { target: updatesListPopup; property: "popupCardWidth"; to: 436; duration: 200; easing.type: Easing.InCubic }
-            NumberAnimation { target: updatesListPopup; property: "popupCardHeight"; to: 572; duration: 210; easing.type: Easing.InCubic }
-            NumberAnimation { target: updatesListPopup; property: "popupCardRadius"; to: 34; duration: 200; easing.type: Easing.InQuad }
-            NumberAnimation { target: updatesListPopup; property: "popupCardLift"; to: 24; duration: 200; easing.type: Easing.InCubic }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardOpacity"
+                to: 0.0
+                duration: 180
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardScaleX"
+                to: 0.84
+                duration: 205
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardScaleY"
+                to: 0.68
+                duration: 220
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardWidth"
+                to: 436
+                duration: 200
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardHeight"
+                to: 572
+                duration: 210
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardRadius"
+                to: 34
+                duration: 200
+                easing.type: Easing.InQuad
+            }
+            NumberAnimation {
+                target: updatesListPopup
+                property: "popupCardLift"
+                to: 24
+                duration: 200
+                easing.type: Easing.InCubic
+            }
         }
     }
 
@@ -4164,8 +5417,6 @@ Item {
             border.width: 1
             border.color: ThemePkg.Theme.withAlpha("#ffffff", 0.05)
         }
-
-
 
         Column {
             id: detailSectionColumn
@@ -5380,7 +6631,8 @@ Item {
             cursorShape: Qt.PointingHandCursor
 
             onPressed: mouse => {
-                if (root.updateRunning) return;
+                if (root.updateRunning)
+                    return;
                 var now = Date.now();
                 bubble.pressedButton = mouse.button;
                 bubble.syntheticRightHold = mouse.button === Qt.RightButton && bubble.lastRightReleaseMs > 0 && (now - bubble.lastRightReleaseMs) <= bubble.doubleTapHoldWindow;
@@ -5975,6 +7227,506 @@ Item {
             duration: 320
             easing.type: Easing.OutExpo
             onFinished: resCardRoot.triggered = false
+        }
+    }
+
+    FolderListModel {
+        id: sddmPickerFolderModel
+        folder: root.sddmPickerFolderUrl
+        rootFolder: "file:///"
+        showDirs: true
+        showFiles: true
+        showDirsFirst: true
+        showDotAndDotDot: false
+        sortField: FolderListModel.Name
+        nameFilters: root.sddmNameFilters
+    }
+
+    MediaPlayer {
+        id: sddmPreviewPlayer
+        audioOutput: AudioOutput {
+            volume: 0.0
+        } // muted preview
+        videoOutput: sddmPreviewOutput
+        loops: MediaPlayer.Infinite
+    }
+
+    Item {
+        id: sddmPickerOverlay
+        visible: root.sddmPickerMounted
+        anchors.fill: parent
+        z: 100
+
+        MouseArea {
+            anchors.fill: parent
+            z: 0
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.closeSddmPicker()
+        }
+
+        Rectangle {
+            id: sddmPickerCard
+            z: 1
+            width: root.sddmPickerCardWidth
+            height: root.sddmPickerCardHeight
+            radius: root.sddmPickerCardRadius
+            color: root.base
+            border.color: root.panelBorderColor
+            border.width: 1
+            clip: true
+            opacity: root.sddmPickerCardOpacity
+            anchors.centerIn: parent
+
+            transform: Scale {
+                origin.x: sddmPickerCard.width / 2
+                origin.y: sddmPickerCard.height / 2
+                xScale: root.sddmPickerCardScaleX
+                yScale: root.sddmPickerCardScaleY
+            }
+
+            ElectricBorder {
+                anchors.fill: parent
+                radius: parent.radius
+                borderWidth: parent.border.width
+                accentColor: root.accent
+                active: root.sddmPickerMounted
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.AllButtons
+            }
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 20
+                spacing: 14
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 2
+                        Text {
+                            text: profileSettingsPopup.activePickerMode === 0 ? "Choose SDDM Image/Video" : "Choose Profile Avatar"
+                            color: root.text
+                            font.pixelSize: 19
+                            font.family: root.textFont
+                            font.weight: Font.DemiBold
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: decodeURIComponent(String(root.sddmPickerFolderUrl).replace("file://", ""))
+                            color: root.subtext0
+                            font.pixelSize: 12
+                            font.family: root.textFont
+                            elide: Text.ElideMiddle
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.preferredWidth: 42
+                        Layout.preferredHeight: 38
+                        radius: 12
+                        color: sddmFolderUpMouse.containsMouse ? "#20ffffff" : "transparent"
+                        border.color: sddmFolderUpMouse.containsMouse ? root.accent : "#20ffffff"
+                        border.width: 1
+                        opacity: sddmPickerFolderModel.parentFolder && String(sddmPickerFolderModel.parentFolder) !== String(root.sddmPickerFolderUrl) ? 1.0 : 0.5
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "󰁞"
+                            color: root.text
+                            font.pixelSize: 16
+                            font.family: "Iosevka Nerd Font"
+                        }
+                        MouseArea {
+                            id: sddmFolderUpMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            enabled: sddmPickerFolderModel.parentFolder && String(sddmPickerFolderModel.parentFolder) !== String(root.sddmPickerFolderUrl)
+                            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                            onClicked: root.openSddmPickerFolder(sddmPickerFolderModel.parentFolder)
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.preferredWidth: 42
+                        Layout.preferredHeight: 38
+                        radius: 12
+                        color: sddmClosePickerMouse.containsMouse ? "#20ffffff" : "transparent"
+                        border.color: sddmClosePickerMouse.containsMouse ? root.accent : "#20ffffff"
+                        border.width: 1
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "󰅖"
+                            color: root.text
+                            font.pixelSize: 16
+                            font.family: "Iosevka Nerd Font"
+                        }
+                        MouseArea {
+                            id: sddmClosePickerMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.closeSddmPicker()
+                        }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    spacing: 12
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        Layout.preferredWidth: parent.width * 0.52
+                        radius: 18
+                        color: "#10ffffff"
+                        border.width: 1
+                        border.color: "#20ffffff"
+
+                        ListView {
+                            id: sddmPickerScroll
+                            anchors.fill: parent
+                            anchors.margins: 8
+                            clip: true
+                            model: sddmPickerFolderModel
+                            spacing: 8
+                            boundsBehavior: Flickable.StopAtBounds
+                            focus: true
+
+                            onVisibleChanged: if (visible)
+                                forceActiveFocus()
+
+                            Keys.onUpPressed: {
+                                sddmPickerScroll.contentY = Math.max(0, sddmPickerScroll.contentY - 60);
+                            }
+                            Keys.onDownPressed: {
+                                sddmPickerScroll.contentY = Math.min(Math.max(0, sddmPickerScroll.contentHeight - sddmPickerScroll.height), sddmPickerScroll.contentY + 60);
+                            }
+
+                            ThemePkg.FastScrollHandler {
+                                anchors.fill: parent
+                                flickable: sddmPickerScroll
+                            }
+
+                            ScrollBar.vertical: ScrollBar {
+                                id: sddmPickerVBar
+                                policy: ScrollBar.AsNeeded
+                                hoverEnabled: true
+                                implicitWidth: 10
+                                minimumSize: 0.08
+                                active: hovered || pressed || sddmPickerScroll.moving
+
+                                background: Rectangle {
+                                    anchors.fill: parent
+                                    radius: width / 2
+                                    color: root.panelBorderColor
+                                    border.color: root.panelBorderColor
+                                    opacity: sddmPickerVBar.active ? 1.0 : 0.7
+                                }
+
+                                contentItem: Rectangle {
+                                    radius: width / 2
+                                    border.width: 1
+                                    border.color: root.panelBorderColor
+                                    color: root.accent
+                                }
+                            }
+
+                            delegate: Rectangle {
+                                id: sddmPickerEntry
+                                width: sddmPickerScroll.width - (sddmPickerVBar.visible ? 14 : 0)
+                                height: 58
+                                radius: 14
+
+                                property bool isDir: !!fileIsDir
+                                property bool isSelected: !isDir && root.sddmPickerSelectedPath === String(filePath)
+                                property color rowAccent: isDir ? root.accent : ThemePkg.Theme.accent2
+
+                                color: isSelected ? "#30ffffff" : (sddmPickerRowMouse.containsMouse ? "#1affffff" : "#05ffffff")
+                                border.color: isSelected ? rowAccent : (sddmPickerRowMouse.containsMouse ? rowAccent : "#1affffff")
+                                border.width: 1
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 14
+                                    anchors.rightMargin: 14
+                                    spacing: 12
+
+                                    Text {
+                                        text: sddmPickerEntry.isDir ? "󰉋" : "󰈙"
+                                        color: sddmPickerEntry.rowAccent
+                                        font.pixelSize: 16
+                                        font.family: "Iosevka Nerd Font"
+                                    }
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: fileName
+                                        color: root.text
+                                        font.pixelSize: 13
+                                        font.family: root.textFont
+                                        elide: Text.ElideRight
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: sddmPickerRowMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.selectSddmPickerEntry(filePath, fileName, fileIsDir, fileUrl)
+                                    onDoubleClicked: {
+                                        if (fileIsDir)
+                                            root.openSddmPickerFolder(fileUrl);
+                                        else {
+                                            root.sddmPickerSelectedPath = String(filePath || "");
+                                            root.sddmPickerSelectedName = String(fileName || "");
+                                            root.confirmSddmPickerSelection();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Preview Pane
+                    Rectangle {
+                        id: sddmPreviewPane
+                        Layout.fillHeight: true
+                        Layout.preferredWidth: parent.width * 0.48
+                        radius: 18
+                        color: "#05ffffff"
+                        border.width: 1
+                        border.color: "#20ffffff"
+                        clip: true
+
+                        property bool isVideoFile: {
+                            if (!root.sddmPickerSelectedPath)
+                                return false;
+                            var ext = root.sddmPickerSelectedPath.split('.').pop().toLowerCase();
+                            return ["mp4", "webm", "mkv", "avi", "mov"].includes(ext);
+                        }
+
+                        Rectangle {
+                            id: sddmPreviewFrame
+                            readonly property real frameMargin: 12
+                            anchors.centerIn: parent
+                            width: Math.max(1, Math.min(parent.width - frameMargin * 2, (parent.height - frameMargin * 2) * root.sddmPreviewAspectRatio))
+                            height: width / root.sddmPreviewAspectRatio
+                            radius: 14
+                            color: "#08000000"
+                            border.width: 1
+                            border.color: "#18ffffff"
+                            clip: true
+
+                            VideoOutput {
+                                id: sddmPreviewOutput
+                                anchors.fill: parent
+                                fillMode: VideoOutput.PreserveAspectFit
+                                visible: sddmPreviewPane.isVideoFile && root.sddmPickerSelectedPath !== ""
+                            }
+
+                            Image {
+                                anchors.fill: parent
+                                fillMode: Image.PreserveAspectFit
+                                visible: !sddmPreviewPane.isVideoFile && root.sddmPickerSelectedPath !== ""
+                                source: (!sddmPreviewPane.isVideoFile && root.sddmPickerSelectedPath) ? "file://" + root.sddmPickerSelectedPath : ""
+                                cache: false
+                            }
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "No Preview"
+                                color: root.subtext0
+                                font.family: root.textFont
+                                visible: root.sddmPickerSelectedPath === ""
+                            }
+                        }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+                    Item {
+                        Layout.fillWidth: true
+                    }
+                    Rectangle {
+                        Layout.preferredWidth: 90
+                        Layout.preferredHeight: 38
+                        radius: 12
+                        color: sddmConfirmMa.containsMouse ? "#20ffffff" : "transparent"
+                        border.color: sddmConfirmMa.containsMouse ? ThemePkg.Theme.success : "#20ffffff"
+                        border.width: 1
+                        opacity: root.sddmPickerSelectedPath ? 1.0 : 0.4
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Select"
+                            color: root.sddmPickerSelectedPath ? ThemePkg.Theme.success : root.subtext0
+                            font.pixelSize: 14
+                            font.family: root.textFont
+                            font.weight: Font.DemiBold
+                        }
+                        MouseArea {
+                            id: sddmConfirmMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            enabled: root.sddmPickerSelectedPath !== ""
+                            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                            onClicked: root.confirmSddmPickerSelection()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    SequentialAnimation {
+        id: sddmPickerEnterAnim
+        running: false
+        onStopped: {
+            if (!root.sddmPickerTargetVisible && root.sddmPickerCardOpacity <= 0.001) {
+                root.sddmPickerMounted = false;
+            }
+        }
+        ParallelAnimation {
+            NumberAnimation {
+                target: root
+                property: "sddmPickerCardOpacity"
+                to: 0.78
+                duration: 145
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: root
+                property: "sddmPickerCardScaleX"
+                to: 0.985
+                duration: 175
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: root
+                property: "sddmPickerCardScaleY"
+                to: 0.94
+                duration: 190
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: root
+                property: "sddmPickerCardLift"
+                to: 8
+                duration: 190
+                easing.type: Easing.OutCubic
+            }
+        }
+        ParallelAnimation {
+            NumberAnimation {
+                target: root
+                property: "sddmPickerCardOpacity"
+                to: 1.0
+                duration: 175
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: root
+                property: "sddmPickerCardScaleX"
+                to: 1.0
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: root
+                property: "sddmPickerCardScaleY"
+                to: 1.0
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: root
+                property: "sddmPickerCardLift"
+                to: 0
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
+        }
+    }
+
+    SequentialAnimation {
+        id: sddmPickerExitAnim
+        running: false
+        onStopped: {
+            if (!root.sddmPickerTargetVisible && root.sddmPickerCardOpacity <= 0.001) {
+                root.sddmPickerMounted = false;
+            }
+        }
+        ParallelAnimation {
+            NumberAnimation {
+                target: root
+                property: "sddmPickerCardScaleX"
+                to: 1.04
+                duration: 85
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: root
+                property: "sddmPickerCardScaleY"
+                to: 0.95
+                duration: 85
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: root
+                property: "sddmPickerCardLift"
+                to: 5
+                duration: 95
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: root
+                property: "sddmPickerCardOpacity"
+                to: 0.88
+                duration: 80
+                easing.type: Easing.OutQuad
+            }
+        }
+        ParallelAnimation {
+            NumberAnimation {
+                target: root
+                property: "sddmPickerCardOpacity"
+                to: 0.0
+                duration: 180
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: root
+                property: "sddmPickerCardScaleX"
+                to: 0.84
+                duration: 205
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: root
+                property: "sddmPickerCardScaleY"
+                to: 0.68
+                duration: 220
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: root
+                property: "sddmPickerCardLift"
+                to: 24
+                duration: 200
+                easing.type: Easing.InCubic
+            }
         }
     }
 }

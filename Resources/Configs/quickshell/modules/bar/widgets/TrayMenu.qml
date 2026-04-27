@@ -70,8 +70,8 @@ PopupWindow {
 
     color: "transparent"
 
-    width: popupOpenWidth
-    height: popupOpenHeight
+    implicitWidth: popupOpenWidth
+    implicitHeight: popupOpenHeight
 
     function resetClosedMorph() {
         popupCardOpacity = 0.0;
