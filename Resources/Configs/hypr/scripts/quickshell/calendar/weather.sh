@@ -6,8 +6,13 @@ view_file="${cache_dir}/view_id"
 daily_cache_file="${cache_dir}/daily_weather_cache.json"
 next_day_cache_file="${cache_dir}/next_day_precache.json"
 
-if [ -f "$(dirname "$0")/.env" ]; then
-    export $(grep -v '^#' "$(dirname "$0")/.env" | xargs)
+primary_env="$(dirname "$0")/.env"
+legacy_env="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/scripts/calendar/.env"
+
+if [ -f "$primary_env" ]; then
+    export $(grep -v '^#' "$primary_env" | xargs)
+elif [ -f "$legacy_env" ]; then
+    export $(grep -v '^#' "$legacy_env" | xargs)
 fi
 
 KEY="$OPENWEATHER_KEY"

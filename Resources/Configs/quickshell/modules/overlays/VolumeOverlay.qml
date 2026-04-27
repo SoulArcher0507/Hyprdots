@@ -51,9 +51,10 @@ Scope {
         popupTargetVisible = true;
         popupMounted = true;
         popupExitAnim.stop();
+        if (popupEnterAnim.running)
+            return;
         if (!popupEnterAnim.running && popupCardOpacity >= 0.999)
             return;
-        popupEnterAnim.stop();
         popupEnterAnim.start();
     }
 

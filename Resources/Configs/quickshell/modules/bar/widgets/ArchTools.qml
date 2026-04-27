@@ -11,7 +11,7 @@ Item {
     id: root
     anchors.fill: parent
 
-    readonly property int archPanelWidth: 750
+    readonly property int archPanelWidth: 790
     readonly property int archPanelHeight: 620
     readonly property int panelScreenMargin: 16
     readonly property int panelContentMargin: 22
@@ -64,6 +64,7 @@ Item {
     readonly property string hypridleScript: scriptsDir + "/hypridle.sh"
     readonly property string archNewsScript: scriptsDir + "/arch-news.py"
     readonly property string dotfilesUpdatesScript: scriptsDir + "/dotfiles-updates.py"
+    readonly property string weatherEnvScript: scriptsDir + "/weather-env.sh"
 
     readonly property string cacheFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_cache.json"
     readonly property string progressFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_update.jsonl"
@@ -125,6 +126,18 @@ Item {
     property real updateFinishedTimestamp: 0  
     readonly property bool updateResultVisible: updateFinishedTimestamp > 0
     readonly property bool updateShowStatus: updateRunning || updateResultVisible
+
+    property string weatherApiKey: ""
+    property string weatherCityId: ""
+    property string weatherUnit: "metric"
+    property string weatherEnvPath: ""
+    property string weatherSaveStatus: ""
+    property bool weatherSaveHovered: false
+    property bool weatherSavePressed: false
+    property real weatherSaveFillLevel: 0.0
+    property bool weatherSaveTriggered: false
+    property real weatherSaveFlashOpacity: 0.0
+    property int weatherSaveHoldDuration: 750
 
     property string updateStagePacman: ""   
     property string updateStageAur: ""
@@ -283,6 +296,10 @@ Item {
     }
 
     function handleEscape() {
+        if (weatherSettingsPopup && weatherSettingsPopup.popupTargetVisible) {
+            weatherSettingsPopup.hidePopup();
+            return true;
+        }
         if (updatesListPopup && updatesListPopup.popupTargetVisible) {
             updatesListPopup.hidePopup();
             return true;
@@ -1101,6 +1118,25 @@ Item {
         updatesFetcher.running = true;
     }
 
+    function openWeatherSettings() {
+        archPanel.visible = false;
+        weatherSaveStatus = "";
+        weatherSettingsPopup.showPopup();
+        weatherEnvReadProc.command = ["bash", "-lc", root.scriptRunCommand("weather-env.sh", ["read"])];
+        weatherEnvReadProc.running = true;
+    }
+
+    function saveWeatherSettings() {
+        weatherSaveStatus = "Saving...";
+        weatherEnvWriteProc.command = ["bash", "-lc", root.scriptRunCommand("weather-env.sh", [
+            "write",
+            weatherKeyField.text.trim(),
+            weatherCityField.text.trim(),
+            weatherUnitField.text.trim() || "metric"
+        ])];
+        weatherEnvWriteProc.running = true;
+    }
+
     function escapeHtml(text) {
         return String(text === undefined || text === null ? "" : text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
@@ -1135,6 +1171,50 @@ Item {
 
         formatted += root.escapeHtml(raw.slice(lastIndex));
         return formatted;
+    }
+
+    Io.Process {
+        id: weatherEnvReadProc
+        stdout: Io.StdioCollector {
+            id: weatherEnvReadOut
+            waitForEnd: true
+        }
+        onExited: function(exitCode, exitStatus) {
+            var raw = (weatherEnvReadOut.text || "").trim();
+            if (!raw)
+                return;
+            try {
+                var obj = JSON.parse(raw);
+                root.weatherApiKey = obj.key || "";
+                root.weatherCityId = obj.city_id || "";
+                root.weatherUnit = obj.unit || "metric";
+                root.weatherEnvPath = obj.path || "";
+                if (typeof weatherKeyField !== "undefined")
+                    weatherKeyField.text = root.weatherApiKey;
+                if (typeof weatherCityField !== "undefined")
+                    weatherCityField.text = root.weatherCityId;
+                if (typeof weatherUnitField !== "undefined")
+                    weatherUnitField.text = root.weatherUnit;
+            } catch (e) {
+                root.weatherSaveStatus = "Unable to read .env";
+            }
+        }
+    }
+
+    Io.Process {
+        id: weatherEnvWriteProc
+        onExited: function(exitCode, exitStatus) {
+            if (exitCode === 0) {
+                root.weatherApiKey = weatherKeyField.text.trim();
+                root.weatherCityId = weatherCityField.text.trim();
+                root.weatherUnit = weatherUnitField.text.trim() || "metric";
+                root.weatherSaveStatus = "Saved";
+                root.notifyArchTools("OpenWeather", "Calendar weather settings saved.", "weather-clear");
+            } else {
+                root.weatherSaveStatus = "Save failed";
+                root.notifyArchTools("OpenWeather", "Unable to save calendar weather settings.", "dialog-error");
+            }
+        }
     }
 
     Item {
@@ -1680,6 +1760,16 @@ Item {
                             }
                         }
                     }
+
+                    Row {
+                        spacing: 6
+                        anchors.right: parent.right
+                        ToolBtn {
+                            icon: "󰖨"
+                            tip: "OpenWeather Settings"
+                            onBtnClicked: root.openWeatherSettings()
+                        }
+                    }
                 }
             }
 
@@ -2175,6 +2265,421 @@ Item {
                             width: parent.width
                             sourceComponent: root.expandedResourceError !== "" ? detailErrorComp : (root.expandedResourceLoading && !root.detailObject(root.visibleDetailsKey) ? detailLoadingComp : root.detailComponentForKey(root.visibleDetailsKey))
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    Item {
+        id: weatherSettingsPopup
+        anchors.fill: parent
+        z: 99
+        visible: popupMounted
+        focus: true
+
+        property bool popupMounted: false
+        property bool popupTargetVisible: false
+        property real popupCardOpacity: 0.0
+        property real popupCardScaleX: 0.91
+        property real popupCardScaleY: 0.79
+        property real popupCardWidth: 406
+        property real popupCardHeight: 292
+        property real popupCardRadius: 34
+        property real popupCardLift: 18
+
+        function showPopup() {
+            popupMounted = true;
+            popupTargetVisible = true;
+            weatherSettingsPopupExitAnim.stop();
+            popupCardOpacity = 0.0;
+            popupCardScaleX = 0.91;
+            popupCardScaleY = 0.79;
+            popupCardWidth = 406;
+            popupCardHeight = 292;
+            popupCardRadius = 34;
+            popupCardLift = 18;
+            weatherSettingsPopupEnterAnim.stop();
+            weatherSettingsPopupEnterAnim.start();
+            Qt.callLater(function() { weatherKeyField.forceActiveFocus(); });
+        }
+
+        function hidePopup() {
+            popupTargetVisible = false;
+            weatherSettingsPopupEnterAnim.stop();
+            if (!popupMounted && popupCardOpacity <= 0.001) {
+                archPanel.visible = true;
+                return;
+            }
+            if (!weatherSettingsPopupExitAnim.running)
+                weatherSettingsPopupExitAnim.start();
+        }
+
+        Keys.onReleased: e => {
+            if (e.key === Qt.Key_Escape) {
+                weatherSettingsPopup.hidePopup();
+                e.accepted = true;
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: weatherSettingsPopup.hidePopup()
+        }
+
+        Item {
+            id: weatherPopupShell
+            width: weatherSettingsPopup.popupCardWidth
+            height: weatherSettingsPopup.popupCardHeight
+            anchors.centerIn: parent
+            opacity: weatherSettingsPopup.popupCardOpacity
+            transform: [
+                Scale {
+                    origin.x: weatherPopupShell.width / 2
+                    origin.y: weatherPopupShell.height / 2
+                    xScale: weatherSettingsPopup.popupCardScaleX
+                    yScale: weatherSettingsPopup.popupCardScaleY
+                },
+                Translate { y: weatherSettingsPopup.popupCardLift }
+            ]
+
+            Rectangle {
+                width: parent.width
+                height: parent.height
+                anchors.centerIn: parent
+                radius: weatherSettingsPopup.popupCardRadius
+                color: root.base
+                border.color: root.panelBorderColor
+                border.width: 1
+                clip: true
+
+                property real globalOrbitAngle: 0
+                NumberAnimation on globalOrbitAngle {
+                    from: 0
+                    to: Math.PI * 2
+                    duration: 90000
+                    loops: Animation.Infinite
+                    running: weatherSettingsPopup.popupMounted && ThemePkg.Theme.edgeAnimationsEnabled
+                }
+
+                Rectangle {
+                    width: parent.width * 0.72
+                    height: width
+                    radius: width / 2
+                    x: (parent.width * 0.58 - width / 2) + Math.cos(parent.globalOrbitAngle * 1.5) * 70
+                    y: (parent.height * 0.05 - height / 2) + Math.sin(parent.globalOrbitAngle * 1.5) * 80
+                    opacity: 0.05
+                    color: root.accent
+                }
+
+                Rectangle {
+                    width: parent.width * 0.55
+                    height: width
+                    radius: width / 2
+                    x: (parent.width * 0.12 - width / 2) + Math.sin(parent.globalOrbitAngle * 1.2) * -52
+                    y: (parent.height * 0.82 - height / 2) + Math.cos(parent.globalOrbitAngle * 1.2) * -64
+                    opacity: 0.035
+                    color: ThemePkg.Theme.c5
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    anchors.verticalCenterOffset: 10
+                    text: "󰖨"
+                    font.family: "Iosevka Nerd Font"
+                    font.pixelSize: 240
+                    color: root.accent
+                    opacity: 0.035
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: {}
+                }
+
+                ColumnLayout {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    anchors.leftMargin: 25
+                    anchors.rightMargin: 25
+                    anchors.topMargin: 49
+                    anchors.bottomMargin: 25
+                    spacing: 7
+                    z: 1
+
+                    TextField {
+                        id: weatherKeyField
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 40
+                        placeholderText: "OpenWeather API key"
+                        text: root.weatherApiKey
+                        color: root.text
+                        placeholderTextColor: root.overlay1
+                        font.family: root.textFont
+                        font.pixelSize: 14
+                        padding: 10
+                        leftPadding: 42
+                        Keys.onEscapePressed: weatherSettingsPopup.hidePopup()
+                        background: Rectangle {
+                            color: "#0dffffff"
+                            border.color: weatherKeyField.activeFocus ? root.accent : "#1affffff"
+                            border.width: 1
+                            radius: 10
+                        }
+                        Text {
+                            anchors.left: parent.left
+                            anchors.leftMargin: 13
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: ""
+                            font.family: "CaskaydiaMono Nerd Font"
+                            font.pixelSize: 16
+                            color: weatherKeyField.activeFocus ? root.accent : root.overlay1
+                        }
+                    }
+
+                    TextField {
+                        id: weatherCityField
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 40
+                        placeholderText: "OpenWeather city ID"
+                        text: root.weatherCityId
+                        color: root.text
+                        placeholderTextColor: root.overlay1
+                        font.family: root.textFont
+                        font.pixelSize: 14
+                        padding: 10
+                        leftPadding: 42
+                        Keys.onEscapePressed: weatherSettingsPopup.hidePopup()
+                        background: Rectangle {
+                            color: "#0dffffff"
+                            border.color: weatherCityField.activeFocus ? root.accent : "#1affffff"
+                            border.width: 1
+                            radius: 10
+                        }
+                        Text {
+                            anchors.left: parent.left
+                            anchors.leftMargin: 13
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "󰍎"
+                            font.family: "CaskaydiaMono Nerd Font"
+                            font.pixelSize: 16
+                            color: weatherCityField.activeFocus ? root.accent : root.overlay1
+                        }
+                    }
+
+                    TextField {
+                        id: weatherUnitField
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 40
+                        placeholderText: "Unit: metric, imperial or standard"
+                        text: root.weatherUnit
+                        color: root.text
+                        placeholderTextColor: root.overlay1
+                        font.family: root.textFont
+                        font.pixelSize: 14
+                        padding: 10
+                        leftPadding: 42
+                        Keys.onEscapePressed: weatherSettingsPopup.hidePopup()
+                        background: Rectangle {
+                            color: "#0dffffff"
+                            border.color: weatherUnitField.activeFocus ? root.accent : "#1affffff"
+                            border.width: 1
+                            radius: 10
+                        }
+                        Text {
+                            anchors.left: parent.left
+                            anchors.leftMargin: 13
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "󰔏"
+                            font.family: "CaskaydiaMono Nerd Font"
+                            font.pixelSize: 16
+                            color: weatherUnitField.activeFocus ? root.accent : root.overlay1
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.topMargin: 2
+                        spacing: 10
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: root.weatherSaveStatus
+                            color: root.weatherSaveStatus === "Save failed" ? root.red : root.subtext0
+                            font.family: root.textFont
+                            font.pixelSize: 12
+                            font.weight: Font.Bold
+                        }
+
+                        Rectangle {
+                            Layout.preferredWidth: 108
+                            Layout.preferredHeight: 38
+                            property real saveRadius: 10
+                            radius: 10
+                            color: root.weatherSaveHovered ? ThemePkg.Theme.withAlpha(root.accent, 0.86) : ThemePkg.Theme.withAlpha(root.accent, 0.70)
+                            border.color: ThemePkg.Theme.withAlpha(root.accent, 0.95)
+                            border.width: 1
+                            scale: root.weatherSavePressed ? 0.94 : (root.weatherSaveHovered ? 1.04 : 1.0)
+                            clip: true
+
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: 300
+                                    easing.type: Easing.OutBack
+                                }
+                            }
+
+                            Canvas {
+                                id: weatherSaveWaveCanvas
+                                anchors.fill: parent
+                                visible: root.weatherSaveFillLevel > 0.0
+                                opacity: 0.92
+                                property real wavePhase: 0.0
+
+                                NumberAnimation on wavePhase {
+                                    running: root.weatherSaveFillLevel > 0.0 && root.weatherSaveFillLevel < 1.0 && ThemePkg.Theme.edgeAnimationsEnabled
+                                    loops: Animation.Infinite
+                                    from: 0
+                                    to: Math.PI * 2
+                                    duration: 800
+                                }
+
+                                onWavePhaseChanged: requestPaint()
+                                Connections {
+                                    target: root
+                                    function onWeatherSaveFillLevelChanged() {
+                                        weatherSaveWaveCanvas.requestPaint();
+                                    }
+                                }
+
+                                onPaint: {
+                                    var ctx = getContext("2d");
+                                    ctx.clearRect(0, 0, width, height);
+                                    if (root.weatherSaveFillLevel <= 0.001)
+                                        return;
+
+                                    var currentW = width * root.weatherSaveFillLevel;
+                                    var waveAmpBase = 10 * Math.sin(root.weatherSaveFillLevel * Math.PI);
+                                    var waveAmp = Math.min(Math.max(0, currentW), waveAmpBase);
+                                    var r = 10;
+
+                                    ctx.save();
+                                    ctx.beginPath();
+                                    ctx.moveTo(r, 0);
+                                    ctx.lineTo(width - r, 0);
+                                    ctx.arcTo(width, 0, width, r, r);
+                                    ctx.lineTo(width, height - r);
+                                    ctx.arcTo(width, height, width - r, height, r);
+                                    ctx.lineTo(r, height);
+                                    ctx.arcTo(0, height, 0, height - r, r);
+                                    ctx.lineTo(0, r);
+                                    ctx.arcTo(0, 0, r, 0, r);
+                                    ctx.closePath();
+                                    ctx.clip();
+
+                                    ctx.beginPath();
+                                    ctx.moveTo(0, 0);
+                                    if (root.weatherSaveFillLevel < 0.99) {
+                                        var cp1x = currentW + Math.sin(weatherSaveWaveCanvas.wavePhase) * waveAmp;
+                                        var cp2x = currentW + Math.cos(weatherSaveWaveCanvas.wavePhase + Math.PI) * waveAmp;
+                                        ctx.lineTo(currentW, 0);
+                                        ctx.bezierCurveTo(cp2x, height * 0.33, cp1x, height * 0.66, currentW, height);
+                                        ctx.lineTo(0, height);
+                                    } else {
+                                        ctx.lineTo(width, 0);
+                                        ctx.lineTo(width, height);
+                                        ctx.lineTo(0, height);
+                                    }
+                                    ctx.closePath();
+
+                                    var grad = ctx.createLinearGradient(0, 0, 0, height);
+                                    grad.addColorStop(0, root.surface1.toString());
+                                    grad.addColorStop(1, root.crust.toString());
+                                    ctx.fillStyle = grad;
+                                    ctx.fill();
+                                    ctx.restore();
+                                }
+                            }
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: parent.radius
+                                color: "#ffffff"
+                                opacity: root.weatherSaveFlashOpacity
+                            }
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: weatherEnvWriteProc.running ? "Saving" : "Save"
+                                color: root.weatherSaveFillLevel > 0.05 ? root.text : root.crust
+                                font.family: root.textFont
+                                font.pixelSize: 13
+                                font.weight: Font.Black
+                            }
+
+                            MouseArea {
+                                id: weatherSaveMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onEntered: root.weatherSaveHovered = true
+                                onExited: root.weatherSaveHovered = false
+                                onPressed: {
+                                    if (weatherEnvWriteProc.running)
+                                        return;
+                                    root.weatherSavePressed = true;
+                                    if (!root.weatherSaveTriggered) {
+                                        weatherSaveDrainAnim.stop();
+                                        weatherSaveFillAnim.start();
+                                    }
+                                }
+                                onReleased: {
+                                    root.weatherSavePressed = false;
+                                    if (!root.weatherSaveTriggered && root.weatherSaveFillLevel < 1.0) {
+                                        weatherSaveFillAnim.stop();
+                                        weatherSaveDrainAnim.start();
+                                    }
+                                }
+                                onCanceled: {
+                                    root.weatherSavePressed = false;
+                                    if (!root.weatherSaveTriggered) {
+                                        weatherSaveFillAnim.stop();
+                                        weatherSaveDrainAnim.start();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    anchors.top: parent.top
+                    anchors.right: parent.right
+                    anchors.topMargin: 9
+                    anchors.rightMargin: 9
+                    width: 30
+                    height: 30
+                    radius: 8
+                    color: weatherCloseMa.containsMouse ? "#20ffffff" : "transparent"
+                    border.color: weatherCloseMa.containsMouse ? root.accent : "transparent"
+                    z: 2
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: ""
+                        font.family: "CaskaydiaMono Nerd Font"
+                        font.pixelSize: 16
+                        color: root.text
+                    }
+
+                    MouseArea {
+                        id: weatherCloseMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: weatherSettingsPopup.hidePopup()
                     }
                 }
             }
@@ -2802,6 +3307,108 @@ Item {
                     }
                 }
             }
+        }
+    }
+
+    NumberAnimation {
+        id: weatherSaveFillAnim
+        target: root
+        property: "weatherSaveFillLevel"
+        to: 1.0
+        duration: root.weatherSaveHoldDuration * (1.0 - root.weatherSaveFillLevel)
+        easing.type: Easing.InSine
+        onFinished: {
+            if (!root.weatherSaveTriggered) {
+                root.weatherSaveTriggered = true;
+                root.weatherSaveFlashOpacity = 0.6;
+                weatherSaveFlashDrainAnim.start();
+                root.saveWeatherSettings();
+                root.weatherSaveFillLevel = 0.0;
+                root.weatherSaveTriggered = false;
+                root.weatherSavePressed = false;
+            }
+        }
+    }
+
+    NumberAnimation {
+        id: weatherSaveDrainAnim
+        target: root
+        property: "weatherSaveFillLevel"
+        to: 0.0
+        duration: 1000 * root.weatherSaveFillLevel
+        easing.type: Easing.OutQuad
+    }
+
+    NumberAnimation {
+        id: weatherSaveFlashDrainAnim
+        target: root
+        property: "weatherSaveFlashOpacity"
+        to: 0.0
+        duration: 520
+        easing.type: Easing.OutExpo
+    }
+
+    SequentialAnimation {
+        id: weatherSettingsPopupEnterAnim
+        running: false
+
+        onStopped: {
+            if (!weatherSettingsPopup.popupTargetVisible && weatherSettingsPopup.popupCardOpacity <= 0.001) {
+                weatherSettingsPopup.popupMounted = false;
+                archPanel.visible = true;
+            }
+        }
+
+        ParallelAnimation {
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardOpacity"; to: 0.78; duration: 145; easing.type: Easing.OutCubic }
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardScaleX"; to: 0.985; duration: 175; easing.type: Easing.OutCubic }
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardScaleY"; to: 0.94; duration: 190; easing.type: Easing.OutCubic }
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardWidth"; to: 434; duration: 190; easing.type: Easing.OutCubic }
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardHeight"; to: 300; duration: 200; easing.type: Easing.OutCubic }
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardRadius"; to: 28; duration: 190; easing.type: Easing.OutQuad }
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardLift"; to: 8; duration: 190; easing.type: Easing.OutCubic }
+        }
+
+        ParallelAnimation {
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardOpacity"; to: 1.0; duration: 175; easing.type: Easing.OutCubic }
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardScaleX"; to: 1.0; duration: 205; easing.type: Easing.OutCubic }
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardScaleY"; to: 1.0; duration: 205; easing.type: Easing.OutCubic }
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardWidth"; to: 460; duration: 205; easing.type: Easing.OutCubic }
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardHeight"; to: 320; duration: 215; easing.type: Easing.OutCubic }
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardRadius"; to: 20; duration: 195; easing.type: Easing.InOutQuad }
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardLift"; to: 0; duration: 205; easing.type: Easing.OutCubic }
+        }
+    }
+
+    SequentialAnimation {
+        id: weatherSettingsPopupExitAnim
+        running: false
+
+        onStopped: {
+            if (!weatherSettingsPopup.popupTargetVisible && weatherSettingsPopup.popupCardOpacity <= 0.001) {
+                weatherSettingsPopup.popupMounted = false;
+                archPanel.visible = true;
+            }
+        }
+
+        ParallelAnimation {
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardScaleX"; to: 1.04; duration: 85; easing.type: Easing.OutQuad }
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardScaleY"; to: 0.95; duration: 85; easing.type: Easing.OutQuad }
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardWidth"; to: 478; duration: 95; easing.type: Easing.OutQuad }
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardHeight"; to: 306; duration: 95; easing.type: Easing.OutQuad }
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardRadius"; to: 30; duration: 95; easing.type: Easing.OutQuad }
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardLift"; to: 5; duration: 95; easing.type: Easing.OutQuad }
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardOpacity"; to: 0.88; duration: 80; easing.type: Easing.OutQuad }
+        }
+
+        ParallelAnimation {
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardOpacity"; to: 0.0; duration: 180; easing.type: Easing.InCubic }
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardScaleX"; to: 0.84; duration: 205; easing.type: Easing.InCubic }
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardScaleY"; to: 0.68; duration: 220; easing.type: Easing.InCubic }
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardWidth"; to: 406; duration: 200; easing.type: Easing.InCubic }
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardHeight"; to: 292; duration: 210; easing.type: Easing.InCubic }
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardRadius"; to: 34; duration: 200; easing.type: Easing.InQuad }
+            NumberAnimation { target: weatherSettingsPopup; property: "popupCardLift"; to: 24; duration: 200; easing.type: Easing.InCubic }
         }
     }
 
