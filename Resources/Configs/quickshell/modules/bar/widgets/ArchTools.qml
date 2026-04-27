@@ -152,6 +152,7 @@ Item {
     property string updateStagePacman: ""   
     property string updateStageAur: ""
     property string updateStageFlatpak: ""
+    property bool updateRestoredFromSwitcher: false
 
     readonly property color ambientPrimary: root.accent
     readonly property color ambientSecondary: ThemePkg.Theme.c5
@@ -183,6 +184,7 @@ Item {
     property real lastHostLoaderOpacity: hostLoaderOpacity
 
     Component.onCompleted: {
+        root.restoreUpdateStateFromSwitcher();
         popupTargetVisible = true;
         introState = 1.0;
         archPanel.visible = true;
@@ -940,6 +942,72 @@ Item {
         Hyprland.dispatch("exec [float;center;size 60% 70%] sh -c \"" + terminalCmd + "\"");
     }
 
+    function restoreUpdateStateFromSwitcher() {
+        if (!root.switcher || !root.switcher.archUpdateState)
+            return;
+        var state = root.switcher.archUpdateState;
+        root.updateRunning = !!state.running;
+        root.updateProvider = state.provider || "";
+        root.updateStage = state.stage || "";
+        root.updateStatus = state.status || "";
+        root.updateDetail = state.detail || "";
+        root.updateHadError = !!state.hadError;
+        root.updateErrorText = state.errorText || "";
+        root.updateCountPacman = Number(state.countPacman || 0);
+        root.updateCountAur = Number(state.countAur || 0);
+        root.updateCountFlatpak = Number(state.countFlatpak || 0);
+        root.updateCountTotal = Number(state.countTotal || 0);
+        root.updateFinishedTimestamp = Number(state.finishedTimestamp || 0);
+        root.updateStagePacman = state.stagePacman || "";
+        root.updateStageAur = state.stageAur || "";
+        root.updateStageFlatpak = state.stageFlatpak || "";
+        root.updateRestoredFromSwitcher = root.updateRunning;
+        if (root.updateRunning && root.updateStage !== "complete")
+            updateProgressPoller.start();
+    }
+
+    function clearUpdateState() {
+        root.updateRunning = false;
+        root.updateProvider = "";
+        root.updateStage = "";
+        root.updateStatus = "";
+        root.updateDetail = "";
+        root.updateHadError = false;
+        root.updateErrorText = "";
+        root.updateCountPacman = 0;
+        root.updateCountAur = 0;
+        root.updateCountFlatpak = 0;
+        root.updateCountTotal = 0;
+        root.updateFinishedTimestamp = 0;
+        root.updateStagePacman = "";
+        root.updateStageAur = "";
+        root.updateStageFlatpak = "";
+        root.updateRestoredFromSwitcher = false;
+        root.persistUpdateStateToSwitcher();
+    }
+
+    function persistUpdateStateToSwitcher() {
+        if (!root.switcher)
+            return;
+        root.switcher.archUpdateState = {
+            running: root.updateRunning,
+            provider: root.updateProvider,
+            stage: root.updateStage,
+            status: root.updateStatus,
+            detail: root.updateDetail,
+            hadError: root.updateHadError,
+            errorText: root.updateErrorText,
+            countPacman: root.updateCountPacman,
+            countAur: root.updateCountAur,
+            countFlatpak: root.updateCountFlatpak,
+            countTotal: root.updateCountTotal,
+            finishedTimestamp: root.updateFinishedTimestamp,
+            stagePacman: root.updateStagePacman,
+            stageAur: root.updateStageAur,
+            stageFlatpak: root.updateStageFlatpak
+        };
+    }
+
     function startBackgroundUpdate(provider) {
         if (root.updateRunning)
             return;
@@ -958,9 +1026,11 @@ Item {
         root.updateStagePacman = "";
         root.updateStageAur = "";
         root.updateStageFlatpak = "";
+        root.updateRestoredFromSwitcher = false;
         root._lastProgressLineCount = 0;
         root._notificationSentForRun = false;
         updateDisplayClearTimer.stop();
+        root.persistUpdateStateToSwitcher();
 
         var scriptCmd = root.scriptRunCommand("update-runner.sh", ["--provider", provider]);
         Quickshell.execDetached(["bash", "-lc", scriptCmd]);
@@ -984,7 +1054,15 @@ Item {
                 root.updateProvider = obj.provider || root.updateProvider;
                 root.updateRunning = true;
                 root.updateStatus = "starting";
+                root.updateRestoredFromSwitcher = false;
+                root.persistUpdateStateToSwitcher();
                 return;
+            }
+
+            if (stage !== "complete" && status !== "") {
+                root.updateRunning = true;
+                root.updateFinishedTimestamp = 0;
+                updateDisplayClearTimer.stop();
             }
 
             root.updateStage = stage;
@@ -1027,6 +1105,8 @@ Item {
             } else if (stage === "flatpak" && (status === "done" || status === "error")) {
                 root.updateCountFlatpak = Number(obj.count || 0);
             }
+
+            root.persistUpdateStateToSwitcher();
         } catch (e) {
         }
     }
@@ -1087,10 +1167,13 @@ Item {
         onExited: function(exitCode, exitStatus) {
             var raw = (progressPollOut.text || "").trim();
             if (!raw) {
-                if (root.updateRunning && root.updateStage !== "complete") {
+                if (root.updateRestoredFromSwitcher && root.updateRunning && root.updateStage !== "complete") {
+                    root.clearUpdateState();
+                    updateProgressPoller.stop();
                 }
                 return;
             }
+            root.updateRestoredFromSwitcher = false;
             var lines = raw.split("\n");
             if (root._lastProgressLineCount > lines.length)
                 root._lastProgressLineCount = 0;
@@ -1143,7 +1226,12 @@ Item {
         }
         onExited: function(exitCode, exitStatus) {
             var raw = (progressInitOut.text || "").trim();
-            if (!raw) return;
+            if (!raw) {
+                if (root.updateRestoredFromSwitcher && root.updateRunning)
+                    root.clearUpdateState();
+                return;
+            }
+            root.updateRestoredFromSwitcher = false;
             var lines = raw.split("\n");
             for (var i = 0; i < lines.length; i++) {
                 root.handleUpdateLine(lines[i], true);
@@ -1162,13 +1250,7 @@ Item {
         interval: 60000  
         repeat: false
         onTriggered: {
-            root.updateFinishedTimestamp = 0;
-            root.updateStage = "";
-            root.updateStatus = "";
-            root.updateDetail = "";
-            root.updateStagePacman = "";
-            root.updateStageAur = "";
-            root.updateStageFlatpak = "";
+            root.clearUpdateState();
             Quickshell.execDetached(["bash", "-c", "rm -f " + root.progressFile]);
         }
     }

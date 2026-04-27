@@ -91,6 +91,23 @@ Variants {
                     property string updLastTs: panel.updLastTs
                     property var _updLastMs: panel._updLastMs              
                     property int updatesMinIntervalMs: panel.updatesMinIntervalMs
+                    property var archUpdateState: ({
+                        running: false,
+                        provider: "",
+                        stage: "",
+                        status: "",
+                        detail: "",
+                        hadError: false,
+                        errorText: "",
+                        countPacman: 0,
+                        countAur: 0,
+                        countFlatpak: 0,
+                        countTotal: 0,
+                        finishedTimestamp: 0,
+                        stagePacman: "",
+                        stageAur: "",
+                        stageFlatpak: ""
+                    })
 
                     property string shownOverlay: ""
                     property int dur: 140

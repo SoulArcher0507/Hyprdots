@@ -418,5 +418,5 @@ else
 fi
 
 FINISHED=1
-( sleep 60 && rm -f "$PROGRESS_FILE" ) &
+( exec 9>&-; sleep 60 && rm -f "$PROGRESS_FILE" ) &
 disown
