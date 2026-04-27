@@ -366,14 +366,19 @@ def apply_updates():
             return checkout.returncode
 
     print(f"Pulling latest version from {upstream}...")
+    pre_update_head = git_output(["rev-parse", "HEAD"], default="")
     pull = subprocess.run(["git", "-C", str(REPO_DIR), "pull", "--rebase", "--autostash", remote, branch])
     if pull.returncode != 0:
         refresh_after_apply()
         return pull.returncode
+    post_update_head = git_output(["rev-parse", "HEAD"], default="")
 
     print("")
     print("Running update.sh...")
-    update = subprocess.run(["bash", str(update_script)], cwd=str(REPO_DIR))
+    update_env = os.environ.copy()
+    update_env["HYPRDOTS_PRE_UPDATE_HEAD"] = pre_update_head
+    update_env["HYPRDOTS_POST_UPDATE_HEAD"] = post_update_head
+    update = subprocess.run(["bash", str(update_script)], cwd=str(REPO_DIR), env=update_env)
     refresh_after_apply()
     return update.returncode
 
