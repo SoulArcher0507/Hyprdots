@@ -8,6 +8,7 @@ import "../../theme" as ThemePkg
 
 Item {
     id: root
+    focus: true
     anchors.fill: parent
 
     readonly property int panelWidth: 1020
@@ -96,11 +97,77 @@ Item {
     property bool applyTriggered: false
     property real applyFlashOpacity: 0.0
     property int applyHoldDuration: 750
+    readonly property real dragBoundsPadding: 40
+    readonly property real monitorSnapThreshold: 20
+    readonly property real monitorDragSnapDistance: 12
+    readonly property real monitorKeySnapDistance: 0
+    readonly property real monitorKeyStep: Math.max(root.uiScale, root.uiScale * 2)
 
     Component.onCompleted: {
+        root.forceActiveFocus();
         root.popupTargetVisible = true;
         startupAnim.start();
         popupEnterAnim.start();
+    }
+
+    function canHandleMonitorArrowKeys() {
+        return monitorsModel.count >= 2 && !root.editorHasFocus();
+    }
+
+    Keys.onPressed: event => {
+        if (!root.canHandleMonitorArrowKeys())
+            return;
+
+        var handled = false;
+        switch (event.key) {
+        case Qt.Key_Left:
+            handled = root.nudgeSelectedMonitor(-root.monitorKeyStep, 0);
+            break;
+        case Qt.Key_Right:
+            handled = root.nudgeSelectedMonitor(root.monitorKeyStep, 0);
+            break;
+        case Qt.Key_Up:
+            handled = root.nudgeSelectedMonitor(0, -root.monitorKeyStep);
+            break;
+        case Qt.Key_Down:
+            handled = root.nudgeSelectedMonitor(0, root.monitorKeyStep);
+            break;
+        }
+
+        if (handled)
+            event.accepted = true;
+    }
+
+    Shortcut {
+        sequence: "Left"
+        context: Qt.WindowShortcut
+        enabled: root.canHandleMonitorArrowKeys()
+        autoRepeat: true
+        onActivated: root.nudgeSelectedMonitor(-root.monitorKeyStep, 0)
+    }
+
+    Shortcut {
+        sequence: "Right"
+        context: Qt.WindowShortcut
+        enabled: root.canHandleMonitorArrowKeys()
+        autoRepeat: true
+        onActivated: root.nudgeSelectedMonitor(root.monitorKeyStep, 0)
+    }
+
+    Shortcut {
+        sequence: "Up"
+        context: Qt.WindowShortcut
+        enabled: root.canHandleMonitorArrowKeys()
+        autoRepeat: true
+        onActivated: root.nudgeSelectedMonitor(0, -root.monitorKeyStep)
+    }
+
+    Shortcut {
+        sequence: "Down"
+        context: Qt.WindowShortcut
+        enabled: root.canHandleMonitorArrowKeys()
+        autoRepeat: true
+        onActivated: root.nudgeSelectedMonitor(0, root.monitorKeyStep)
     }
 
     onHostLoaderOpacityChanged: {
@@ -224,6 +291,11 @@ Item {
         root.forceLayoutUpdate();
     }
 
+    function editorHasFocus() {
+        return (typeof customWInput !== "undefined" && customWInput.activeFocus)
+            || (typeof customHInput !== "undefined" && customHInput.activeFocus);
+    }
+
     function syncCustomInputs() {
         if (monitorsModel.count === 0 || root.activeEditIndex < 0 || root.activeEditIndex >= monitorsModel.count)
             return;
@@ -240,6 +312,7 @@ Item {
         root.commitPendingEditorState();
         root.activeEditIndex = index;
         root.syncCustomInputs();
+        root.forceActiveFocus();
     }
 
     function normalizedMonitorLayout() {
@@ -409,8 +482,8 @@ Item {
         for (var i = 0; i < monitorsModel.count; i++) {
             if (i === skipIdx) continue;
             var m = monitorsModel.get(i);
-            var mW = (m.resW / m.sysScale) * root.uiScale;
-            var mH = (m.resH / m.sysScale) * root.uiScale;
+            var mW = (root.displayW(m) / m.sysScale) * root.uiScale;
+            var mH = (root.displayH(m) / m.sysScale) * root.uiScale;
             if (isOverlapping(x, y, w, h, m.uiX, m.uiY, mW, mH)) return true;
         }
         return false;
@@ -441,24 +514,130 @@ Item {
         return { x: bestX, y: bestY };
     }
 
+    function clampMonitorPosition(index, proposedX, proposedY, monitorWidth, monitorHeight) {
+        if (monitorsModel.count < 2)
+            return { x: proposedX, y: proposedY };
+
+        var boundMinX = 999999;
+        var boundMinY = 999999;
+        var boundMaxX = -999999;
+        var boundMaxY = -999999;
+        for (var i = 0; i < monitorsModel.count; i++) {
+            if (i === index)
+                continue;
+            var sibling = monitorsModel.get(i);
+            var siblingWidth = (root.displayW(sibling) / sibling.sysScale) * root.uiScale;
+            var siblingHeight = (root.displayH(sibling) / sibling.sysScale) * root.uiScale;
+            boundMinX = Math.min(boundMinX, sibling.uiX - monitorWidth - root.dragBoundsPadding);
+            boundMinY = Math.min(boundMinY, sibling.uiY - monitorHeight - root.dragBoundsPadding);
+            boundMaxX = Math.max(boundMaxX, sibling.uiX + siblingWidth + root.dragBoundsPadding);
+            boundMaxY = Math.max(boundMaxY, sibling.uiY + siblingHeight + root.dragBoundsPadding);
+        }
+
+        if (boundMinX === 999999)
+            return { x: proposedX, y: proposedY };
+
+        return {
+            x: Math.max(boundMinX, Math.min(proposedX, boundMaxX)),
+            y: Math.max(boundMinY, Math.min(proposedY, boundMaxY))
+        };
+    }
+
+    function bestMonitorSnap(index, proposedX, proposedY, monitorWidth, monitorHeight) {
+        var bestX = proposedX;
+        var bestY = proposedY;
+        var bestDist = 999999;
+        var found = false;
+
+        for (var i = 0; i < monitorsModel.count; i++) {
+            if (i === index)
+                continue;
+            var sibling = monitorsModel.get(i);
+            var siblingWidth = (root.displayW(sibling) / sibling.sysScale) * root.uiScale;
+            var siblingHeight = (root.displayH(sibling) / sibling.sysScale) * root.uiScale;
+            var snapped = root.getPerimeterSnap(
+                proposedX,
+                proposedY,
+                sibling.uiX,
+                sibling.uiY,
+                siblingWidth,
+                siblingHeight,
+                monitorWidth,
+                monitorHeight,
+                root.monitorSnapThreshold
+            );
+            var dist = Math.hypot(proposedX - snapped.x, proposedY - snapped.y);
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestX = snapped.x;
+                bestY = snapped.y;
+                found = true;
+            }
+        }
+
+        return {
+            found: found,
+            x: bestX,
+            y: bestY,
+            distance: bestDist
+        };
+    }
+
+    function resolveMonitorPosition(index, proposedX, proposedY, monitorWidth, monitorHeight, snapDistance) {
+        var clamped = root.clampMonitorPosition(index, proposedX, proposedY, monitorWidth, monitorHeight);
+        var rawOverlaps = root.isOverlappingAny(clamped.x, clamped.y, monitorWidth, monitorHeight, index);
+        var bestSnap = root.bestMonitorSnap(index, clamped.x, clamped.y, monitorWidth, monitorHeight);
+
+        var targetX = clamped.x;
+        var targetY = clamped.y;
+        if (bestSnap.found && (bestSnap.distance <= snapDistance || rawOverlaps)) {
+            targetX = bestSnap.x;
+            targetY = bestSnap.y;
+        }
+
+        if (root.isOverlappingAny(targetX, targetY, monitorWidth, monitorHeight, index)) {
+            var current = monitorsModel.get(index);
+            targetX = current.uiX;
+            targetY = current.uiY;
+        }
+
+        return { x: targetX, y: targetY };
+    }
+
     function forceLayoutUpdate() {
         if (monitorsModel.count < 2) return;
         var mIdx = root.activeEditIndex;
         var mModel = monitorsModel.get(mIdx);
-        var mW = (mModel.resW / mModel.sysScale) * root.uiScale;
-        var mH = (mModel.resH / mModel.sysScale) * root.uiScale;
-        var bestX = mModel.uiX, bestY = mModel.uiY, bestDist = 999999;
-        for (var i = 0; i < monitorsModel.count; i++) {
-            if (i === mIdx) continue;
-            var sModel = monitorsModel.get(i);
-            var sW = (sModel.resW / sModel.sysScale) * root.uiScale;
-            var sH = (sModel.resH / sModel.sysScale) * root.uiScale;
-            var snapped = root.getPerimeterSnap(mModel.uiX, mModel.uiY, sModel.uiX, sModel.uiY, sW, sH, mW, mH, 20);
-            var dist = Math.hypot(snapped.x - mModel.uiX, snapped.y - mModel.uiY);
-            if (dist < bestDist) { bestDist = dist; bestX = snapped.x; bestY = snapped.y; }
-        }
-        monitorsModel.setProperty(mIdx, "uiX", bestX);
-        monitorsModel.setProperty(mIdx, "uiY", bestY);
+        var mW = (root.displayW(mModel) / mModel.sysScale) * root.uiScale;
+        var mH = (root.displayH(mModel) / mModel.sysScale) * root.uiScale;
+        var resolved = root.resolveMonitorPosition(mIdx, mModel.uiX, mModel.uiY, mW, mH, 999999);
+        monitorsModel.setProperty(mIdx, "uiX", resolved.x);
+        monitorsModel.setProperty(mIdx, "uiY", resolved.y);
+    }
+
+    function nudgeSelectedMonitor(deltaX, deltaY) {
+        if (monitorsModel.count < 2 || root.activeEditIndex < 0 || root.activeEditIndex >= monitorsModel.count)
+            return false;
+
+        root.commitPendingEditorState();
+        var selected = monitorsModel.get(root.activeEditIndex);
+        var monitorWidth = (root.displayW(selected) / selected.sysScale) * root.uiScale;
+        var monitorHeight = (root.displayH(selected) / selected.sysScale) * root.uiScale;
+        var resolved = root.resolveMonitorPosition(
+            root.activeEditIndex,
+            selected.uiX + deltaX,
+            selected.uiY + deltaY,
+            monitorWidth,
+            monitorHeight,
+            root.monitorKeySnapDistance
+        );
+
+        if (Math.abs(resolved.x - selected.uiX) < 0.001 && Math.abs(resolved.y - selected.uiY) < 0.001)
+            return false;
+
+        monitorsModel.setProperty(root.activeEditIndex, "uiX", resolved.x);
+        monitorsModel.setProperty(root.activeEditIndex, "uiY", resolved.y);
+        return true;
     }
 
     Timer {
@@ -784,8 +963,8 @@ Item {
                                         border.color: isActive ? root.selectedResAccent : root.surface2
                                         border.width: isActive ? 2 : 1
                                         z: isActive ? 5 : 0
-                                        Behavior on x { NumberAnimation { duration: 300; easing.type: Easing.OutQuint } }
-                                        Behavior on y { NumberAnimation { duration: 300; easing.type: Easing.OutQuint } }
+                                        Behavior on x { enabled: !ghostMa.drag.active; NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                                        Behavior on y { enabled: !ghostMa.drag.active; NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
                                         Behavior on border.color { ColorAnimation { duration: 300 } }
                                         Behavior on color { ColorAnimation { duration: 300 } }
                                         Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
@@ -834,8 +1013,11 @@ Item {
                                             anchors.fill: parent
                                             drag.target: ghostDrag
                                             drag.axis: Drag.XAndYAxis
+                                            drag.threshold: 0
+                                            drag.smoothed: false
                                             onPressed: {
                                                 root.selectMonitor(index);
+                                                root.forceActiveFocus();
                                                 ghostDrag.x = model.uiX;
                                                 ghostDrag.y = model.uiY;
                                             }
@@ -843,38 +1025,18 @@ Item {
                                                 if (drag.active && monitorsModel.count >= 2) {
                                                     var mW = monitorCard.width;
                                                     var mH = monitorCard.height;
-                                                    var padding = 40;
-                                                    var boundMinX = 999999, boundMinY = 999999;
-                                                    var boundMaxX = -999999, boundMaxY = -999999;
-                                                    for (var j = 0; j < monitorsModel.count; j++) {
-                                                        if (j === index) continue;
-                                                        var sModel = monitorsModel.get(j);
-                                                        var sW = (root.displayW(sModel) / sModel.sysScale) * root.uiScale;
-                                                        var sH = (root.displayH(sModel) / sModel.sysScale) * root.uiScale;
-                                                        boundMinX = Math.min(boundMinX, sModel.uiX - mW - padding);
-                                                        boundMinY = Math.min(boundMinY, sModel.uiY - mH - padding);
-                                                        boundMaxX = Math.max(boundMaxX, sModel.uiX + sW + padding);
-                                                        boundMaxY = Math.max(boundMaxY, sModel.uiY + sH + padding);
-                                                    }
-                                                    ghostDrag.x = Math.max(boundMinX, Math.min(ghostDrag.x, boundMaxX));
-                                                    ghostDrag.y = Math.max(boundMinY, Math.min(ghostDrag.y, boundMaxY));
-                                                    var bestX = ghostDrag.x, bestY = ghostDrag.y, bestDist = 999999;
-                                                    for (var j = 0; j < monitorsModel.count; j++) {
-                                                        if (j === index) continue;
-                                                        var sModel = monitorsModel.get(j);
-                                                        var sW = (sModel.resW / sModel.sysScale) * root.uiScale;
-                                                        var sH = (sModel.resH / sModel.sysScale) * root.uiScale;
-                                                        var snapped = root.getPerimeterSnap(
-                                                            ghostDrag.x, ghostDrag.y,
-                                                            sModel.uiX, sModel.uiY, sW, sH, mW, mH, 20
-                                                        );
-                                                        var dist = Math.hypot(ghostDrag.x - snapped.x, ghostDrag.y - snapped.y);
-                                                        if (dist < bestDist) { bestDist = dist; bestX = snapped.x; bestY = snapped.y; }
-                                                    }
-                                                    if (!root.isOverlappingAny(bestX, bestY, mW, mH, index)) {
-                                                        monitorsModel.setProperty(index, "uiX", bestX);
-                                                        monitorsModel.setProperty(index, "uiY", bestY);
-                                                    }
+                                                    var resolved = root.resolveMonitorPosition(
+                                                        index,
+                                                        ghostDrag.x,
+                                                        ghostDrag.y,
+                                                        mW,
+                                                        mH,
+                                                        root.monitorDragSnapDistance
+                                                    );
+                                                    ghostDrag.x = resolved.x;
+                                                    ghostDrag.y = resolved.y;
+                                                    monitorsModel.setProperty(index, "uiX", resolved.x);
+                                                    monitorsModel.setProperty(index, "uiY", resolved.y);
                                                 }
                                             }
                                             onReleased: {
