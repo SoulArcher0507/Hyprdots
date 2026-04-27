@@ -363,7 +363,7 @@ Variants {
                     }
 
                     function compFor(which) {
-                        return which === "battery" ? batteryComp : which === "connection" ? connectionComp : which === "power" ? powerComp : which === "arch" ? archComp : which === "monitor" ? monitorComp : which === "wallpaper" ? wallpaperComp : which === "calendar" ? calendarComp : which === "volume" ? volumeComp : which === "notificationSound" ? notificationSoundComp : null;
+                        return which === "battery" ? batteryComp : which === "connection" ? connectionComp : which === "vpn" ? vpnComp : which === "power" ? powerComp : which === "arch" ? archComp : which === "monitor" ? monitorComp : which === "wallpaper" ? wallpaperComp : which === "calendar" ? calendarComp : which === "volume" ? volumeComp : which === "notificationSound" ? notificationSoundComp : null;
                     }
 
                     Loader {
@@ -619,6 +619,15 @@ Variants {
                 id: connectionComp
                 NetworkPopup {
                     anchors.fill: parent
+                    overlaySwitcher: switcher
+                }
+            }
+
+            Component {
+                id: vpnComp
+                VpnPopup {
+                    anchors.fill: parent
+                    overlaySwitcher: switcher
                 }
             }
 

@@ -22,7 +22,7 @@ die() {
 }
 
 usage() {
-    cat <<EOF
+    cat <<EOF_USAGE
 Usage: $(basename "$0") [options]
 
 Options:
@@ -34,7 +34,7 @@ Options:
                         Default: ${GRUB_CFG}
   --no-mkconfig         Do not regenerate grub.cfg after installation
   -h, --help            Show this help
-EOF
+EOF_USAGE
 }
 
 while [[ $# -gt 0 ]]; do
@@ -69,10 +69,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ "${EUID}" -ne 0 ]]; then
-    if ! command -v sudo >/dev/null 2>&1; then
-        die "Root or sudo is required."
-    fi
-    exec sudo "$0" "${ORIGINAL_ARGS[@]}"
+    command -v sudo >/dev/null 2>&1 || die "Root or sudo is required."
+    exec sudo -- "$BASH" "$0" "${ORIGINAL_ARGS[@]}"
 fi
 
 TARGET_THEME_DIR="${TARGET_THEMES_DIR}/${THEME_NAME}"
@@ -80,11 +78,10 @@ GRUB_THEME_PATH="${TARGET_THEME_DIR}/theme.txt"
 
 backup_file() {
     local file="$1"
-
     [[ -f "$file" ]] || return 0
 
     local backup="${file}.bak.$(date +%Y%m%d-%H%M%S)"
-    cp -a "$file" "$backup"
+    cp -- "$file" "$backup"
     log "Backup created: ${backup}"
 }
 
@@ -95,6 +92,7 @@ set_grub_default_value() {
     local tmp
 
     tmp="$(mktemp)"
+
     awk -v key="$key" -v value="$value" '
         BEGIN {
             written = 0
@@ -118,8 +116,22 @@ set_grub_default_value() {
         }
     ' "$file" > "$tmp"
 
-    install -m 644 "$tmp" "$file"
-    rm -f "$tmp"
+    if ! cmp -s -- "$tmp" "$file"; then
+        install -m 644 -- "$tmp" "$file"
+    fi
+
+    rm -f -- "$tmp"
+}
+
+copy_theme() {
+    local src="$1"
+    local dst="$2"
+
+    # Do not use cp -a here: /boot is often the EFI/FAT partition and cannot
+    # preserve Unix ownership, which would make cp fail with "Operation not permitted".
+    rm -rf -- "$dst"
+    mkdir -p -- "$dst"
+    cp -r --no-preserve=ownership -- "$src"/. "$dst"/
 }
 
 generate_grub_config() {
@@ -141,9 +153,8 @@ generate_grub_config() {
 [[ -f "$GRUB_DEFAULT" ]] || die "GRUB defaults file not found: ${GRUB_DEFAULT}"
 
 log "Installing ${THEME_NAME} to ${TARGET_THEME_DIR} ..."
-mkdir -p "$TARGET_THEMES_DIR"
-rm -rf "$TARGET_THEME_DIR"
-cp -a "$SRC_THEME_DIR" "$TARGET_THEME_DIR"
+mkdir -p -- "$TARGET_THEMES_DIR"
+copy_theme "$SRC_THEME_DIR" "$TARGET_THEME_DIR"
 find "$TARGET_THEME_DIR" -name '*.swp' -delete
 
 log "Updating ${GRUB_DEFAULT} ..."

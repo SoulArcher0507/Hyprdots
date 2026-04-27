@@ -25,6 +25,7 @@ Item {
     readonly property int overlayExitDuration: 305
     readonly property bool overlayOwnsCloseAnimation: true
     property bool popupTargetVisible: false
+    property var overlaySwitcher: null
     property real popupCardOpacity: 0.0
     property real popupCardScaleX: 0.91
     property real popupCardScaleY: 0.79
@@ -142,6 +143,7 @@ Item {
         introState = 1.0;
         trafficPoller.running = true;
         speedtestPollerProc.running = true;
+        tailscalePoller.running = true;
         popupEnterAnim.start();
     }
 
@@ -172,6 +174,7 @@ Item {
     readonly property string scriptsDir: Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/network"
     readonly property string trafficScriptPath: window.scriptsDir + "/traffic_panel_logic.sh"
     readonly property string speedtestScriptPath: window.scriptsDir + "/speedtest_panel_logic.sh"
+    readonly property string tailscaleScriptPath: window.scriptsDir + "/tailscale_panel_logic.sh"
     readonly property string runtimeDir: Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"
     readonly property string speedtestCacheFile: window.runtimeDir + "/quickshell/speedtest_status.json"
 
@@ -193,6 +196,9 @@ Item {
     property string trafficDownRateText: "0 B/s"
     property string trafficUpRateText: "0 B/s"
     readonly property string trafficSummaryText: "↓ " + trafficDownRateText + "  ↑ " + trafficUpRateText
+    property bool tailscaleActive: false
+    property string tailscaleSummaryText: "Tailscale"
+    property string tailscaleDetailText: ""
 
     function batteryGlyphFor(p, charging) {
         if (charging) {
@@ -446,6 +452,56 @@ Item {
         
         if (window.showInfoView)
             window.updateInfoNodes();
+    }
+
+    function tailscaleOrbitNode(parentIndex) {
+        return {
+            id: "tailscale_status",
+            ssid: "",
+            mac: "",
+            name: window.tailscaleSummaryText,
+            icon: "󰒍",
+            security: "",
+            action: window.tailscaleDetailText !== "" ? window.tailscaleDetailText + " | Hold" : "Hold for VPN panel",
+            isInfoNode: true,
+            isActionable: true,
+            cmdStr: "OPEN_VPN",
+            parentIndex: parentIndex
+        };
+    }
+
+    function refreshTailscaleNodes() {
+        if (window.activeMode !== "wifi")
+            return;
+        if (window.showInfoView && window.currentConn)
+            window.updateInfoNodes();
+        else if (cache.lastWifiJson !== "")
+            window.processWifiJson(cache.lastWifiJson);
+    }
+
+    function consumeTailscaleStatus(textData) {
+        let trimmed = (textData || "").trim();
+        let active = false;
+        let summary = "Tailscale";
+        let detail = "";
+
+        if (trimmed !== "") {
+            try {
+                let data = JSON.parse(trimmed);
+                active = !!data.active;
+                summary = data.summary || "Tailscale";
+                detail = data.detail || data.ip || "";
+            } catch (e) {
+                active = false;
+            }
+        }
+
+        let changed = active !== window.tailscaleActive || summary !== window.tailscaleSummaryText || detail !== window.tailscaleDetailText;
+        window.tailscaleActive = active;
+        window.tailscaleSummaryText = summary;
+        window.tailscaleDetailText = detail;
+        if (changed)
+            window.refreshTailscaleNodes();
     }
 
     onCurrentConnChanged: {
@@ -796,6 +852,8 @@ Item {
                         cmdStr: "RUN_SPEEDTEST",
                         parentIndex: cIndex
                     });
+                    if (window.tailscaleActive)
+                        nodes.push(window.tailscaleOrbitNode(cIndex));
                 } else {
                     nodes.push({
                         id: "bat_" + obj.mac,
@@ -901,6 +959,9 @@ Item {
                 window.strongestWifiSsid = "";
             }
             newNetworks.sort((a, b) => a.id.localeCompare(b.id));
+
+            if (window.tailscaleActive && window.activeMode === "wifi")
+                newNetworks.push(window.tailscaleOrbitNode(-1));
 
             if (window.activeMode === "wifi") {
                 newNetworks.push({
@@ -1096,6 +1157,15 @@ Item {
         }
     }
     Process {
+        id: tailscalePoller
+        command: ["bash", window.tailscaleScriptPath]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                window.consumeTailscaleStatus(this.text);
+            }
+        }
+    }
+    Process {
         id: speedtestPollerProc
         command: ["bash", "-c", "cat " + window.speedtestCacheFile + " 2>/dev/null || echo ''"]
         stdout: StdioCollector {
@@ -1148,6 +1218,15 @@ Item {
                 if (window.showInfoView)
                     window.updateInfoNodes();
             }
+        }
+    }
+    Timer {
+        interval: 7000
+        running: true
+        repeat: true
+        onTriggered: {
+            if (!tailscalePoller.running)
+                tailscalePoller.running = true;
         }
     }
 
@@ -1295,6 +1374,12 @@ Item {
             origin.y: popupShell.height / 2
             xScale: window.popupCardScaleX
             yScale: window.popupCardScaleY
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.AllButtons
+            onClicked: {}
         }
 
         Rectangle {
@@ -2169,10 +2254,11 @@ Item {
                                 property bool isMyBusy: !!window.busyTasks[itemId]
                                 property bool isPairedBT: window.activeMode === "bt" && action === "Connect"
                                 property bool isTargetWifi: window.activeMode === "wifi" && !window.isWifiConn && itemId === window.targetWifiSsid
-                                property bool isSpecialAction: itemId === "action_scan" || itemId === "action_settings" || itemId === "action_refresh" || cmdStr === "RUN_SPEEDTEST"
+                                property bool isSpecialAction: itemId === "action_scan" || itemId === "action_settings" || itemId === "action_refresh" || cmdStr === "RUN_SPEEDTEST" || cmdStr === "OPEN_VPN"
                                 property bool isSpeedtestCard: cmdStr === "RUN_SPEEDTEST"
                                 property bool isSpeedtestRunning: isSpeedtestCard && window.speedtestState === "running"
                                 property bool isSpeedtestDone: isSpeedtestCard && (window.speedtestState === "done" || window.speedtestState === "error")
+                                property bool isTailscaleInfoCard: itemId.indexOf("tailscale_") === 0
                                 property bool isHighlighted: isPairedBT || isTargetWifi || isSpecialAction
                                 property bool isCurrentlyConnected: {
                                     if (window.activeMode === "wifi")
@@ -2454,7 +2540,7 @@ Item {
                                                 text: floatCard.itemName
                                                 font.family: "JetBrains Mono"
                                                 font.weight: Font.Bold
-                                                font.pixelSize: (floatCard.isTrafficInfoCard || floatCard.isSpeedtestDone) ? 11 : 13
+                                                font.pixelSize: (floatCard.isTrafficInfoCard || floatCard.isSpeedtestDone || floatCard.isTailscaleInfoCard) ? 11 : 13
                                                 color: floatCard.isHighlighted ? window.activeColor : window.text
                                                 elide: Text.ElideRight
                                             }
@@ -2493,10 +2579,13 @@ Item {
                                             }
                                         }
                                         Text {
+                                            Layout.fillWidth: true
                                             font.family: "JetBrains Mono"
                                             font.pixelSize: 10
                                             color: floatCard.connectionFailed ? window.red : (floatCard.isMyBusy ? window.activeColor : window.overlay0)
                                             text: floatCard.connectionFailed ? "Wrong Password" : (floatCard.isMyBusy ? "Connecting..." : (floatCard.renderFill > 0.1 && floatCard.renderFill < 1.0 ? "Hold..." : action))
+                                            elide: Text.ElideRight
+                                            maximumLineCount: 1
                                             Behavior on color {
                                                 ColorAnimation {
                                                     duration: 200
@@ -2543,7 +2632,7 @@ Item {
                                                     text: floatCard.itemName
                                                     font.family: "JetBrains Mono"
                                                     font.weight: Font.Bold
-                                                    font.pixelSize: (floatCard.isTrafficInfoCard || floatCard.isSpeedtestDone) ? 11 : 13
+                                                    font.pixelSize: (floatCard.isTrafficInfoCard || floatCard.isSpeedtestDone || floatCard.isTailscaleInfoCard) ? 11 : 13
                                                     color: window.crust
                                                     elide: Text.ElideRight
                                                 }
@@ -2582,10 +2671,13 @@ Item {
                                                 }
                                             }
                                             Text {
+                                                Layout.fillWidth: true
                                                 font.family: "JetBrains Mono"
                                                 font.pixelSize: 10
                                                 color: floatCard.connectionFailed ? window.red : window.crust
                                                 text: floatCard.connectionFailed ? "Wrong Password" : (floatCard.isMyBusy ? "Connecting..." : (floatCard.renderFill > 0.1 && floatCard.renderFill < 1.0 ? "Hold..." : action))
+                                                elide: Text.ElideRight
+                                                maximumLineCount: 1
                                             }
                                         }
                                     }
@@ -2849,6 +2941,11 @@ Item {
                                             drainAnim.start();
                                         } else if (cmdStr === "RUN_SPEEDTEST") {
                                             window.launchNetworkSpeedtest();
+                                            floatCard.triggered = false;
+                                            drainAnim.start();
+                                        } else if (cmdStr === "OPEN_VPN") {
+                                            if (window.overlaySwitcher)
+                                                window.overlaySwitcher.swap("vpn");
                                             floatCard.triggered = false;
                                             drainAnim.start();
                                         } else if (isInfoNode && cmdStr) {
