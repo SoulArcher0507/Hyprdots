@@ -108,6 +108,172 @@ Variants {
                         stageAur: "",
                         stageFlatpak: ""
                     })
+                    property string archProgressFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_update.jsonl"
+                    property int archProgressLineCount: 0
+
+                    Component.onCompleted: {
+                        if (!archProgressStateProc.running)
+                            archProgressStateProc.running = true;
+                    }
+
+                    function archProgressReadCommand() {
+                        return "tail -n 200 " + "'" + archProgressFile.replace(/'/g, "'\\''") + "'" + " 2>/dev/null || echo ''";
+                    }
+
+                    function updateArchState(overrides) {
+                        var s = archUpdateState || ({});
+                        var o = overrides || ({});
+                        archUpdateState = {
+                            running: o.running !== undefined ? !!o.running : !!s.running,
+                            provider: o.provider !== undefined ? String(o.provider || "") : (s.provider || ""),
+                            stage: o.stage !== undefined ? String(o.stage || "") : (s.stage || ""),
+                            status: o.status !== undefined ? String(o.status || "") : (s.status || ""),
+                            detail: o.detail !== undefined ? String(o.detail || "") : (s.detail || ""),
+                            hadError: o.hadError !== undefined ? !!o.hadError : !!s.hadError,
+                            errorText: o.errorText !== undefined ? String(o.errorText || "") : (s.errorText || ""),
+                            countPacman: o.countPacman !== undefined ? Number(o.countPacman || 0) : Number(s.countPacman || 0),
+                            countAur: o.countAur !== undefined ? Number(o.countAur || 0) : Number(s.countAur || 0),
+                            countFlatpak: o.countFlatpak !== undefined ? Number(o.countFlatpak || 0) : Number(s.countFlatpak || 0),
+                            countTotal: o.countTotal !== undefined ? Number(o.countTotal || 0) : Number(s.countTotal || 0),
+                            finishedTimestamp: o.finishedTimestamp !== undefined ? Number(o.finishedTimestamp || 0) : Number(s.finishedTimestamp || 0),
+                            stagePacman: o.stagePacman !== undefined ? String(o.stagePacman || "") : (s.stagePacman || ""),
+                            stageAur: o.stageAur !== undefined ? String(o.stageAur || "") : (s.stageAur || ""),
+                            stageFlatpak: o.stageFlatpak !== undefined ? String(o.stageFlatpak || "") : (s.stageFlatpak || "")
+                        };
+                    }
+
+                    function clearArchUpdateState() {
+                        archProgressLineCount = 0;
+                        archUpdateState = {
+                            running: false,
+                            provider: "",
+                            stage: "",
+                            status: "",
+                            detail: "",
+                            hadError: false,
+                            errorText: "",
+                            countPacman: 0,
+                            countAur: 0,
+                            countFlatpak: 0,
+                            countTotal: 0,
+                            finishedTimestamp: 0,
+                            stagePacman: "",
+                            stageAur: "",
+                            stageFlatpak: ""
+                        };
+                    }
+
+                    function handleArchProgressLine(line) {
+                        var trimmed = (line || "").trim();
+                        if (!trimmed || trimmed.charAt(0) !== "{")
+                            return;
+
+                        try {
+                            var obj = JSON.parse(trimmed);
+                            var stage = obj.stage || "";
+                            var status = obj.status || "";
+                            var detail = obj.detail || "";
+                            var patch = {
+                                stage: stage,
+                                status: status,
+                                detail: detail
+                            };
+
+                            if (stage === "init") {
+                                patch.running = true;
+                                patch.provider = obj.provider || archUpdateState.provider || "";
+                                patch.status = "starting";
+                                patch.finishedTimestamp = 0;
+                                updateArchState(patch);
+                                return;
+                            }
+
+                            if (stage !== "complete" && status !== "") {
+                                patch.running = true;
+                                patch.finishedTimestamp = 0;
+                            }
+
+                            if (stage === "pacman")
+                                patch.stagePacman = status;
+                            else if (stage === "aur")
+                                patch.stageAur = status;
+                            else if (stage === "flatpak")
+                                patch.stageFlatpak = status;
+
+                            if (status === "error") {
+                                var existingError = archUpdateState.errorText || "";
+                                patch.hadError = true;
+                                patch.errorText = detail ? (existingError ? existingError + "\n" : "") + stage + ": " + detail : existingError;
+                            }
+
+                            if (stage === "pacman" && (status === "done" || status === "error")) {
+                                patch.countPacman = Number(obj.count || 0);
+                            } else if (stage === "aur" && (status === "done" || status === "error")) {
+                                patch.countAur = Number(obj.count || 0);
+                            } else if (stage === "flatpak" && (status === "done" || status === "error")) {
+                                patch.countFlatpak = Number(obj.count || 0);
+                            }
+
+                            if (stage === "complete") {
+                                patch.running = false;
+                                patch.countPacman = Number(obj.pacman || 0);
+                                patch.countAur = Number(obj.aur || 0);
+                                patch.countFlatpak = Number(obj.flatpak || 0);
+                                patch.countTotal = Number(obj.total || 0);
+                                patch.finishedTimestamp = Date.now();
+                                if (obj.errors) {
+                                    patch.hadError = true;
+                                    patch.errorText = String(obj.errors);
+                                }
+                                archUpdateStateClearTimer.restart();
+                            }
+
+                            updateArchState(patch);
+                        } catch (e) {}
+                    }
+
+                    Timer {
+                        id: archProgressStateTimer
+                        interval: 1500
+                        repeat: true
+                        running: true
+                        onTriggered: {
+                            if (!archProgressStateProc.running)
+                                archProgressStateProc.running = true;
+                        }
+                    }
+
+                    Timer {
+                        id: archUpdateStateClearTimer
+                        interval: 60000
+                        repeat: false
+                        onTriggered: {
+                            if (switcher.archUpdateState && switcher.archUpdateState.running)
+                                return;
+                            switcher.clearArchUpdateState();
+                        }
+                    }
+
+                    Process {
+                        id: archProgressStateProc
+                        command: ["bash", "-lc", switcher.archProgressReadCommand()]
+                        stdout: StdioCollector {
+                            id: archProgressStateOut
+                            waitForEnd: true
+                        }
+                        onExited: function (exitCode, exitStatus) {
+                            var raw = (archProgressStateOut.text || "").trim();
+                            if (!raw)
+                                return;
+                            var lines = raw.split("\n");
+                            if (switcher.archProgressLineCount > lines.length)
+                                switcher.archProgressLineCount = 0;
+                            for (var i = switcher.archProgressLineCount; i < lines.length; i++) {
+                                switcher.handleArchProgressLine(lines[i]);
+                            }
+                            switcher.archProgressLineCount = lines.length;
+                        }
+                    }
 
                     property string shownOverlay: ""
                     property int dur: 140

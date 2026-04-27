@@ -35,6 +35,7 @@ Scope {
     property var iconLookupCache: ({})
     property int iconLookupCacheSize: 0
     property var toastPayloads: ({})
+    property var expandedToastBodies: ({})
 
     function _fileExists(urlOrPath) {
         var url = urlOrPath.startsWith("file:") ? urlOrPath : "file://" + urlOrPath
@@ -156,6 +157,25 @@ Scope {
             return;
         try { action.invoke(); } catch (e) {}
         root._removeToastById(toastId);
+    }
+
+    function _toastBodyIsLong(body) {
+        const text = String(body || "");
+        return text.length > 180 || text.split("\n").length > 3;
+    }
+
+    function _toastBodyExpanded(toastId, body) {
+        return root._toastBodyIsLong(body) && !!root.expandedToastBodies[String(toastId)];
+    }
+
+    function _toggleToastBodyExpanded(toastId, body) {
+        if (!root._toastBodyIsLong(body))
+            return false;
+        const key = String(toastId);
+        const next = Object.assign({}, root.expandedToastBodies);
+        next[key] = !next[key];
+        root.expandedToastBodies = next;
+        return true;
     }
 
     function _addToast(summary, body, appName, iconHint, payload) {
@@ -330,6 +350,8 @@ Scope {
 
                         readonly property real _thisId: model.toastId
                         readonly property var toastActions: root._toastActions(model.toastId)
+                        readonly property bool toastBodyLong: root._toastBodyIsLong(model.toastBody)
+                        readonly property bool toastBodyExpanded: root._toastBodyExpanded(model.toastId, model.toastBody)
 
                         Component.onCompleted: {
                             popupEnterAnim.start();
@@ -515,8 +537,8 @@ Scope {
                                                 font.pixelSize: 12
                                                 font.family: "Fira Sans"
                                                 wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                                                elide: Text.ElideRight
-                                                maximumLineCount: 3
+                                                elide: toastCard.toastBodyExpanded ? Text.ElideNone : Text.ElideRight
+                                                maximumLineCount: toastCard.toastBodyExpanded ? 12 : 3
                                                 visible: text.length > 0
                                             }
                                         }
@@ -585,6 +607,10 @@ Scope {
                                     hoverEnabled: true
                                     z: 1
                                     onClicked: {
+                                        if (root._toggleToastBodyExpanded(model.toastId, model.toastBody)) {
+                                            dismissTimer.stop();
+                                            return;
+                                        }
                                         const actions = root._toastActions(model.toastId);
                                         if (actions.length > 0) {
                                             root._invokeToastAction(model.toastId, actions[0]);

@@ -74,6 +74,8 @@ Item {
 
     readonly property string cacheFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_cache.json"
     readonly property string progressFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_update.jsonl"
+    readonly property string updateLogFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_update.log"
+    readonly property string updateCancelFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_update.cancel"
     property int _lastProgressLineCount: 0
     property bool startupRefreshStarted: false
     property real lastCacheSaveMs: 0
@@ -120,18 +122,18 @@ Item {
     property real detailsContentOpacity: detailsOpen ? 1.0 : 0.0
     property real detailsContentOffset: detailsOpen ? 0 : -10
 
-    property bool updateRunning: false
-    property string updateProvider: ""
-    property string updateStage: ""
-    property string updateStatus: ""
-    property string updateDetail: ""
-    property bool updateHadError: false
-    property string updateErrorText: ""
-    property int updateCountPacman: 0
-    property int updateCountAur: 0
-    property int updateCountFlatpak: 0
-    property int updateCountTotal: 0
-    property real updateFinishedTimestamp: 0
+    property bool updateRunning: !!(switcher && switcher.archUpdateState && switcher.archUpdateState.running)
+    property string updateProvider: (switcher && switcher.archUpdateState) ? (switcher.archUpdateState.provider || "") : ""
+    property string updateStage: (switcher && switcher.archUpdateState) ? (switcher.archUpdateState.stage || "") : ""
+    property string updateStatus: (switcher && switcher.archUpdateState) ? (switcher.archUpdateState.status || "") : ""
+    property string updateDetail: (switcher && switcher.archUpdateState) ? (switcher.archUpdateState.detail || "") : ""
+    property bool updateHadError: !!(switcher && switcher.archUpdateState && switcher.archUpdateState.hadError)
+    property string updateErrorText: (switcher && switcher.archUpdateState) ? (switcher.archUpdateState.errorText || "") : ""
+    property int updateCountPacman: (switcher && switcher.archUpdateState) ? Number(switcher.archUpdateState.countPacman || 0) : 0
+    property int updateCountAur: (switcher && switcher.archUpdateState) ? Number(switcher.archUpdateState.countAur || 0) : 0
+    property int updateCountFlatpak: (switcher && switcher.archUpdateState) ? Number(switcher.archUpdateState.countFlatpak || 0) : 0
+    property int updateCountTotal: (switcher && switcher.archUpdateState) ? Number(switcher.archUpdateState.countTotal || 0) : 0
+    property real updateFinishedTimestamp: (switcher && switcher.archUpdateState) ? Number(switcher.archUpdateState.finishedTimestamp || 0) : 0
     readonly property bool updateResultVisible: updateFinishedTimestamp > 0
     readonly property bool updateShowStatus: updateRunning || updateResultVisible
 
@@ -265,9 +267,9 @@ Item {
     property real authUnlockFlashOpacity: 0.0
     property int authUnlockHoldDuration: 750
 
-    property string updateStagePacman: ""
-    property string updateStageAur: ""
-    property string updateStageFlatpak: ""
+    property string updateStagePacman: (switcher && switcher.archUpdateState) ? (switcher.archUpdateState.stagePacman || "") : ""
+    property string updateStageAur: (switcher && switcher.archUpdateState) ? (switcher.archUpdateState.stageAur || "") : ""
+    property string updateStageFlatpak: (switcher && switcher.archUpdateState) ? (switcher.archUpdateState.stageFlatpak || "") : ""
     property bool updateRestoredFromSwitcher: false
 
     readonly property color ambientPrimary: root.accent
@@ -309,6 +311,8 @@ Item {
         popupEnterAnim.start();
         startupRefreshTimer.start();
     }
+
+    onSwitcherChanged: root.restoreUpdateStateFromSwitcher()
 
     onHostLoaderOpacityChanged: {
         if (hostLoaderOpacity < lastHostLoaderOpacity - 0.001 && popupTargetVisible) {
@@ -1330,6 +1334,49 @@ Item {
         updateProgressPoller.start();
     }
 
+    function openUpdateOutputShell() {
+        if (!root.updateRunning)
+            return;
+
+        var logFile = root.shellQuote(root.updateLogFile);
+        var progressFile = root.shellQuote(root.progressFile);
+        var monitorCmd = "printf '\\033]0;ArchTools Update Output\\007'; "
+            + "echo 'ArchTools live update output'; "
+            + "echo 'Close this terminal whenever you want. The update keeps running.'; "
+            + "echo; "
+            + "while [ ! -f " + logFile + " ] && [ ! -f " + progressFile + " ]; do echo 'Waiting for update output...'; sleep 1; done; "
+            + "if [ -f " + logFile + " ]; then tail -n +1 -F " + logFile + "; else tail -n +1 -F " + progressFile + "; fi";
+        var safeCmd = monitorCmd.replace(/'/g, "'\\''");
+        var terminalCmd = "(command -v kitty >/dev/null 2>&1 && kitty bash -lc '" + safeCmd + "')"
+            + " || (command -v alacritty >/dev/null 2>&1 && alacritty -e bash -lc '" + safeCmd + "')"
+            + " || (command -v foot >/dev/null 2>&1 && foot -e bash -lc '" + safeCmd + "')"
+            + " || (command -v wezterm >/dev/null 2>&1 && wezterm -e bash -lc '" + safeCmd + "')"
+            + " || (command -v gnome-terminal >/dev/null 2>&1 && gnome-terminal -- bash -lc '" + safeCmd + "')"
+            + " || (command -v xterm >/dev/null 2>&1 && xterm -e bash -lc '" + safeCmd + "')";
+
+        Hyprland.dispatch("exec [float;center;size 70% 75%] sh -c \"" + terminalCmd + "\"");
+        root.closeArchToolsPanel();
+    }
+
+    function closeArchToolsPanel() {
+        root.beginOverlayClose();
+        if (root.switcher)
+            root.switcher.close();
+        ThemePkg.Theme.globalCloseShellPopups();
+    }
+
+    function cancelRunningUpdate() {
+        if (!root.updateRunning)
+            return;
+
+        root.updateStage = "cancel";
+        root.updateStatus = "running";
+        root.updateDetail = "Cancellation requested";
+        root.persistUpdateStateToSwitcher();
+        Quickshell.execDetached(["bash", "-lc", "mkdir -p " + root.shellQuote(root.updateCancelFile.substring(0, root.updateCancelFile.lastIndexOf('/'))) + "; touch " + root.shellQuote(root.updateCancelFile)]);
+        root.notifyArchTools("Update", "Cancellation requested.", "process-stop");
+    }
+
     property bool _notificationSentForRun: false
 
     function handleUpdateLine(line, isRestoring) {
@@ -1475,13 +1522,8 @@ Item {
         }
         onExited: function (exitCode, exitStatus) {
             var raw = (progressPollOut.text || "").trim();
-            if (!raw) {
-                if (root.updateRestoredFromSwitcher && root.updateRunning && root.updateStage !== "complete") {
-                    root.clearUpdateState();
-                    updateProgressPoller.stop();
-                }
+            if (!raw)
                 return;
-            }
             root.updateRestoredFromSwitcher = false;
             var lines = raw.split("\n");
             if (root._lastProgressLineCount > lines.length)
@@ -1536,8 +1578,8 @@ Item {
         onExited: function (exitCode, exitStatus) {
             var raw = (progressInitOut.text || "").trim();
             if (!raw) {
-                if (root.updateRestoredFromSwitcher && root.updateRunning)
-                    root.clearUpdateState();
+                if (root.updateRunning && root.updateStage !== "complete")
+                    updateProgressPoller.start();
                 return;
             }
             root.updateRestoredFromSwitcher = false;
@@ -1591,7 +1633,6 @@ Item {
     }
 
     function openWeatherSettings() {
-        archPanel.visible = false;
         weatherSaveStatus = "";
         weatherSettingsPopup.showPopup();
         weatherEnvReadProc.command = ["bash", "-lc", root.scriptRunCommand("weather-env.sh", ["read"])];
@@ -1619,6 +1660,21 @@ Item {
         root.authStatus = "Unlocking...";
         authSubmitProc.command = ["bash", "-lc", "umask 077; printf '%s' \"$1\" > \"$2\"; chmod 600 \"$2\"", "archtools-auth", authPasswordField.text, root.authPassFile];
         authSubmitProc.running = true;
+    }
+
+    function completeAuthUnlock() {
+        if (root.authUnlockTriggered || authSubmitProc.running)
+            return;
+
+        authUnlockFillAnim.stop();
+        authUnlockDrainAnim.stop();
+        root.authUnlockTriggered = true;
+        root.authUnlockFlashOpacity = 0.6;
+        authUnlockFlashDrainAnim.start();
+        root.submitAuthPassword();
+        root.authUnlockFillLevel = 0.0;
+        root.authUnlockTriggered = false;
+        root.authSubmitPressed = false;
     }
 
     function cancelAuthPassword() {
@@ -2421,6 +2477,12 @@ Item {
                         onHoldCompleteRight: {
                             root.openUpdatesList("All Updates", "all", root.updatesListAllScript);
                         }
+                        onClicked: {
+                            root.openUpdateOutputShell();
+                        }
+                        onCancelRequested: {
+                            root.cancelRunningUpdate();
+                        }
                     }
                 }
 
@@ -2477,6 +2539,12 @@ Item {
                             }
                             onHoldCompleteRight: {
                                 root.openUpdatesList(modelData.label.toUpperCase() + " Updates", modelData.label, modelData.listScript);
+                            }
+                            onClicked: {
+                                root.openUpdateOutputShell();
+                            }
+                            onCancelRequested: {
+                                root.cancelRunningUpdate();
                             }
                         }
                     }
@@ -2848,6 +2916,9 @@ Item {
             if (e.key === Qt.Key_Escape) {
                 root.cancelAuthPassword();
                 e.accepted = true;
+            } else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) {
+                root.completeAuthUnlock();
+                e.accepted = true;
             }
         }
 
@@ -2962,6 +3033,7 @@ Item {
                         padding: 10
                         leftPadding: 42
                         Keys.onEscapePressed: root.cancelAuthPassword()
+                        onAccepted: root.completeAuthUnlock()
                         background: Rectangle {
                             color: "#0dffffff"
                             border.color: authPasswordField.activeFocus ? root.accent : "#1affffff"
@@ -4207,15 +4279,7 @@ Item {
         duration: root.authUnlockHoldDuration * (1.0 - root.authUnlockFillLevel)
         easing.type: Easing.InSine
         onFinished: {
-            if (!root.authUnlockTriggered) {
-                root.authUnlockTriggered = true;
-                root.authUnlockFlashOpacity = 0.6;
-                authUnlockFlashDrainAnim.start();
-                root.submitAuthPassword();
-                root.authUnlockFillLevel = 0.0;
-                root.authUnlockTriggered = false;
-                root.authSubmitPressed = false;
-            }
+            root.completeAuthUnlock();
         }
     }
 
@@ -6374,8 +6438,11 @@ Item {
         readonly property real pulseBaseOpacity: compact ? 0.24 : 0.30
         signal holdComplete
         signal holdCompleteRight
+        signal clicked
+        signal cancelRequested
         property int pressedButton: Qt.LeftButton
         property bool syntheticRightHold: false
+        property bool suppressNextClick: false
         property double lastRightReleaseMs: 0
         property int doubleTapHoldWindow: 350
 
@@ -6630,8 +6697,16 @@ Item {
             acceptedButtons: Qt.LeftButton | Qt.RightButton
             cursorShape: Qt.PointingHandCursor
 
-            onPressed: mouse => {
+            onClicked: {
+                if (bubble.suppressNextClick) {
+                    bubble.suppressNextClick = false;
+                    return;
+                }
                 if (root.updateRunning)
+                    bubble.clicked();
+            }
+            onPressed: mouse => {
+                if (root.updateRunning && mouse.button !== Qt.LeftButton)
                     return;
                 var now = Date.now();
                 bubble.pressedButton = mouse.button;
@@ -6645,6 +6720,8 @@ Item {
                 }
             }
             onReleased: {
+                if (root.updateRunning && bubble.triggered)
+                    return;
                 if (!bubble.triggered) {
                     if (bubble.pressedButton === Qt.RightButton) {
                         bubble.lastRightReleaseMs = Date.now();
@@ -6675,9 +6752,12 @@ Item {
             onFinished: {
                 if (!bubble.triggered) {
                     bubble.triggered = true;
+                    bubble.suppressNextClick = true;
                     bubble.flashOpacity = 0.6;
                     flashDrainAnim.start();
-                    if (bubble.pressedButton === Qt.RightButton) {
+                    if (root.updateRunning) {
+                        bubble.cancelRequested();
+                    } else if (bubble.pressedButton === Qt.RightButton) {
                         bubble.holdCompleteRight();
                     } else {
                         bubble.holdComplete();

@@ -3,7 +3,14 @@
 set -o pipefail
 
 PROGRESS_FILE="$HOME/.cache/quickshell/archtools_update.jsonl"
+LOG_FILE="$HOME/.cache/quickshell/archtools_update.log"
+ERROR_FILE="$HOME/.cache/quickshell/archtools_update_error.log"
 LOCK_FILE="$HOME/.cache/quickshell/archtools_update.lock"
+CANCEL_FILE="$HOME/.cache/quickshell/archtools_update.cancel"
+PID_FILE="$HOME/.cache/quickshell/archtools_update.pid"
+CURRENT_CMD_PID_FILE="$HOME/.cache/quickshell/archtools_update.current-pid"
+CURRENT_CMD_PGID_FILE="$HOME/.cache/quickshell/archtools_update.current-pgid"
+CURRENT_CMD_SID_FILE="$HOME/.cache/quickshell/archtools_update.current-sid"
 MAX_ERROR_LINES="${ARCHTOOLS_UPDATE_MAX_ERROR_LINES:-40}"
 PROGRESS_MAX_LINES="${ARCHTOOLS_UPDATE_PROGRESS_MAX_LINES:-200}"
 PROGRESS_MAX_BYTES="${ARCHTOOLS_UPDATE_PROGRESS_MAX_BYTES:-65536}"
@@ -31,6 +38,7 @@ if [[ "$AUR_BUILD_JOBS" =~ ^[0-9]+$ ]] && (( AUR_BUILD_JOBS > 0 )); then
 fi
 
 FINISHED=0
+CANCEL_WATCHER_PID=""
 cleanup() {
     local exit_code=$?
     if [[ "$FINISHED" == "0" ]]; then
@@ -39,9 +47,13 @@ cleanup() {
         notify-send -a "ArchTools" -i software-update-urgent -u critical "⚠ Update Interrupted" "$err_msg"
         rm -f "$PROGRESS_FILE"
     fi
+    if [[ -n "$CANCEL_WATCHER_PID" ]]; then
+        kill "$CANCEL_WATCHER_PID" >/dev/null 2>&1 || true
+    fi
     rm -f "/tmp/quickshell_sudo_pass_$$" "/tmp/quickshell_askpass_$$" "/tmp/quickshell_auth_cancel_$$"
+    rm -f "$PID_FILE" "$CURRENT_CMD_PID_FILE" "$CURRENT_CMD_PGID_FILE" "$CURRENT_CMD_SID_FILE" "$CANCEL_FILE"
 }
-trap cleanup EXIT INT TERM QUIT
+trap cleanup EXIT
 
 has()   { command -v "$1" >/dev/null 2>&1; }
 
@@ -62,10 +74,24 @@ trim_progress_file() {
 
 run_bounded() {
     local tmp="/tmp/archtools_update_output_$$"
+    local fifo="/tmp/archtools_update_fifo_$$"
+    local cmd_pid=""
+    local reader_pid=""
+    local cmd_status=0
     rm -f "$tmp"
-    if "$@" 2>&1 | awk -v max_lines="$MAX_ERROR_LINES" -v max_chars=4000 '
+    rm -f "$fifo"
+    mkfifo "$fifo"
+    {
+        printf '$'
+        printf ' %q' "$@"
+        printf '\n'
+    } >> "$LOG_FILE"
+
+    awk -v max_lines="$MAX_ERROR_LINES" -v max_chars=4000 -v log_file="$LOG_FILE" '
         {
             line = $0
+            print line >> log_file
+            fflush(log_file)
             if (length(line) > max_chars) {
                 line = substr(line, 1, max_chars) "... [truncated]"
             }
@@ -78,11 +104,35 @@ run_bounded() {
                 print lines[i % max_lines]
             }
         }
-    ' > "$tmp"; then
+    ' < "$fifo" > "$tmp" &
+    reader_pid=$!
+
+    if has setsid; then
+        setsid "$@" > "$fifo" 2>&1 &
+    else
+        "$@" > "$fifo" 2>&1 &
+    fi
+    cmd_pid=$!
+    echo "$cmd_pid" > "$CURRENT_CMD_PID_FILE"
+    ps -o pgid= -p "$cmd_pid" 2>/dev/null | tr -d '[:space:]' > "$CURRENT_CMD_PGID_FILE" || true
+    ps -o sid= -p "$cmd_pid" 2>/dev/null | tr -d '[:space:]' > "$CURRENT_CMD_SID_FILE" || true
+
+    wait "$cmd_pid"
+    cmd_status=$?
+    wait "$reader_pid" 2>/dev/null || true
+    rm -f "$fifo" "$CURRENT_CMD_PID_FILE" "$CURRENT_CMD_PGID_FILE" "$CURRENT_CMD_SID_FILE"
+
+    if [[ -f "$CANCEL_FILE" ]]; then
+        finish_cancelled
+    fi
+
+    if [[ "$cmd_status" -eq 0 ]]; then
+        printf '\n' >> "$LOG_FILE"
         rm -f "$tmp"
         return 0
     fi
     RUN_BOUNDED_OUTPUT="$(cat "$tmp" 2>/dev/null || true)"
+    printf '\n[command exited with an error]\n\n' >> "$LOG_FILE"
     rm -f "$tmp"
     return 1
 }
@@ -91,8 +141,12 @@ run_bounded() {
 emit() {
     local stage="$1" status="$2"; shift 2
     local json="{\"stage\":\"$stage\",\"status\":\"$status\""
+    local detail_text=""
     for kv in "$@"; do
         local key="${kv%%=*}" val="${kv#*=}"
+        if [[ "$key" == "detail" ]]; then
+            detail_text="$val"
+        fi
         if [[ "$val" =~ ^[0-9]+$ ]]; then
             json+=",\"$key\":$val"
         else
@@ -106,7 +160,144 @@ emit() {
     json+="}"
     echo "$json"
     echo "$json" >> "$PROGRESS_FILE"
+    if [[ -n "$detail_text" ]]; then
+        printf '[%s/%s] %s\n' "$stage" "$status" "$detail_text" >> "$LOG_FILE"
+    else
+        printf '[%s/%s]\n' "$stage" "$status" >> "$LOG_FILE"
+    fi
     trim_progress_file
+}
+
+finish_cancelled() {
+    local err_msg="Update cancelled by user."
+    local total=$(( ${count_pacman:-0} + ${count_aur:-0} + ${count_flatpak:-0} ))
+    FINISHED=1
+    emit complete error "total=$total" "pacman=${count_pacman:-0}" "aur=${count_aur:-0}" "flatpak=${count_flatpak:-0}" "errors=$err_msg"
+    printf '\n[cancelled] %s\n' "$err_msg" >> "$LOG_FILE"
+    notify-send -a "ArchTools" -i process-stop "Update Cancelled" "$err_msg"
+    exit 130
+}
+
+trap finish_cancelled INT TERM QUIT
+
+signal_process_tree() {
+    local sig="$1"
+    local pid="$2"
+    local child
+    [[ "$pid" =~ ^[0-9]+$ ]] || return 0
+
+    if has pgrep; then
+        while IFS= read -r child; do
+            signal_process_tree "$sig" "$child"
+        done < <(pgrep -P "$pid" 2>/dev/null || true)
+    fi
+
+    kill "-$sig" "$pid" >/dev/null 2>&1 || true
+}
+
+collect_process_tree() {
+    local pid="$1"
+    local child
+    [[ "$pid" =~ ^[0-9]+$ ]] || return 0
+    echo "$pid"
+
+    if has pgrep; then
+        while IFS= read -r child; do
+            collect_process_tree "$child"
+        done < <(pgrep -P "$pid" 2>/dev/null || true)
+    fi
+}
+
+append_unique_number() {
+    local value="$1"
+    local existing
+    [[ "$value" =~ ^[0-9]+$ ]] || return 0
+    shift
+    for existing in "$@"; do
+        [[ "$existing" == "$value" ]] && return 1
+    done
+    return 0
+}
+
+signal_current_command() {
+    local current_pid="$1"
+    local parent_pgid parent_sid pid pgid sid sig
+    local -a pids=()
+    local -a pgids=()
+    local -a sids=()
+    [[ "$current_pid" =~ ^[0-9]+$ ]] || return 1
+
+    parent_pgid="$(ps -o pgid= -p "$$" 2>/dev/null | tr -d '[:space:]' || true)"
+    parent_sid="$(ps -o sid= -p "$$" 2>/dev/null | tr -d '[:space:]' || true)"
+
+    while IFS= read -r pid; do
+        if append_unique_number "$pid" "${pids[@]}"; then
+            pids+=("$pid")
+        fi
+
+        pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d '[:space:]' || true)"
+        if [[ "$pgid" =~ ^[0-9]+$ && "$pgid" != "$parent_pgid" ]] && append_unique_number "$pgid" "${pgids[@]}"; then
+            pgids+=("$pgid")
+        fi
+
+        sid="$(ps -o sid= -p "$pid" 2>/dev/null | tr -d '[:space:]' || true)"
+        if [[ "$sid" =~ ^[0-9]+$ && "$sid" != "$parent_sid" ]] && append_unique_number "$sid" "${sids[@]}"; then
+            sids+=("$sid")
+        fi
+    done < <(collect_process_tree "$current_pid")
+
+    pgid="$(cat "$CURRENT_CMD_PGID_FILE" 2>/dev/null | tr -d '[:space:]' || true)"
+    if [[ "$pgid" =~ ^[0-9]+$ && "$pgid" != "$parent_pgid" ]] && append_unique_number "$pgid" "${pgids[@]}"; then
+        pgids+=("$pgid")
+    fi
+
+    sid="$(cat "$CURRENT_CMD_SID_FILE" 2>/dev/null | tr -d '[:space:]' || true)"
+    if [[ "$sid" =~ ^[0-9]+$ && "$sid" != "$parent_sid" ]] && append_unique_number "$sid" "${sids[@]}"; then
+        sids+=("$sid")
+    fi
+
+    printf '[cancel/debug] pid=%s pgids=%s sids=%s\n' "$current_pid" "${pgids[*]:-none}" "${sids[*]:-none}" >> "$LOG_FILE"
+
+    for sig in INT TERM KILL; do
+        for pgid in "${pgids[@]}"; do
+            kill "-$sig" -- "-$pgid" >/dev/null 2>&1 || true
+        done
+        if has pkill; then
+            for sid in "${sids[@]}"; do
+                pkill "-$sig" -s "$sid" >/dev/null 2>&1 || true
+            done
+        fi
+        for pid in "${pids[@]}"; do
+            kill "-$sig" "$pid" >/dev/null 2>&1 || true
+        done
+
+        if [[ "$sig" == "INT" ]]; then
+            sleep 1
+        elif [[ "$sig" == "TERM" ]]; then
+            sleep 2
+        fi
+    done
+}
+
+start_cancel_watcher() {
+    local parent_pid="$$"
+    (
+        while kill -0 "$parent_pid" >/dev/null 2>&1; do
+            if [[ -f "$CANCEL_FILE" ]]; then
+                echo "{\"stage\":\"cancel\",\"status\":\"running\",\"detail\":\"Cancellation requested\"}" >> "$PROGRESS_FILE"
+                printf '[cancel/running] Cancellation requested\n' >> "$LOG_FILE"
+                if [[ -s "$CURRENT_CMD_PID_FILE" ]]; then
+                    current_pid="$(cat "$CURRENT_CMD_PID_FILE" 2>/dev/null || true)"
+                    signal_current_command "$current_pid"
+                else
+                    kill -INT "$parent_pid" >/dev/null 2>&1 || true
+                fi
+                exit 0
+            fi
+            sleep 0.2
+        done
+    ) &
+    CANCEL_WATCHER_PID=$!
 }
 
 PROVIDER="all"
@@ -127,6 +318,11 @@ if has flock && ! flock -n 9; then
 fi
 
 echo "{\"stage\":\"init\",\"status\":\"starting\",\"provider\":\"$PROVIDER\",\"pid\":$$}" > "$PROGRESS_FILE"
+: > "$LOG_FILE"
+printf 'ArchTools update started: provider=%s pid=%s\n\n' "$PROVIDER" "$$" >> "$LOG_FILE"
+echo "$$" > "$PID_FILE"
+rm -f "$CANCEL_FILE" "$CURRENT_CMD_PID_FILE" "$CURRENT_CMD_PGID_FILE" "$CURRENT_CMD_SID_FILE"
+start_cancel_watcher
 
 count_pacman=0
 count_aur=0
@@ -400,12 +596,13 @@ if [[ ${#errors[@]} -gt 0 ]]; then
         err_joined+="$e"
     done
     emit complete error "total=$total" "pacman=$count_pacman" "aur=$count_aur" "flatpak=$count_flatpak" "errors=$err_joined"
+    printf '%s\n' "$err_joined" > "$ERROR_FILE"
     
-    notify_body="Provider: ${PROVIDER}\nUpdated: ${total} packages\n"
+    notify_body="Provider: ${PROVIDER}"$'\n'"Updated: ${total} packages"$'\n'
     if [[ "$PROVIDER" == "all" ]]; then
-        notify_body+="Pacman: ${count_pacman} | AUR: ${count_aur} | Flatpak: ${count_flatpak}\n"
+        notify_body+="Pacman: ${count_pacman} | AUR: ${count_aur} | Flatpak: ${count_flatpak}"$'\n'
     fi
-    notify_body+="\nErrors:\n${err_joined}"
+    notify_body+=$'\n'"Errors:"$'\n'"${err_joined}"$'\n\n'"Full error saved to: ${ERROR_FILE}"
     notify-send -a "ArchTools" -i software-update-urgent -u critical "⚠ Update Errors" "$notify_body"
 else
     emit complete success "total=$total" "pacman=$count_pacman" "aur=$count_aur" "flatpak=$count_flatpak"

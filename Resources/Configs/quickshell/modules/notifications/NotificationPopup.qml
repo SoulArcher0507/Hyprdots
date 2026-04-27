@@ -32,6 +32,7 @@ Item {
     readonly property url currentNotificationSound: root._currentNotificationSound()
     property var groupedNotifications: []
     property var expandedGroups: ({})
+    property var expandedBodies: ({})
     property var iconLookupCache: ({})
     property int iconLookupCacheSize: 0
     property string notificationSnapshot: ""
@@ -352,6 +353,42 @@ Item {
             if (id === "" || !pendingGroup.ids[id])
                 return false;
         }
+        return true;
+    }
+
+    function _bodyIsLong(body) {
+        const text = String(body || "");
+        return text.length > 180 || text.split("\n").length > 3;
+    }
+
+    function _bodyAutoExpanded(notification, summary, body) {
+        const appName = notification ? String(notification.appName || notification.desktopEntry || notification.desktopId || root._sourceLabelFor(notification) || "") : "";
+        const title = String(summary || "");
+        return root._bodyIsLong(body)
+            && appName === "ArchTools"
+            && (title.indexOf("Update Errors") !== -1 || title.indexOf("Update Interrupted") !== -1);
+    }
+
+    function _bodyExpanded(notification, summary, body) {
+        if (!root._bodyIsLong(body))
+            return false;
+        const id = root._notificationId(notification);
+        if (id !== "" && root.expandedBodies[id] !== undefined)
+            return !!root.expandedBodies[id];
+        return root._bodyAutoExpanded(notification, summary, body);
+    }
+
+    function toggleBodyExpanded(notification, summary, body) {
+        if (!root._bodyIsLong(body))
+            return false;
+        const id = root._notificationId(notification);
+        if (id === "")
+            return false;
+        const next = Object.assign({}, root.expandedBodies);
+        next[id] = !root._bodyExpanded(notification, summary, body);
+        root.expandedBodies = next;
+        root.syncNotificationCount(true);
+        root.schedulePopupLayoutRefresh();
         return true;
     }
 
@@ -1593,6 +1630,8 @@ Item {
                         property var primaryActions: groupData.latestActions || []
                         readonly property real delegateBaseHeight: mainCard.implicitHeight + stackDepth * 6
                         readonly property bool groupExiting: root._isGroupPending(groupData)
+                        readonly property bool latestBodyLong: root._bodyIsLong(groupData.latestBody || "")
+                        readonly property bool latestBodyExpanded: root._bodyExpanded(primaryNotification, groupData.latestSummary || "", groupData.latestBody || "")
 
                         Behavior on height {
                             NumberAnimation { duration: root.dismissAnimationDuration; easing.type: Easing.InCubic }
@@ -1751,8 +1790,8 @@ Item {
                                         font.pixelSize: 12
                                         textFormat: Text.PlainText
                                         wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                                        elide: Text.ElideRight
-                                        maximumLineCount: 3
+                                        elide: groupDelegate.latestBodyExpanded ? Text.ElideNone : Text.ElideRight
+                                        maximumLineCount: groupDelegate.latestBodyExpanded ? 999 : 3
                                     }
 
                                     Flow {
@@ -1799,6 +1838,8 @@ Item {
                                             property bool childHover: childMouse.containsMouse
                                             readonly property real childBaseHeight: childContent.implicitHeight + 18
                                             readonly property bool childExiting: root._isNotificationPending(notifObject) || groupDelegate.groupExiting
+                                            readonly property bool childBodyLong: root._bodyIsLong(notifEntry.body || "")
+                                            readonly property bool childBodyExpanded: root._bodyExpanded(notifObject, notifEntry.summary || "", notifEntry.body || "")
 
                                             Behavior on color { ColorAnimation { duration: 150 } }
                                             Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -1823,6 +1864,8 @@ Item {
                                                 cursorShape: Qt.PointingHandCursor
                                                 z: 1
                                                 onClicked: {
+                                                    if (root.toggleBodyExpanded(notifObject, notifEntry.summary || "", notifEntry.body || ""))
+                                                        return;
                                                     root.invokePrimaryNotification(notifObject);
                                                     root.focusApp(notifObject.appName);
                                                 }
@@ -1854,8 +1897,8 @@ Item {
                                                     font.pixelSize: 12
                                                     textFormat: Text.PlainText
                                                     wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                                                    maximumLineCount: 3
-                                                    elide: Text.ElideRight
+                                                    maximumLineCount: childCard.childBodyExpanded ? 999 : 3
+                                                    elide: childCard.childBodyExpanded ? Text.ElideNone : Text.ElideRight
                                                 }
 
                                                 Flow {
@@ -1924,6 +1967,8 @@ Item {
                                         root.toggleGroupExpanded(groupData.groupKey);
                                     } else if (groupData.notifications && groupData.notifications.length > 0) {
                                         let notif = primaryNotification;
+                                        if (root.toggleBodyExpanded(notif, groupData.latestSummary || "", groupData.latestBody || ""))
+                                            return;
                                         root.invokePrimaryNotification(notif);
                                         root.focusApp(notif.appName);
                                     }
