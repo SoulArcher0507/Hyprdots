@@ -126,6 +126,17 @@ ShellRoot {
         function toggle(): void {
             ThemePkg.Theme.globalToggleArch();
         }
+
+        function auth(passFile: string): void {
+            ThemePkg.Theme.globalShowArchAuth(passFile);
+        }
+    }
+
+    IpcHandler {
+        target: "archtools"
+        function hide(): void {
+            ThemePkg.Theme.globalCloseShellPopups();
+        }
     }
 
     IpcHandler {

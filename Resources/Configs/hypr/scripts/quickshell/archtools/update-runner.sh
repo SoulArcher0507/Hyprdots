@@ -39,7 +39,7 @@ cleanup() {
         notify-send -a "ArchTools" -i software-update-urgent -u critical "⚠ Update Interrupted" "$err_msg"
         rm -f "$PROGRESS_FILE"
     fi
-    rm -f "/tmp/quickshell_sudo_pass_$$" "/tmp/quickshell_askpass_$$"
+    rm -f "/tmp/quickshell_sudo_pass_$$" "/tmp/quickshell_askpass_$$" "/tmp/quickshell_auth_cancel_$$"
 }
 trap cleanup EXIT INT TERM QUIT
 
@@ -144,6 +144,7 @@ ensure_sudo() {
     fi
 
     export SUDO_PASS_FILE="/tmp/quickshell_sudo_pass_$$"
+    export SUDO_CANCEL_FILE="/tmp/quickshell_auth_cancel_$$"
     export SUDO_ASKPASS="/tmp/quickshell_askpass_$$"
     export PROGRESS_FILE
     
@@ -156,30 +157,35 @@ emit_state() {
 
 emit_state waiting_auth "Waiting for sudo authentication"
 
-action=$(notify-send -a "ArchTools" -u critical -A "open=Open Terminal" "Admin Password Required" "Click here to open a terminal and enter your password for updates.")
+rm -f "$SUDO_PASS_FILE" "$SUDO_CANCEL_FILE"
+touch "$SUDO_PASS_FILE"
+chmod 600 "$SUDO_PASS_FILE"
+
+action=$(notify-send -a "ArchTools" -u critical -A "open=Open Panel" "Admin Password Required" "Click here to enter your password for updates.")
 if [[ "$action" == "open" ]]; then
-    hyprctl --batch "keyword windowrulev2 float,class:^(archtools_auth)$; keyword windowrulev2 center,class:^(archtools_auth)$; keyword windowrulev2 size 50% 50%,class:^(archtools_auth)$" >/dev/null 2>&1
+    qs ipc call arch auth "$SUDO_PASS_FILE" >/dev/null 2>&1 || qs ipc call arch toggle >/dev/null 2>&1 || true
+
+    for _ in $(seq 1 300); do
+        if [[ -s "$SUDO_PASS_FILE" ]]; then
+            emit_state running "Authentication received, continuing..."
+            cat "$SUDO_PASS_FILE"
+            rm -f "$SUDO_PASS_FILE" "$SUDO_CANCEL_FILE"
+            exit 0
+        fi
+        if [[ -f "$SUDO_CANCEL_FILE" ]]; then
+            emit_state error "Authentication cancelled"
+            rm -f "$SUDO_PASS_FILE" "$SUDO_CANCEL_FILE"
+            exit 1
+        fi
+        sleep 0.2
+    done
     
-    touch "$SUDO_PASS_FILE"
-    chmod 600 "$SUDO_PASS_FILE"
-    
-    ask_cmd="read -s -p 'Admin Password: ' pass; echo -n \"\$pass\" > '$SUDO_PASS_FILE'"
-    
-    if command -v kitty >/dev/null 2>&1; then
-        kitty --class archtools_auth bash -c "$ask_cmd"
-    elif command -v alacritty >/dev/null 2>&1; then
-        alacritty --class archtools_auth -e bash -c "$ask_cmd"
-    elif command -v foot >/dev/null 2>&1; then
-        foot -a archtools_auth bash -c "$ask_cmd"
-    else
-        xterm -class archtools_auth -e bash -c "$ask_cmd"
-    fi
-    
-    emit_state running "Authentication successful, continuing..."
-    cat "$SUDO_PASS_FILE"
-    rm -f "$SUDO_PASS_FILE"
+    emit_state error "Authentication timed out"
+    rm -f "$SUDO_PASS_FILE" "$SUDO_CANCEL_FILE"
+    exit 1
 else
     emit_state error "Authentication cancelled"
+    rm -f "$SUDO_PASS_FILE" "$SUDO_CANCEL_FILE"
     exit 1
 fi
 EOF
@@ -414,4 +420,3 @@ fi
 FINISHED=1
 ( sleep 60 && rm -f "$PROGRESS_FILE" ) &
 disown
-

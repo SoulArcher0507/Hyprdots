@@ -45,6 +45,7 @@ Item {
 
     property bool popupMounted: false
     property bool popupTargetVisible: false
+    property bool suppressOutsideClose: false
     property real popupCardOpacity: 0.0
     property real popupCardScaleX: 0.91
     property real popupCardScaleY: 0.79
@@ -77,7 +78,6 @@ Item {
     function _preparePopupOpen(px) {
         ThemePkg.Theme.globalCloseAllPopups();
         topMarginPx = px;
-        Quickshell.execDetached(["qs", "ipc", "call", "archtools", "hide"]);
         search.text = "";
         listModel.reload();
         _showPopup();
@@ -87,6 +87,8 @@ Item {
     function _showPopup() {
         popupTargetVisible = true;
         popupMounted = true;
+        suppressOutsideClose = true;
+        outsideCloseGuard.restart();
         root._resetPopupMorphState();
         popupExitAnim.stop();
         popupEnterAnim.stop();
@@ -129,9 +131,18 @@ Item {
         }
     }
 
+    Timer {
+        id: outsideCloseGuard
+        interval: 350
+        repeat: false
+        onTriggered: root.suppressOutsideClose = false
+    }
+
     Connections {
         target: ThemePkg.Theme
         function onGlobalCloseShellPopups() {
+            if (root.suppressOutsideClose)
+                return;
             root._hidePopup();
         }
         function onGlobalCloseAllPopups() {
@@ -166,7 +177,11 @@ Item {
 
         MouseArea {
             anchors.fill: parent
-            onClicked: root._hidePopup()
+            onClicked: {
+                if (root.suppressOutsideClose)
+                    return;
+                root._hidePopup();
+            }
         }
 
         SequentialAnimation {

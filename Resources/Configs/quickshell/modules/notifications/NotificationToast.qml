@@ -318,12 +318,13 @@ Scope {
                         property real popupOpacity: 0.0
                         property real popupScaleX: 0.91
                         property real popupScaleY: 0.79
-                        property real popupWidth: toastClosedWidth
-                        property real popupHeight: toastClosedHeight
+                        property real popupWidth: toastOpenWidth
+                        property real popupHeight: toastTargetHeight
                         property real popupRadius: toastClosedRadius
                         property real popupLift: 18
+                        readonly property bool richAnimationsActive: !dismissing && popupOpacity > 0.98 && ThemePkg.Theme.edgeAnimationsEnabled
                         width: root.toastWidth
-                        height: popupHeight
+                        height: toastTargetHeight
                         implicitWidth: root.toastWidth
                         implicitHeight: height
 
@@ -353,8 +354,6 @@ Scope {
                                 NumberAnimation { target: toastCard; property: "popupOpacity"; to: 0.78; duration: 145; easing.type: Easing.OutCubic }
                                 NumberAnimation { target: toastCard; property: "popupScaleX"; to: 0.985; duration: 175; easing.type: Easing.OutCubic }
                                 NumberAnimation { target: toastCard; property: "popupScaleY"; to: 0.94; duration: 190; easing.type: Easing.OutCubic }
-                                NumberAnimation { target: toastCard; property: "popupWidth"; to: toastCard.toastOpenWidth - 14; duration: 190; easing.type: Easing.OutCubic }
-                                NumberAnimation { target: toastCard; property: "popupHeight"; to: toastCard.toastTargetHeight - 10; duration: 200; easing.type: Easing.OutCubic }
                                 NumberAnimation { target: toastCard; property: "popupRadius"; to: 20; duration: 190; easing.type: Easing.OutQuad }
                                 NumberAnimation { target: toastCard; property: "popupLift"; to: 8; duration: 190; easing.type: Easing.OutCubic }
                             }
@@ -363,8 +362,6 @@ Scope {
                                 NumberAnimation { target: toastCard; property: "popupOpacity"; to: 1.0; duration: 175; easing.type: Easing.OutCubic }
                                 NumberAnimation { target: toastCard; property: "popupScaleX"; to: 1.0; duration: 205; easing.type: Easing.OutCubic }
                                 NumberAnimation { target: toastCard; property: "popupScaleY"; to: 1.0; duration: 205; easing.type: Easing.OutCubic }
-                                NumberAnimation { target: toastCard; property: "popupWidth"; to: toastCard.toastOpenWidth; duration: 205; easing.type: Easing.OutCubic }
-                                NumberAnimation { target: toastCard; property: "popupHeight"; to: toastCard.toastTargetHeight; duration: 215; easing.type: Easing.OutCubic }
                                 NumberAnimation { target: toastCard; property: "popupRadius"; to: toastCard.toastOpenRadius; duration: 195; easing.type: Easing.InOutQuad }
                                 NumberAnimation { target: toastCard; property: "popupLift"; to: 0; duration: 205; easing.type: Easing.OutCubic }
                             }
@@ -377,8 +374,6 @@ Scope {
                             ParallelAnimation {
                                 NumberAnimation { target: toastCard; property: "popupScaleX"; to: 1.04; duration: 85; easing.type: Easing.OutQuad }
                                 NumberAnimation { target: toastCard; property: "popupScaleY"; to: 0.95; duration: 85; easing.type: Easing.OutQuad }
-                                NumberAnimation { target: toastCard; property: "popupWidth"; to: toastCard.toastOpenWidth + 10; duration: 95; easing.type: Easing.OutQuad }
-                                NumberAnimation { target: toastCard; property: "popupHeight"; to: toastCard.toastTargetHeight - 8; duration: 95; easing.type: Easing.OutQuad }
                                 NumberAnimation { target: toastCard; property: "popupRadius"; to: 22; duration: 95; easing.type: Easing.OutQuad }
                                 NumberAnimation { target: toastCard; property: "popupLift"; to: 5; duration: 95; easing.type: Easing.OutQuad }
                                 NumberAnimation { target: toastCard; property: "popupOpacity"; to: 0.88; duration: 80; easing.type: Easing.OutQuad }
@@ -388,8 +383,6 @@ Scope {
                                 NumberAnimation { target: toastCard; property: "popupOpacity"; to: 0.0; duration: 180; easing.type: Easing.InCubic }
                                 NumberAnimation { target: toastCard; property: "popupScaleX"; to: 0.84; duration: 205; easing.type: Easing.InCubic }
                                 NumberAnimation { target: toastCard; property: "popupScaleY"; to: 0.68; duration: 220; easing.type: Easing.InCubic }
-                                NumberAnimation { target: toastCard; property: "popupWidth"; to: toastCard.toastClosedWidth; duration: 200; easing.type: Easing.InCubic }
-                                NumberAnimation { target: toastCard; property: "popupHeight"; to: toastCard.toastClosedHeight; duration: 210; easing.type: Easing.InCubic }
                                 NumberAnimation { target: toastCard; property: "popupRadius"; to: toastCard.toastClosedRadius; duration: 200; easing.type: Easing.InQuad }
                                 NumberAnimation { target: toastCard; property: "popupLift"; to: 24; duration: 200; easing.type: Easing.InCubic }
                             }
@@ -405,7 +398,7 @@ Scope {
 
                         property real globalOrbitAngle: 0
                         NumberAnimation on globalOrbitAngle {
-                            from: 0; to: Math.PI * 2; duration: 90000; loops: Animation.Infinite; running: popupOpacity > 0.001
+                            from: 0; to: Math.PI * 2; duration: 90000; loops: Animation.Infinite; running: toastCard.richAnimationsActive
                         }
 
                         Item {
@@ -439,6 +432,7 @@ Scope {
                                     radius: parent.radius
                                     borderWidth: parent.border.width
                                     accentColor: root.accent
+                                    active: toastCard.richAnimationsActive
                                 }
 
                                 Behavior on color { ColorAnimation { duration: 150 } }
@@ -449,12 +443,14 @@ Scope {
                                     x: (parent.width * 0.5 - width / 2) + Math.cos(toastCard.globalOrbitAngle * 1.5) * 80
                                     y: (parent.height * 0.1 - height / 2) + Math.sin(toastCard.globalOrbitAngle * 1.5) * 100
                                     opacity: 0.04; color: root.accent; z: 0
+                                    visible: toastCard.richAnimationsActive
                                 }
                                 Rectangle {
                                     width: parent.width * 0.6; height: width; radius: width / 2
                                     x: (parent.width * 0.2 - width / 2) + Math.sin(toastCard.globalOrbitAngle * 1.2) * -60
                                     y: (parent.height * 0.8 - height / 2) + Math.cos(toastCard.globalOrbitAngle * 1.2) * -80
                                     opacity: 0.03; color: ThemePkg.Theme.c5 ? ThemePkg.Theme.c5 : root.accent; z: 0
+                                    visible: toastCard.richAnimationsActive
                                 }
 
                                 ColumnLayout {

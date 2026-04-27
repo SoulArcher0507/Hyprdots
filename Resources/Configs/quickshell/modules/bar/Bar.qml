@@ -352,6 +352,26 @@ Variants {
                             if (activeMon && myMon && activeMon.id === myMon.id)
                                 switcher.toggle("arch");
                         }
+                        function onGlobalShowArchAuth(passFile) {
+                            var activeMon = Hyprland.focusedMonitor;
+                            var myMon = Hyprland.monitorFor(overlayWindow.screen);
+                            if (!(activeMon && myMon && activeMon.id === myMon.id))
+                                return;
+
+                            if (switcher.shownOverlay === "arch" && switcher.pendingIndex === -1) {
+                                var existing = switcher.currentLoader();
+                                if (existing.item && typeof existing.item.cancelOverlayClose === "function")
+                                    existing.item.cancelOverlayClose();
+                            } else {
+                                switcher.open("arch");
+                            }
+
+                            Qt.callLater(function() {
+                                var L = switcher.currentLoader();
+                                if (L.item && typeof L.item.showAuthPopup === "function")
+                                    L.item.showAuthPopup(passFile);
+                            });
+                        }
                         function onGlobalToggleMonitor() {
                             var activeMon = Hyprland.focusedMonitor;
                             var myMon = Hyprland.monitorFor(overlayWindow.screen);

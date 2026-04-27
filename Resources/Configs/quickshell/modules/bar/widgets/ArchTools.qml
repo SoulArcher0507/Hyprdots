@@ -69,6 +69,8 @@ Item {
     readonly property string cacheFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_cache.json"
     readonly property string progressFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_update.jsonl"
     property int _lastProgressLineCount: 0  
+    property bool startupRefreshStarted: false
+    property real lastCacheSaveMs: 0
 
     property int upHours: 0
     property int upMins: 0
@@ -138,6 +140,14 @@ Item {
     property bool weatherSaveTriggered: false
     property real weatherSaveFlashOpacity: 0.0
     property int weatherSaveHoldDuration: 750
+    property string authPassFile: ""
+    property string authStatus: ""
+    property bool authSubmitHovered: false
+    property bool authSubmitPressed: false
+    property real authUnlockFillLevel: 0.0
+    property bool authUnlockTriggered: false
+    property real authUnlockFlashOpacity: 0.0
+    property int authUnlockHoldDuration: 750
 
     property string updateStagePacman: ""   
     property string updateStageAur: ""
@@ -177,11 +187,9 @@ Item {
         introState = 1.0;
         archPanel.visible = true;
         loadCacheProc.running = true;
-        autolockStatusProc.running = true;
         root._lastProgressLineCount = 0;
-        updateProgressInitProc.running = true;
-        root.refreshArchToolNotifications();
         popupEnterAnim.start();
+        startupRefreshTimer.start();
     }
 
     onHostLoaderOpacityChanged: {
@@ -296,6 +304,10 @@ Item {
     }
 
     function handleEscape() {
+        if (authPopup && authPopup.popupTargetVisible) {
+            root.cancelAuthPassword();
+            return true;
+        }
         if (weatherSettingsPopup && weatherSettingsPopup.popupTargetVisible) {
             weatherSettingsPopup.hidePopup();
             return true;
@@ -411,6 +423,72 @@ Item {
             archNewsFetchProc.running = true;
         if (!dotfilesBootCheckProc.running)
             dotfilesBootCheckProc.running = true;
+    }
+
+    function startStartupRefreshes() {
+        if (root.startupRefreshStarted)
+            return;
+        root.startupRefreshStarted = true;
+        startupUptimeRefresh.start();
+        startupAutolockRefresh.start();
+        startupProgressRefresh.start();
+        startupResourceRefresh.start();
+        startupUpdatesRefresh.start();
+        startupNotificationsRefresh.start();
+    }
+
+    Timer {
+        id: startupRefreshTimer
+        interval: root.overlayEnterDuration + 80
+        repeat: false
+        onTriggered: root.startStartupRefreshes()
+    }
+
+    Timer {
+        id: startupUptimeRefresh
+        interval: 0
+        repeat: false
+        onTriggered: if (!uptimeProc.running)
+            uptimeProc.running = true
+    }
+
+    Timer {
+        id: startupAutolockRefresh
+        interval: 120
+        repeat: false
+        onTriggered: if (!autolockStatusProc.running)
+            autolockStatusProc.running = true
+    }
+
+    Timer {
+        id: startupProgressRefresh
+        interval: 260
+        repeat: false
+        onTriggered: if (!updateProgressInitProc.running)
+            updateProgressInitProc.running = true
+    }
+
+    Timer {
+        id: startupResourceRefresh
+        interval: 430
+        repeat: false
+        onTriggered: if (!resProc.running)
+            resProc.running = true
+    }
+
+    Timer {
+        id: startupUpdatesRefresh
+        interval: 650
+        repeat: false
+        onTriggered: if (!updatesCheckProc.running)
+            updatesCheckProc.running = true
+    }
+
+    Timer {
+        id: startupNotificationsRefresh
+        interval: 920
+        repeat: false
+        onTriggered: root.refreshArchToolNotifications()
     }
 
     function openResourceDetails(key) {
@@ -573,13 +651,15 @@ Item {
                     if (obj.diskHome !== undefined)
                         root.statDiskHome = obj.diskHome;
                 } catch (e) {}
-                updatesCheckProc.running = true;
-                resProc.running = true;
             }
         }
     }
 
-    function saveCache() {
+    function saveCache(force) {
+        var now = Date.now();
+        if (!force && now - root.lastCacheSaveMs < 10000)
+            return;
+        root.lastCacheSaveMs = now;
         var obj = {
             updPacman: root.updPacman,
             updAur: root.updAur,
@@ -619,10 +699,10 @@ Item {
     }
     Timer {
         interval: 1000
-        running: true
+        running: root.startupRefreshStarted
         repeat: true
-        triggeredOnStart: true
-        onTriggered: uptimeProc.running = true
+        onTriggered: if (!uptimeProc.running)
+            uptimeProc.running = true
     }
 
     Io.Process {
@@ -639,9 +719,10 @@ Item {
     }
     Timer {
         interval: 3000
-        running: true
+        running: root.startupRefreshStarted
         repeat: true
-        onTriggered: autolockStatusProc.running = true
+        onTriggered: if (!autolockStatusProc.running)
+            autolockStatusProc.running = true
     }
     Timer {
         id: autolockRecheck
@@ -684,12 +765,12 @@ Item {
                 root.switcher.updLastTs = Qt.formatDateTime(new Date(), "HH:mm");
                 root.switcher._updLastMs = Date.now();
             }
-            root.saveCache();
+            root.saveCache(true);
         }
     }
     Timer {
         interval: 15 * 60 * 1000
-        running: true
+        running: root.startupRefreshStarted
         repeat: true
         onTriggered: updatesCheckProc.running = true
     }
@@ -715,7 +796,7 @@ Item {
     }
     Timer {
         interval: 3600000 
-        running: true
+        running: root.startupRefreshStarted
         repeat: true
         onTriggered: archNewsFetchProc.running = true
     }
@@ -759,7 +840,7 @@ Item {
     }
     Timer {
         interval: 15000
-        running: true
+        running: root.startupRefreshStarted
         repeat: true
         onTriggered: if (!dotfilesStatusProc.running)
             dotfilesStatusProc.running = true
@@ -801,7 +882,7 @@ Item {
         }
     }
     Timer {
-        running: true
+        running: root.startupRefreshStarted
         repeat: true
         interval: 1500
         onTriggered: if (!resProc.running)
@@ -1126,6 +1207,46 @@ Item {
         weatherEnvReadProc.running = true;
     }
 
+    function showAuthPopup(passFile) {
+        var path = String(passFile || "");
+        if (path.indexOf("/tmp/quickshell_sudo_pass_") !== 0)
+            return;
+        root.authPassFile = path;
+        root.authStatus = "";
+        archPanel.visible = false;
+        authPopup.showPopup();
+    }
+
+    function submitAuthPassword() {
+        if (!root.authPassFile || authSubmitProc.running)
+            return;
+        if (authPasswordField.text.length === 0) {
+            root.authStatus = "Password required";
+            authPasswordField.forceActiveFocus();
+            return;
+        }
+        root.authStatus = "Unlocking...";
+        authSubmitProc.command = [
+            "bash",
+            "-lc",
+            "umask 077; printf '%s' \"$1\" > \"$2\"; chmod 600 \"$2\"",
+            "archtools-auth",
+            authPasswordField.text,
+            root.authPassFile
+        ];
+        authSubmitProc.running = true;
+    }
+
+    function cancelAuthPassword() {
+        if (root.authPassFile) {
+            var cancelFile = root.authPassFile.replace("/tmp/quickshell_sudo_pass_", "/tmp/quickshell_auth_cancel_");
+            Quickshell.execDetached(["bash", "-lc", "touch " + root.shellQuote(cancelFile)]);
+        }
+        authPasswordField.text = "";
+        root.authStatus = "";
+        authPopup.hidePopup();
+    }
+
     function saveWeatherSettings() {
         weatherSaveStatus = "Saving...";
         weatherEnvWriteProc.command = ["bash", "-lc", root.scriptRunCommand("weather-env.sh", [
@@ -1213,6 +1334,21 @@ Item {
             } else {
                 root.weatherSaveStatus = "Save failed";
                 root.notifyArchTools("OpenWeather", "Unable to save calendar weather settings.", "dialog-error");
+            }
+        }
+    }
+
+    Io.Process {
+        id: authSubmitProc
+        onExited: function(exitCode, exitStatus) {
+            if (exitCode === 0) {
+                authPasswordField.text = "";
+                root.authStatus = "";
+                authPopup.hidePopup();
+            } else {
+                root.authStatus = "Unable to send password";
+                authPasswordField.text = "";
+                authPasswordField.forceActiveFocus();
             }
         }
     }
@@ -2272,6 +2408,343 @@ Item {
     }
 
     Item {
+        id: authPopup
+        anchors.fill: parent
+        z: 101
+        visible: popupMounted
+        focus: true
+
+        property bool popupMounted: false
+        property bool popupTargetVisible: false
+        property real popupCardOpacity: 0.0
+        property real popupCardScaleX: 0.91
+        property real popupCardScaleY: 0.79
+        property real popupCardWidth: 406
+        property real popupCardHeight: 142
+        property real popupCardRadius: 34
+        property real popupCardLift: 18
+
+        function showPopup() {
+            popupMounted = true;
+            popupTargetVisible = true;
+            authPopupExitAnim.stop();
+            popupCardOpacity = 0.0;
+            popupCardScaleX = 0.91;
+            popupCardScaleY = 0.79;
+            popupCardWidth = 406;
+            popupCardHeight = 142;
+            popupCardRadius = 34;
+            popupCardLift = 18;
+            authPasswordField.text = "";
+            root.authUnlockFillLevel = 0.0;
+            root.authUnlockFlashOpacity = 0.0;
+            root.authUnlockTriggered = false;
+            authPopupEnterAnim.stop();
+            authPopupEnterAnim.start();
+            Qt.callLater(function() { authPasswordField.forceActiveFocus(); });
+        }
+
+        function hidePopup() {
+            popupTargetVisible = false;
+            authPopupEnterAnim.stop();
+            if (!popupMounted && popupCardOpacity <= 0.001) {
+                archPanel.visible = true;
+                return;
+            }
+            if (!authPopupExitAnim.running)
+                authPopupExitAnim.start();
+        }
+
+        Keys.onReleased: e => {
+            if (e.key === Qt.Key_Escape) {
+                root.cancelAuthPassword();
+                e.accepted = true;
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: root.cancelAuthPassword()
+        }
+
+        Item {
+            id: authPopupShell
+            width: authPopup.popupCardWidth
+            height: authPopup.popupCardHeight
+            anchors.centerIn: parent
+            opacity: authPopup.popupCardOpacity
+            transform: [
+                Scale {
+                    origin.x: authPopupShell.width / 2
+                    origin.y: authPopupShell.height / 2
+                    xScale: authPopup.popupCardScaleX
+                    yScale: authPopup.popupCardScaleY
+                },
+                Translate { y: authPopup.popupCardLift }
+            ]
+
+            Rectangle {
+                width: parent.width
+                height: parent.height
+                anchors.centerIn: parent
+                radius: authPopup.popupCardRadius
+                color: root.base
+                border.color: root.panelBorderColor
+                border.width: 1
+                clip: true
+
+                ElectricBorder {
+                    anchors.fill: parent
+                    radius: parent.radius
+                    borderWidth: parent.border.width
+                    accentColor: root.activeColor
+                    active: authPopup.popupMounted
+                }
+
+                property real globalOrbitAngle: 0
+                NumberAnimation on globalOrbitAngle {
+                    from: 0
+                    to: Math.PI * 2
+                    duration: 90000
+                    loops: Animation.Infinite
+                    running: authPopup.popupMounted && ThemePkg.Theme.edgeAnimationsEnabled
+                }
+
+                Rectangle {
+                    width: parent.width * 0.72
+                    height: width
+                    radius: width / 2
+                    x: (parent.width * 0.58 - width / 2) + Math.cos(parent.globalOrbitAngle * 1.5) * 70
+                    y: (parent.height * 0.05 - height / 2) + Math.sin(parent.globalOrbitAngle * 1.5) * 80
+                    opacity: 0.05
+                    color: root.accent
+                }
+
+                Rectangle {
+                    width: parent.width * 0.55
+                    height: width
+                    radius: width / 2
+                    x: (parent.width * 0.12 - width / 2) + Math.sin(parent.globalOrbitAngle * 1.2) * -52
+                    y: (parent.height * 0.82 - height / 2) + Math.cos(parent.globalOrbitAngle * 1.2) * -64
+                    opacity: 0.035
+                    color: ThemePkg.Theme.c5
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    anchors.verticalCenterOffset: 10
+                    text: "󰌾"
+                    font.family: "Iosevka Nerd Font"
+                    font.pixelSize: 210
+                    color: root.accent
+                    opacity: 0.035
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: {}
+                }
+
+                ColumnLayout {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    anchors.leftMargin: 25
+                    anchors.rightMargin: 25
+                    anchors.topMargin: 25
+                    anchors.bottomMargin: 25
+                    spacing: 10
+                    z: 1
+
+                    TextField {
+                        id: authPasswordField
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 42
+                        placeholderText: "Password"
+                        echoMode: TextInput.Password
+                        passwordCharacter: "•"
+                        color: root.text
+                        placeholderTextColor: root.overlay1
+                        font.family: root.textFont
+                        font.pixelSize: 14
+                        padding: 10
+                        leftPadding: 42
+                        Keys.onEscapePressed: root.cancelAuthPassword()
+                        background: Rectangle {
+                            color: "#0dffffff"
+                            border.color: authPasswordField.activeFocus ? root.accent : "#1affffff"
+                            border.width: 1
+                            radius: 10
+                        }
+                        Text {
+                            anchors.left: parent.left
+                            anchors.leftMargin: 13
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: ""
+                            font.family: "CaskaydiaMono Nerd Font"
+                            font.pixelSize: 16
+                            color: authPasswordField.activeFocus ? root.accent : root.overlay1
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.topMargin: 2
+                        spacing: 10
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: root.authStatus
+                            color: root.authStatus === "Password required" || root.authStatus === "Unable to send password" ? root.red : root.subtext0
+                            font.family: root.textFont
+                            font.pixelSize: 12
+                            font.weight: Font.Bold
+                        }
+
+                        Rectangle {
+                            Layout.preferredWidth: 112
+                            Layout.preferredHeight: 38
+                            radius: 10
+                            color: root.authSubmitHovered ? ThemePkg.Theme.withAlpha(root.accent, 0.86) : ThemePkg.Theme.withAlpha(root.accent, 0.70)
+                            border.color: ThemePkg.Theme.withAlpha(root.accent, 0.95)
+                            border.width: 1
+                            scale: root.authSubmitPressed ? 0.94 : (root.authSubmitHovered ? 1.04 : 1.0)
+                            clip: true
+
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: 300
+                                    easing.type: Easing.OutBack
+                                }
+                            }
+
+                            Canvas {
+                                id: authUnlockWaveCanvas
+                                anchors.fill: parent
+                                visible: root.authUnlockFillLevel > 0.0
+                                opacity: 0.92
+                                property real wavePhase: 0.0
+
+                                NumberAnimation on wavePhase {
+                                    running: root.authUnlockFillLevel > 0.0 && root.authUnlockFillLevel < 1.0 && ThemePkg.Theme.edgeAnimationsEnabled
+                                    loops: Animation.Infinite
+                                    from: 0
+                                    to: Math.PI * 2
+                                    duration: 800
+                                }
+
+                                onWavePhaseChanged: requestPaint()
+                                Connections {
+                                    target: root
+                                    function onAuthUnlockFillLevelChanged() {
+                                        authUnlockWaveCanvas.requestPaint();
+                                    }
+                                }
+
+                                onPaint: {
+                                    var ctx = getContext("2d");
+                                    ctx.clearRect(0, 0, width, height);
+                                    if (root.authUnlockFillLevel <= 0.001)
+                                        return;
+
+                                    var currentW = width * root.authUnlockFillLevel;
+                                    var waveAmpBase = 10 * Math.sin(root.authUnlockFillLevel * Math.PI);
+                                    var waveAmp = Math.min(Math.max(0, currentW), waveAmpBase);
+                                    var r = 10;
+
+                                    ctx.save();
+                                    ctx.beginPath();
+                                    ctx.moveTo(r, 0);
+                                    ctx.lineTo(width - r, 0);
+                                    ctx.arcTo(width, 0, width, r, r);
+                                    ctx.lineTo(width, height - r);
+                                    ctx.arcTo(width, height, width - r, height, r);
+                                    ctx.lineTo(r, height);
+                                    ctx.arcTo(0, height, 0, height - r, r);
+                                    ctx.lineTo(0, r);
+                                    ctx.arcTo(0, 0, r, 0, r);
+                                    ctx.closePath();
+                                    ctx.clip();
+
+                                    ctx.beginPath();
+                                    ctx.moveTo(0, 0);
+                                    if (root.authUnlockFillLevel < 0.99) {
+                                        var cp1x = currentW + Math.sin(authUnlockWaveCanvas.wavePhase) * waveAmp;
+                                        var cp2x = currentW + Math.cos(authUnlockWaveCanvas.wavePhase + Math.PI) * waveAmp;
+                                        ctx.lineTo(currentW, 0);
+                                        ctx.bezierCurveTo(cp2x, height * 0.33, cp1x, height * 0.66, currentW, height);
+                                        ctx.lineTo(0, height);
+                                    } else {
+                                        ctx.lineTo(width, 0);
+                                        ctx.lineTo(width, height);
+                                        ctx.lineTo(0, height);
+                                    }
+                                    ctx.closePath();
+
+                                    var grad = ctx.createLinearGradient(0, 0, 0, height);
+                                    grad.addColorStop(0, root.surface1.toString());
+                                    grad.addColorStop(1, root.crust.toString());
+                                    ctx.fillStyle = grad;
+                                    ctx.fill();
+                                    ctx.restore();
+                                }
+                            }
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: parent.radius
+                                color: "#ffffff"
+                                opacity: root.authUnlockFlashOpacity
+                            }
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: authSubmitProc.running ? "Unlocking" : "Unlock"
+                                color: root.authUnlockFillLevel > 0.05 ? root.text : root.crust
+                                font.family: root.textFont
+                                font.pixelSize: 13
+                                font.weight: Font.Black
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onEntered: root.authSubmitHovered = true
+                                onExited: root.authSubmitHovered = false
+                                onPressed: {
+                                    if (authSubmitProc.running)
+                                        return;
+                                    root.authSubmitPressed = true;
+                                    if (!root.authUnlockTriggered) {
+                                        authUnlockDrainAnim.stop();
+                                        authUnlockFillAnim.start();
+                                    }
+                                }
+                                onReleased: {
+                                    root.authSubmitPressed = false;
+                                    if (!root.authUnlockTriggered && root.authUnlockFillLevel < 1.0) {
+                                        authUnlockFillAnim.stop();
+                                        authUnlockDrainAnim.start();
+                                    }
+                                }
+                                onCanceled: {
+                                    root.authSubmitPressed = false;
+                                    if (!root.authUnlockTriggered) {
+                                        authUnlockFillAnim.stop();
+                                        authUnlockDrainAnim.start();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Item {
         id: weatherSettingsPopup
         anchors.fill: parent
         z: 99
@@ -2352,6 +2825,14 @@ Item {
                 border.color: root.panelBorderColor
                 border.width: 1
                 clip: true
+
+                ElectricBorder {
+                    anchors.fill: parent
+                    radius: parent.radius
+                    borderWidth: parent.border.width
+                    accentColor: root.activeColor
+                    active: weatherSettingsPopup.popupMounted
+                }
 
                 property real globalOrbitAngle: 0
                 NumberAnimation on globalOrbitAngle {
@@ -3346,6 +3827,108 @@ Item {
         to: 0.0
         duration: 520
         easing.type: Easing.OutExpo
+    }
+
+    NumberAnimation {
+        id: authUnlockFillAnim
+        target: root
+        property: "authUnlockFillLevel"
+        to: 1.0
+        duration: root.authUnlockHoldDuration * (1.0 - root.authUnlockFillLevel)
+        easing.type: Easing.InSine
+        onFinished: {
+            if (!root.authUnlockTriggered) {
+                root.authUnlockTriggered = true;
+                root.authUnlockFlashOpacity = 0.6;
+                authUnlockFlashDrainAnim.start();
+                root.submitAuthPassword();
+                root.authUnlockFillLevel = 0.0;
+                root.authUnlockTriggered = false;
+                root.authSubmitPressed = false;
+            }
+        }
+    }
+
+    NumberAnimation {
+        id: authUnlockDrainAnim
+        target: root
+        property: "authUnlockFillLevel"
+        to: 0.0
+        duration: 1000 * root.authUnlockFillLevel
+        easing.type: Easing.OutQuad
+    }
+
+    NumberAnimation {
+        id: authUnlockFlashDrainAnim
+        target: root
+        property: "authUnlockFlashOpacity"
+        to: 0.0
+        duration: 520
+        easing.type: Easing.OutExpo
+    }
+
+    SequentialAnimation {
+        id: authPopupEnterAnim
+        running: false
+
+        onStopped: {
+            if (!authPopup.popupTargetVisible && authPopup.popupCardOpacity <= 0.001) {
+                authPopup.popupMounted = false;
+                archPanel.visible = true;
+            }
+        }
+
+        ParallelAnimation {
+            NumberAnimation { target: authPopup; property: "popupCardOpacity"; to: 0.78; duration: 145; easing.type: Easing.OutCubic }
+            NumberAnimation { target: authPopup; property: "popupCardScaleX"; to: 0.985; duration: 175; easing.type: Easing.OutCubic }
+            NumberAnimation { target: authPopup; property: "popupCardScaleY"; to: 0.94; duration: 190; easing.type: Easing.OutCubic }
+            NumberAnimation { target: authPopup; property: "popupCardWidth"; to: 434; duration: 190; easing.type: Easing.OutCubic }
+            NumberAnimation { target: authPopup; property: "popupCardHeight"; to: 150; duration: 200; easing.type: Easing.OutCubic }
+            NumberAnimation { target: authPopup; property: "popupCardRadius"; to: 28; duration: 190; easing.type: Easing.OutQuad }
+            NumberAnimation { target: authPopup; property: "popupCardLift"; to: 8; duration: 190; easing.type: Easing.OutCubic }
+        }
+
+        ParallelAnimation {
+            NumberAnimation { target: authPopup; property: "popupCardOpacity"; to: 1.0; duration: 175; easing.type: Easing.OutCubic }
+            NumberAnimation { target: authPopup; property: "popupCardScaleX"; to: 1.0; duration: 205; easing.type: Easing.OutCubic }
+            NumberAnimation { target: authPopup; property: "popupCardScaleY"; to: 1.0; duration: 205; easing.type: Easing.OutCubic }
+            NumberAnimation { target: authPopup; property: "popupCardWidth"; to: 460; duration: 205; easing.type: Easing.OutCubic }
+            NumberAnimation { target: authPopup; property: "popupCardHeight"; to: 154; duration: 215; easing.type: Easing.OutCubic }
+            NumberAnimation { target: authPopup; property: "popupCardRadius"; to: 20; duration: 195; easing.type: Easing.InOutQuad }
+            NumberAnimation { target: authPopup; property: "popupCardLift"; to: 0; duration: 205; easing.type: Easing.OutCubic }
+        }
+    }
+
+    SequentialAnimation {
+        id: authPopupExitAnim
+        running: false
+
+        onStopped: {
+            if (!authPopup.popupTargetVisible && authPopup.popupCardOpacity <= 0.001) {
+                authPopup.popupMounted = false;
+                archPanel.visible = true;
+            }
+        }
+
+        ParallelAnimation {
+            NumberAnimation { target: authPopup; property: "popupCardScaleX"; to: 1.04; duration: 85; easing.type: Easing.OutQuad }
+            NumberAnimation { target: authPopup; property: "popupCardScaleY"; to: 0.95; duration: 85; easing.type: Easing.OutQuad }
+            NumberAnimation { target: authPopup; property: "popupCardWidth"; to: 478; duration: 95; easing.type: Easing.OutQuad }
+            NumberAnimation { target: authPopup; property: "popupCardHeight"; to: 150; duration: 95; easing.type: Easing.OutQuad }
+            NumberAnimation { target: authPopup; property: "popupCardRadius"; to: 30; duration: 95; easing.type: Easing.OutQuad }
+            NumberAnimation { target: authPopup; property: "popupCardLift"; to: 5; duration: 95; easing.type: Easing.OutQuad }
+            NumberAnimation { target: authPopup; property: "popupCardOpacity"; to: 0.88; duration: 80; easing.type: Easing.OutQuad }
+        }
+
+        ParallelAnimation {
+            NumberAnimation { target: authPopup; property: "popupCardOpacity"; to: 0.0; duration: 180; easing.type: Easing.InCubic }
+            NumberAnimation { target: authPopup; property: "popupCardScaleX"; to: 0.84; duration: 205; easing.type: Easing.InCubic }
+            NumberAnimation { target: authPopup; property: "popupCardScaleY"; to: 0.68; duration: 220; easing.type: Easing.InCubic }
+            NumberAnimation { target: authPopup; property: "popupCardWidth"; to: 406; duration: 200; easing.type: Easing.InCubic }
+            NumberAnimation { target: authPopup; property: "popupCardHeight"; to: 142; duration: 210; easing.type: Easing.InCubic }
+            NumberAnimation { target: authPopup; property: "popupCardRadius"; to: 34; duration: 200; easing.type: Easing.InQuad }
+            NumberAnimation { target: authPopup; property: "popupCardLift"; to: 24; duration: 200; easing.type: Easing.InCubic }
+        }
     }
 
     SequentialAnimation {
