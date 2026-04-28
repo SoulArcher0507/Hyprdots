@@ -91,12 +91,6 @@ Variants {
                     property string updLastTs: panel.updLastTs
                     property var _updLastMs: panel._updLastMs              
                     property int updatesMinIntervalMs: panel.updatesMinIntervalMs
-
-                    property int unreadNews: panel.unreadNews
-                    onUnreadNewsChanged: panel.unreadNews = unreadNews
-                    property int unreadDotfiles: panel.unreadDotfiles
-                    onUnreadDotfilesChanged: panel.unreadDotfiles = unreadDotfiles
-
                     property var archUpdateState: ({
                         running: false,
                         provider: "",
@@ -130,6 +124,13 @@ Variants {
                     property string archUpdStagePacman: ""
                     property string archUpdStageAur: ""
                     property string archUpdStageFlatpak: ""
+
+                    // ArchTools notification badge counts (persisted across popup open/close)
+                    property int archUnreadNews: 0
+                    property int archUnreadDotfiles: 0
+                    readonly property int archToolsBadgeCount: archUnreadNews + archUnreadDotfiles
+                    readonly property bool showArchToolsBadge: archToolsBadgeCount > 0
+                    readonly property string archToolsBadgeText: archToolsBadgeCount > 99 ? "99+" : String(archToolsBadgeCount)
 
                     property string archProgressFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_update.jsonl"
                     property int archProgressLineCount: 0
@@ -768,10 +769,6 @@ Variants {
                 property var _updLastMs: 0
                 property int updatesMinIntervalMs: 5 * 60 * 1000   
 
-                property int unreadNews: 0
-                property int unreadDotfiles: 0
-                readonly property int totalArchToolsNotifications: unreadNews + unreadDotfiles
-
                 property string _updatesCheckCmdBoot: "$HOME/.config/hypr/scripts/quickshell/archtools/updates-check.sh"
                 property string _updatesCacheFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_cache.json"
 
@@ -787,11 +784,6 @@ Variants {
                     panel.updTotal = isNaN(tot) ? 0 : tot;
                     panel.updLastTs = Qt.formatDateTime(new Date(), "HH:mm");
                     panel._updLastMs = Date.now();
-
-                    if (obj.unreadNews !== undefined)
-                        panel.unreadNews = Number(obj.unreadNews) || 0;
-                    if (obj.unreadDotfiles !== undefined)
-                        panel.unreadDotfiles = Number(obj.unreadDotfiles) || 0;
                 }
 
                 Process {
@@ -807,6 +799,11 @@ Variants {
                         try {
                             var obj = JSON.parse((updatesCacheLoadOut.text || "{}").trim());
                             panel.applyUpdateCounts(obj);
+                            // Seed ArchTools badge counts from cache
+                            if (obj.unreadNews !== undefined)
+                                switcher.archUnreadNews = Number(obj.unreadNews || 0);
+                            if (obj.unreadDotfiles !== undefined)
+                                switcher.archUnreadDotfiles = Number(obj.unreadDotfiles || 0);
                         } catch (e) {}
                     }
                 }
@@ -1948,7 +1945,7 @@ Variants {
                         }
 
                         Rectangle {
-                            visible: panel.totalArchToolsNotifications > 0
+                            visible: switcher.showArchToolsBadge
                             id: archToolsBadge
                             anchors.right: parent.right
                             anchors.bottom: parent.bottom
@@ -1956,7 +1953,7 @@ Variants {
                             readonly property real arcInset: archButton.radius * (1 - Math.SQRT1_2)
                             anchors.rightMargin: Math.round(arcInset - (width / 2))
                             anchors.bottomMargin: Math.round(arcInset - (height / 2))
-                            width: Math.max(badgeDiameter, archToolsBadgeText.implicitWidth + 9 * panel.scaleFactor)
+                            width: Math.max(badgeDiameter, archBadgeText.implicitWidth + 9 * panel.scaleFactor)
                             height: badgeDiameter
                             radius: height / 2
                             color: ThemePkg.Theme.c1
@@ -1965,9 +1962,9 @@ Variants {
                             z: 3
 
                             Text {
-                                id: archToolsBadgeText
+                                id: archBadgeText
                                 anchors.fill: parent
-                                text: panel.totalArchToolsNotifications > 99 ? "99+" : String(panel.totalArchToolsNotifications)
+                                text: switcher.archToolsBadgeText
                                 color: ThemePkg.Theme.c15
                                 z: 1
                                 horizontalAlignment: Text.AlignHCenter

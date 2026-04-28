@@ -87,9 +87,9 @@ Item {
     property int upSecs: 0
 
     property int unreadNews: 0
-    onUnreadNewsChanged: if (switcher) switcher.unreadNews = unreadNews
     property int unreadDotfiles: 0
-    onUnreadDotfilesChanged: if (switcher) switcher.unreadDotfiles = unreadDotfiles
+    onUnreadNewsChanged: if (switcher) switcher.archUnreadNews = unreadNews
+    onUnreadDotfilesChanged: if (switcher) switcher.archUnreadDotfiles = unreadDotfiles
 
     property bool autolockDisabled: false
 
