@@ -10,6 +10,7 @@ import org.kde.layershell 1.0
 import Quickshell.Io
 import "../theme" as ThemePkg
 import "widgets/dnd" as DndMod
+import "widgets/archtools_state" as ArchState
 import Quickshell.Services.UPower
 import QtQuick.Layouts 1.15
 import Quickshell.Io as Io
@@ -22,6 +23,10 @@ Variants {
     readonly property string notificationBarIcon: DndMod.DndState.dnd ? "󰂛" : (DndMod.DndState.soundEnabled ? "󰂚" : "󰪑")
     readonly property bool showNotificationBadge: !DndMod.DndState.dnd && DndMod.DndState.notificationCount > 0
     readonly property string notificationBadgeText: DndMod.DndState.notificationCount > 99 ? "99+" : String(DndMod.DndState.notificationCount)
+
+    readonly property int archToolsBadgeCount: ArchState.ArchToolsState.unreadNews + ArchState.ArchToolsState.unreadDotfiles
+    readonly property bool showArchToolsBadge: archToolsBadgeCount > 0
+    readonly property string archToolsBadgeText: archToolsBadgeCount > 99 ? "99+" : String(archToolsBadgeCount)
 
     function toggleDnd() {
         DndMod.DndState.dnd = !DndMod.DndState.dnd;
@@ -125,11 +130,6 @@ Variants {
                     property string archUpdStageAur: ""
                     property string archUpdStageFlatpak: ""
 
-                    // ArchTools notification badge counts – forwarded to panel for reliable bindings
-                    property int archUnreadNews: 0
-                    property int archUnreadDotfiles: 0
-                    onArchUnreadNewsChanged: panel.archUnreadNews = archUnreadNews
-                    onArchUnreadDotfilesChanged: panel.archUnreadDotfiles = archUnreadDotfiles
 
                     property string archProgressFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_update.jsonl"
                     property int archProgressLineCount: 0
@@ -768,13 +768,6 @@ Variants {
                 property var _updLastMs: 0
                 property int updatesMinIntervalMs: 5 * 60 * 1000   
 
-                // ArchTools notification badge counts (panel-level so bindings never break)
-                property int archUnreadNews: 0
-                property int archUnreadDotfiles: 0
-                readonly property int archToolsBadgeCount: archUnreadNews + archUnreadDotfiles
-                readonly property bool showArchToolsBadge: archToolsBadgeCount > 0
-                readonly property string archToolsBadgeText: archToolsBadgeCount > 99 ? "99+" : String(archToolsBadgeCount)
-
                 property string _updatesCheckCmdBoot: "$HOME/.config/hypr/scripts/quickshell/archtools/updates-check.sh"
                 property string _updatesCacheFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_cache.json"
 
@@ -807,9 +800,9 @@ Variants {
                             panel.applyUpdateCounts(obj);
                             // Seed ArchTools badge counts from cache
                             if (obj.unreadNews !== undefined)
-                                panel.archUnreadNews = Number(obj.unreadNews || 0);
+                                ArchState.ArchToolsState.unreadNews = Number(obj.unreadNews || 0);
                             if (obj.unreadDotfiles !== undefined)
-                                panel.archUnreadDotfiles = Number(obj.unreadDotfiles || 0);
+                                ArchState.ArchToolsState.unreadDotfiles = Number(obj.unreadDotfiles || 0);
                         } catch (e) {}
                     }
                 }
@@ -1951,7 +1944,7 @@ Variants {
                         }
 
                         Rectangle {
-                            visible: panel.showArchToolsBadge
+                            visible: bar.showArchToolsBadge
                             id: archToolsBadge
                             anchors.right: parent.right
                             anchors.bottom: parent.bottom
@@ -1970,7 +1963,7 @@ Variants {
                             Text {
                                 id: archBadgeText
                                 anchors.fill: parent
-                                text: panel.archToolsBadgeText
+                                text: bar.archToolsBadgeText
                                 color: ThemePkg.Theme.c15
                                 z: 1
                                 horizontalAlignment: Text.AlignHCenter

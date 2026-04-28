@@ -12,6 +12,7 @@ import Qt.labs.folderlistmodel
 import QtMultimedia
 import Quickshell.Hyprland
 import "../../theme" as ThemePkg
+import "archtools_state" as ArchState
 
 Item {
     id: root
@@ -88,8 +89,8 @@ Item {
 
     property int unreadNews: 0
     property int unreadDotfiles: 0
-    onUnreadNewsChanged: if (switcher) switcher.archUnreadNews = unreadNews
-    onUnreadDotfilesChanged: if (switcher) switcher.archUnreadDotfiles = unreadDotfiles
+    onUnreadNewsChanged: ArchState.ArchToolsState.unreadNews = unreadNews
+    onUnreadDotfilesChanged: ArchState.ArchToolsState.unreadDotfiles = unreadDotfiles
 
     property bool autolockDisabled: false
 
