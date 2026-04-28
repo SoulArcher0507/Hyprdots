@@ -40,6 +40,8 @@ Item {
     readonly property string textFont: "Fira Sans"
     readonly property string scriptsDir: Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/network"
     readonly property string vpnScriptPath: root.scriptsDir + "/vpn_panel_logic.sh"
+    readonly property string tmpDir: Quickshell.env("TMPDIR") !== "" ? Quickshell.env("TMPDIR") : "/tmp"
+    readonly property string actionResultPath: root.tmpDir + "/quickshell_vpn_action_result.json"
 
     property var overlaySwitcher: null
     property bool popupTargetVisible: false
@@ -80,6 +82,7 @@ Item {
 
     readonly property color stateColor: vpnActive ? accent : red
     readonly property string selectedTarget: selectedDns !== "" ? selectedDns : (selectedIp !== "" ? selectedIp : selectedId)
+    readonly property string selectedExitTarget: selectedIp !== "" ? selectedIp : selectedTarget
     readonly property bool hasSelectedPeer: selectedId !== ""
     readonly property int visiblePeerCount: {
         if (showOffline)
@@ -124,6 +127,21 @@ Item {
         return text.replace("T", " ").replace("Z", "");
     }
 
+    function peerConnectionText(peer) {
+        let baseIp = peer.ip !== "" ? peer.ip : "No IP";
+        if (!peer.online)
+            return baseIp + " | " + root.cleanLastSeen(peer.last_seen);
+        if (peer.active) {
+            if (peer.relay !== "" && peer.cur_addr === "")
+                return baseIp + " | Relay " + peer.relay;
+            if (peer.peer_relay !== "")
+                return baseIp + " | Peer Relay " + peer.peer_relay;
+            if (peer.cur_addr !== "")
+                return baseIp + " | Direct " + peer.cur_addr;
+        }
+        return baseIp;
+    }
+
     function selectPeer(peer) {
         root.selectedId = peer.id || "";
         root.selectedName = peer.name || peer.dns || peer.ip || "Device";
@@ -155,11 +173,13 @@ Item {
                 name: d.name || d.dns || d.ip || "Device",
                 dns: d.dns || "",
                 ip: d.ip || "",
+                cur_addr: d.cur_addr || "",
                 os: d.os || "",
                 online: !!d.online,
                 active: !!d.active,
                 last_seen: d.last_seen || "",
                 relay: d.relay || "",
+                peer_relay: d.peer_relay || "",
                 rx_bytes: d.rx_bytes || 0,
                 tx_bytes: d.tx_bytes || 0,
                 exit_node: !!d.exit_node,
@@ -229,6 +249,20 @@ Item {
         }
     }
 
+    function applyActionResult(rawText) {
+        let raw = String(rawText || "").trim();
+        if (raw === "")
+            return;
+        try {
+            let data = JSON.parse(raw);
+            root.actionHeadline = data.summary || "Action finished";
+            root.actionDetail = data.detail || "";
+        } catch (e) {
+            root.actionHeadline = "Action finished";
+            root.actionDetail = raw;
+        }
+    }
+
     function runAction(args) {
         if (actionRunner.running)
             return;
@@ -238,7 +272,17 @@ Item {
         root.actionHeadline = "Working...";
         root.actionDetail = cmd.slice(2).join(" ");
         actionRunner.command = cmd;
-        actionStartTimer.restart();
+        actionRunner.running = true;
+    }
+
+    function runExitNodeAction() {
+        let action = root.selectedIsExitNode ? "--clear-exit-node-reopen" : "--set-exit-node-reopen";
+        let target = root.selectedIsExitNode ? "" : root.selectedExitTarget;
+        if (!root.selectedIsExitNode && target === "")
+            return;
+        Quickshell.execDetached(target === "" ? ["bash", root.vpnScriptPath, action] : ["bash", root.vpnScriptPath, action, target]);
+        if (root.overlaySwitcher)
+            root.overlaySwitcher.close();
     }
 
     Process {
@@ -251,28 +295,40 @@ Item {
     }
 
     Process {
-        id: actionRunner
-        command: ["bash", root.vpnScriptPath, "--status"]
+        id: detachedResultReader
+        command: ["bash", "-lc", "file=" + "'" + root.actionResultPath.replace(/'/g, "'\\''") + "'" + "; if [ -s \"$file\" ]; then cat \"$file\"; rm -f \"$file\"; fi"]
         stdout: StdioCollector {
-            onStreamFinished: {
-                let raw = (this.text || "").trim();
-                try {
-                    let data = JSON.parse(raw);
-                    root.actionHeadline = data.summary || "";
-                    root.actionDetail = data.detail || "";
-                } catch (e) {
-                    root.actionHeadline = raw === "" ? "Action finished" : raw;
-                    root.actionDetail = "";
-                }
-                statusPoller.running = true;
-            }
+            waitForEnd: true
+            onStreamFinished: root.applyActionResult(this.text)
         }
     }
 
-    Timer {
-        id: actionStartTimer
-        interval: 1
-        onTriggered: actionRunner.running = true
+    Process {
+        id: actionRunner
+        command: ["bash", root.vpnScriptPath, "--status"]
+        stdout: StdioCollector {
+            id: actionRunnerOut
+            waitForEnd: true
+        }
+        stderr: StdioCollector {
+            id: actionRunnerErr
+            waitForEnd: true
+        }
+
+        onExited: function(exitCode, exitStatus) {
+            let raw = String(actionRunnerOut.text || "").trim();
+            let err = String(actionRunnerErr.text || "").trim();
+            try {
+                let data = JSON.parse(raw);
+                root.actionHeadline = data.summary || (exitCode === 0 ? "Action finished" : "Action failed");
+                root.actionDetail = data.detail || err;
+            } catch (e) {
+                root.actionHeadline = exitCode === 0 ? (raw === "" ? "Action finished" : raw) : "Action failed";
+                root.actionDetail = err !== "" ? err : raw;
+            }
+            if (!statusPoller.running)
+                statusPoller.running = true;
+        }
     }
 
     Timer {
@@ -287,6 +343,7 @@ Item {
         popupTargetVisible = true;
         introMain = 1.0;
         popupEnterAnim.start();
+        detachedResultReader.running = true;
     }
 
     onHostLoaderOpacityChanged: {
@@ -456,25 +513,6 @@ Item {
                                 color: root.text
                                 elide: Text.ElideRight
                             }
-                            VpnSwitch {
-                                Layout.preferredWidth: 104
-                                Layout.preferredHeight: 32
-                            }
-                            ActionButton {
-                                Layout.preferredWidth: 32
-                                Layout.preferredHeight: 32
-                                icon: "󰑓"
-                                label: ""
-                                enabled: !statusPoller.running
-                                onActivated: statusPoller.running = true
-                            }
-                            ActionButton {
-                                Layout.preferredWidth: 32
-                                Layout.preferredHeight: 32
-                                icon: "󰅖"
-                                label: ""
-                                onActivated: if (root.overlaySwitcher) root.overlaySwitcher.close()
-                            }
                         }
 
                         Text {
@@ -523,7 +561,7 @@ Item {
                         icon: root.selectedIsExitNode ? "󰌙" : "󰈀"
                         label: root.selectedIsExitNode ? "Clear Exit" : "Use Exit Node"
                         enabled: (root.selectedIsExitNode || root.selectedExitOption) && !actionRunner.running
-                        onActivated: root.runAction([root.selectedIsExitNode ? "--clear-exit-node" : "--set-exit-node", root.selectedTarget])
+                        onActivated: root.runExitNodeAction()
                     }
                     ActionButton {
                         Layout.fillWidth: true
@@ -533,17 +571,12 @@ Item {
                         busy: actionRunner.running
                         onActivated: root.runAction(["--netcheck"])
                     }
-                    ActionButton {
-                        Layout.preferredWidth: 118
-                        icon: root.showOffline ? "󰖭" : "󰖯"
-                        label: root.showOffline ? "All" : "Online"
-                        onActivated: root.showOffline = !root.showOffline
-                    }
                 }
 
                 Rectangle {
+                    id: actionResultBox
                     Layout.fillWidth: true
-                    Layout.preferredHeight: (root.actionHeadline !== "" || actionRunner.running) ? 52 : 0
+                    Layout.preferredHeight: (root.actionHeadline !== "" || actionRunner.running) ? (root.actionDetail.length > 150 ? 96 : (root.actionDetail.length > 76 ? 76 : 56)) : 0
                     radius: 14
                     color: "#10ffffff"
                     border.color: actionRunner.running ? root.accent : root.panelBorderColor
@@ -570,7 +603,9 @@ Item {
                             }
                         }
                         ColumnLayout {
+                            id: actionStatusColumn
                             Layout.fillWidth: true
+                            Layout.alignment: Qt.AlignVCenter
                             spacing: 2
                             Text {
                                 Layout.fillWidth: true
@@ -582,12 +617,16 @@ Item {
                                 elide: Text.ElideRight
                             }
                             Text {
+                                id: actionDetailText
                                 Layout.fillWidth: true
                                 text: root.actionDetail
                                 font.family: "JetBrains Mono"
                                 font.pixelSize: 10
                                 color: root.subtext0
+                                wrapMode: Text.Wrap
+                                maximumLineCount: 3
                                 elide: Text.ElideRight
+                                lineHeight: 1.15
                             }
                         }
                     }
@@ -610,36 +649,32 @@ Item {
 
                     ScrollBar.vertical: ScrollBar {
                         id: deviceScrollBar
-                        policy: root.visiblePeerCount > 4 ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
-                        interactive: true
+                        policy: ScrollBar.AsNeeded
                         hoverEnabled: true
-                        active: policy === ScrollBar.AlwaysOn
-                        width: 10
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
+                        implicitWidth: 10
+                        minimumSize: 0.08
+                        active: hovered || pressed || devicesList.moving
 
                         background: Rectangle {
                             anchors.fill: parent
                             radius: width / 2
-                            color: "#12ffffff"
-                            border.color: "#1affffff"
+                            color: root.panelBorderColor
+                            border.color: root.panelBorderColor
                             border.width: 1
+                            opacity: deviceScrollBar.active ? 1.0 : 0.7
                         }
 
                         contentItem: Rectangle {
-                            implicitWidth: 10
                             radius: width / 2
-                            color: deviceScrollBar.pressed || deviceScrollBar.hovered ? root.accent : root.overlay0
+                            color: root.accent
                             border.color: root.panelBorderColor
                             border.width: 1
-                            Behavior on color { ColorAnimation { duration: 150 } }
                         }
                     }
 
                     delegate: Rectangle {
                         id: deviceCard
-                        width: ListView.view.width
+                        width: ListView.view.width - 16
                         height: (!root.showOffline && !online) ? 0 : 82
                         visible: height > 0
                         radius: 14
@@ -698,7 +733,7 @@ Item {
                                 }
                                 Text {
                                     Layout.fillWidth: true
-                                    text: (ip !== "" ? ip : "No IP") + (relay !== "" ? " | " + relay : "") + (!online ? " | " + root.cleanLastSeen(last_seen) : "")
+                                    text: root.peerConnectionText(model)
                                     font.family: "JetBrains Mono"
                                     font.pixelSize: 11
                                     color: root.subtext0
@@ -747,19 +782,22 @@ Item {
         property color accentColor: root.accent
         Layout.fillWidth: true
         Layout.preferredHeight: 34
-        radius: 10
-        color: "#0dffffff"
-        border.color: "#1affffff"
-        border.width: 1
+        radius: 0
+        color: "transparent"
+        border.width: 0
         RowLayout {
             anchors.fill: parent
-            anchors.margins: 7
+            anchors.leftMargin: 4
+            anchors.rightMargin: 4
+            anchors.topMargin: 2
+            anchors.bottomMargin: 2
             spacing: 7
             Rectangle {
-                Layout.preferredWidth: 6
-                Layout.preferredHeight: 17
+                Layout.preferredWidth: 3
+                Layout.preferredHeight: 24
                 radius: 4
                 color: accentColor
+                opacity: 0.9
             }
             ColumnLayout {
                 Layout.fillWidth: true
@@ -769,7 +807,7 @@ Item {
                     text: value
                     font.family: "JetBrains Mono"
                     font.weight: Font.Bold
-                    font.pixelSize: 11
+                    font.pixelSize: 12
                     color: root.text
                     elide: Text.ElideRight
                 }
@@ -777,81 +815,11 @@ Item {
                     Layout.fillWidth: true
                     text: label
                     font.family: "JetBrains Mono"
-                    font.pixelSize: 8
+                    font.pixelSize: 9
                     color: root.subtext0
                     elide: Text.ElideRight
                 }
             }
-        }
-    }
-
-    component VpnSwitch: Rectangle {
-        id: vpnSwitch
-        radius: 16
-        color: "#10ffffff"
-        border.color: switchMa.containsMouse ? root.stateColor : "#24ffffff"
-        border.width: 1
-        opacity: actionRunner.running ? 0.72 : 1.0
-        Behavior on border.color { ColorAnimation { duration: 150 } }
-
-        Rectangle {
-            id: switchFill
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            anchors.margins: 3
-            x: 3
-            width: root.vpnActive ? parent.width - 6 : 30
-            radius: 13
-            color: root.stateColor
-            opacity: root.vpnActive ? 0.95 : 0.35
-            Behavior on width { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
-            Behavior on opacity { NumberAnimation { duration: 180 } }
-            Behavior on color { ColorAnimation { duration: 180 } }
-        }
-
-        Rectangle {
-            width: 26
-            height: 26
-            radius: 13
-            x: root.vpnActive ? parent.width - width - 3 : 3
-            anchors.verticalCenter: parent.verticalCenter
-            color: root.vpnActive ? root.crust : root.text
-            Behavior on x { NumberAnimation { duration: 260; easing.type: Easing.OutBack } }
-            Behavior on color { ColorAnimation { duration: 180 } }
-            Text {
-                anchors.centerIn: parent
-                font.family: "Iosevka Nerd Font"
-                font.pixelSize: 13
-                color: root.vpnActive ? root.stateColor : root.crust
-                text: actionRunner.running ? "󰑮" : (root.vpnActive ? "󰄬" : "󰅖")
-                RotationAnimation on rotation {
-                    from: 0
-                    to: 360
-                    duration: 900
-                    loops: Animation.Infinite
-                    running: actionRunner.running && ThemePkg.Theme.edgeAnimationsEnabled
-                }
-            }
-        }
-
-        Text {
-            anchors.centerIn: parent
-            anchors.horizontalCenterOffset: root.vpnActive ? -10 : 12
-            text: root.vpnActive ? "ON" : "OFF"
-            font.family: "JetBrains Mono"
-            font.weight: Font.Bold
-            font.pixelSize: 10
-            color: root.vpnActive ? root.crust : root.subtext0
-            Behavior on color { ColorAnimation { duration: 180 } }
-        }
-
-        MouseArea {
-            id: switchMa
-            anchors.fill: parent
-            hoverEnabled: true
-            enabled: !actionRunner.running
-            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-            onClicked: root.runAction([root.vpnActive ? "--down" : "--up"])
         }
     }
 
@@ -860,15 +828,19 @@ Item {
         property string icon: ""
         property string label: ""
         property bool busy: false
+        property bool hovered: hoverHandler.hovered
+        property bool pressed: tapHandler.pressed
         signal activated()
+        implicitWidth: label === "" ? 32 : 118
+        implicitHeight: 40
         radius: 12
-        color: enabled ? (btnMa.containsMouse ? "#20ffffff" : "#10ffffff") : "#08ffffff"
-        border.color: enabled ? (btnMa.containsMouse ? root.accent : "#24ffffff") : "#12ffffff"
+        color: enabled ? (hovered ? "#20ffffff" : "#10ffffff") : "#08ffffff"
+        border.color: enabled ? (hovered ? root.accent : "#24ffffff") : "#12ffffff"
         border.width: 1
         opacity: enabled ? 1.0 : 0.45
         Behavior on color { ColorAnimation { duration: 150 } }
         Behavior on border.color { ColorAnimation { duration: 150 } }
-        scale: btnMa.pressed && enabled ? 0.96 : 1.0
+        scale: pressed && enabled ? 0.96 : 1.0
         Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutBack } }
 
         RowLayout {
@@ -877,7 +849,7 @@ Item {
             Text {
                 font.family: "Iosevka Nerd Font"
                 font.pixelSize: 16
-                color: btnMa.containsMouse && actionBtn.enabled ? root.accent : root.text
+                color: actionBtn.hovered && actionBtn.enabled ? root.accent : root.text
                 text: busy ? "󰑮" : icon
                 RotationAnimation on rotation {
                     from: 0
@@ -893,18 +865,30 @@ Item {
                 font.family: root.textFont
                 font.weight: Font.Black
                 font.pixelSize: 12
-                color: btnMa.containsMouse && actionBtn.enabled ? root.accent : root.text
+                color: actionBtn.hovered && actionBtn.enabled ? root.accent : root.text
                 elide: Text.ElideRight
                 maximumLineCount: 1
             }
         }
+
+        HoverHandler {
+            id: hoverHandler
+            cursorShape: actionBtn.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+        }
+
+        TapHandler {
+            id: tapHandler
+            acceptedButtons: Qt.LeftButton
+            enabled: actionBtn.enabled
+            onTapped: actionBtn.activated()
+        }
+
         MouseArea {
-            id: btnMa
             anchors.fill: parent
             hoverEnabled: true
             enabled: actionBtn.enabled
             cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-            onClicked: actionBtn.activated()
+            acceptedButtons: Qt.NoButton
         }
     }
 }

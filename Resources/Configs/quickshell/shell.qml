@@ -109,6 +109,17 @@ ShellRoot {
     }
 
     IpcHandler {
+        target: "vpn"
+        function toggle(): void {
+            ThemePkg.Theme.globalToggleVpn();
+        }
+
+        function open(): void {
+            ThemePkg.Theme.globalOpenVpn();
+        }
+    }
+
+    IpcHandler {
         target: "volume"
         function toggle(): void {
             ThemePkg.Theme.globalToggleVolume();

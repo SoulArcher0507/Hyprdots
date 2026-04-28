@@ -13,6 +13,8 @@ QtObject {
     signal globalToggleCalendar
     signal globalTogglePower
     signal globalToggleNetwork
+    signal globalToggleVpn
+    signal globalOpenVpn
     signal globalToggleVolume
     signal globalToggleBattery
     signal globalToggleArch

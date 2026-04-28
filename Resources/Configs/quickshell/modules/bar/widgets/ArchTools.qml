@@ -87,7 +87,9 @@ Item {
     property int upSecs: 0
 
     property int unreadNews: 0
+    onUnreadNewsChanged: if (switcher) switcher.unreadNews = unreadNews
     property int unreadDotfiles: 0
+    onUnreadDotfilesChanged: if (switcher) switcher.unreadDotfiles = unreadDotfiles
 
     property bool autolockDisabled: false
 
@@ -2329,7 +2331,7 @@ Item {
                         spacing: 6
                         anchors.right: parent.right
                         ToolBtn {
-                            icon: "󰍹"
+                            icon: "󰏘"
                             tip: "HyprGRUB Background"
                             onBtnClicked: {
                                 profileSettingsPopup.activePickerMode = 2;
