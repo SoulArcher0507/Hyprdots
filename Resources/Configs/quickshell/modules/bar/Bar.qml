@@ -125,12 +125,11 @@ Variants {
                     property string archUpdStageAur: ""
                     property string archUpdStageFlatpak: ""
 
-                    // ArchTools notification badge counts (persisted across popup open/close)
+                    // ArchTools notification badge counts – forwarded to panel for reliable bindings
                     property int archUnreadNews: 0
                     property int archUnreadDotfiles: 0
-                    readonly property int archToolsBadgeCount: archUnreadNews + archUnreadDotfiles
-                    readonly property bool showArchToolsBadge: archToolsBadgeCount > 0
-                    readonly property string archToolsBadgeText: archToolsBadgeCount > 99 ? "99+" : String(archToolsBadgeCount)
+                    onArchUnreadNewsChanged: panel.archUnreadNews = archUnreadNews
+                    onArchUnreadDotfilesChanged: panel.archUnreadDotfiles = archUnreadDotfiles
 
                     property string archProgressFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_update.jsonl"
                     property int archProgressLineCount: 0
@@ -769,6 +768,13 @@ Variants {
                 property var _updLastMs: 0
                 property int updatesMinIntervalMs: 5 * 60 * 1000   
 
+                // ArchTools notification badge counts (panel-level so bindings never break)
+                property int archUnreadNews: 0
+                property int archUnreadDotfiles: 0
+                readonly property int archToolsBadgeCount: archUnreadNews + archUnreadDotfiles
+                readonly property bool showArchToolsBadge: archToolsBadgeCount > 0
+                readonly property string archToolsBadgeText: archToolsBadgeCount > 99 ? "99+" : String(archToolsBadgeCount)
+
                 property string _updatesCheckCmdBoot: "$HOME/.config/hypr/scripts/quickshell/archtools/updates-check.sh"
                 property string _updatesCacheFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_cache.json"
 
@@ -801,9 +807,9 @@ Variants {
                             panel.applyUpdateCounts(obj);
                             // Seed ArchTools badge counts from cache
                             if (obj.unreadNews !== undefined)
-                                switcher.archUnreadNews = Number(obj.unreadNews || 0);
+                                panel.archUnreadNews = Number(obj.unreadNews || 0);
                             if (obj.unreadDotfiles !== undefined)
-                                switcher.archUnreadDotfiles = Number(obj.unreadDotfiles || 0);
+                                panel.archUnreadDotfiles = Number(obj.unreadDotfiles || 0);
                         } catch (e) {}
                     }
                 }
@@ -1945,7 +1951,7 @@ Variants {
                         }
 
                         Rectangle {
-                            visible: switcher.showArchToolsBadge
+                            visible: panel.showArchToolsBadge
                             id: archToolsBadge
                             anchors.right: parent.right
                             anchors.bottom: parent.bottom
@@ -1964,7 +1970,7 @@ Variants {
                             Text {
                                 id: archBadgeText
                                 anchors.fill: parent
-                                text: switcher.archToolsBadgeText
+                                text: panel.archToolsBadgeText
                                 color: ThemePkg.Theme.c15
                                 z: 1
                                 horizontalAlignment: Text.AlignHCenter

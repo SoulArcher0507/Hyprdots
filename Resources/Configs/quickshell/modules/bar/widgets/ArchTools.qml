@@ -2295,7 +2295,8 @@ Item {
                                     verticalAlignment: Text.AlignVCenter
                                     renderType: Text.NativeRendering
                                     font.pixelSize: Math.round(parent.height * 0.5)
-                                    font.weight: Font.DemiBold
+                                    font.family: root.textFont
+                                    font.weight: Font.Black
                                 }
                             }
                         }
