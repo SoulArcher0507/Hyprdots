@@ -1,13 +1,17 @@
 # Hyprdots 1.0
 
-Hyprdots is my personal Arch Linux + Hyprland configuration built around Hyprland and Quickshell.
+Hyprdots is my personal Arch Linux + Hyprland configuration built around Hyprland and Quickshell. 
+
+> Took huge inspiration for some quickshell compontens from [nixos-configuration](https://github.com/ilyamiro/nixos-configuration) by ilyamiro
 
 ## Preview
 [TODO]
 
 ## Features
-- Custom Quickshell UI with smooth animations
-- Dynamic colors generated from wallpapers with pywal
+- Custom Quickshell UI with smooth animations 
+- awww wallpapers and pywal-based dynamic colors
+- Dynamic colors applied to Hyprland, Quickshell, Kitty and Qt/KDE
+- Quickshell screenshot tool with region, window, screen, OCR, color picker and save-folder actions
 
 ## Default Apps
 - Terminal: Kitty
@@ -30,4 +34,3 @@ You also need to add an openweather api key for the weather widget to work. This
 - More battery saving for laptops with tlp
 - File picker with dynamic colors
 - Better nvim esthetic
-
