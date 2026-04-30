@@ -19,6 +19,7 @@ QtObject {
     signal globalToggleBattery
     signal globalToggleArch
     signal globalShowArchAuth(string passFile)
+    signal globalApplyHyprdotsUpdates
     signal globalToggleMonitor
     signal globalToggleNotificationSound
     signal globalToggleKeybindings

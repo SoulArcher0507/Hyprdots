@@ -1899,6 +1899,7 @@ Variants {
                             radius: parent.radius
                             borderWidth: parent.border.width
                             accentColor: moduleFontColor
+                            visualZ: 0
                         }
 
                         scale: maArch.pressed ? 0.95 : (maArch.containsMouse ? 1.05 : 1.0)

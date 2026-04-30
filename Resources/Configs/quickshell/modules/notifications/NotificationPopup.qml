@@ -525,6 +525,20 @@ Item {
         root.scheduleNotificationCountRefresh();
     }
 
+    function _isHyprdotsUpdateNotification(notification) {
+        return notification
+            && String(notification.appName || "").toLowerCase() === "archtools"
+            && String(notification.summary || "").toLowerCase() === "hyprdots updates";
+    }
+
+    function handleHyprdotsUpdateClick(notification) {
+        if (!root._isHyprdotsUpdateNotification(notification))
+            return false;
+        root.dismissNotification(notification);
+        ThemePkg.Theme.globalApplyHyprdotsUpdates();
+        return true;
+    }
+
     function invokePrimaryNotification(notification) {
         if (notification && notification.actions && notification.actions.length > 0) {
             try { notification.actions[0].invoke(); } catch (e) {}
@@ -1866,6 +1880,8 @@ Item {
                                                 onClicked: {
                                                     if (root.toggleBodyExpanded(notifObject, notifEntry.summary || "", notifEntry.body || ""))
                                                         return;
+                                                    if (root.handleHyprdotsUpdateClick(notifObject))
+                                                        return;
                                                     root.invokePrimaryNotification(notifObject);
                                                     root.focusApp(notifObject.appName);
                                                 }
@@ -1968,6 +1984,8 @@ Item {
                                     } else if (groupData.notifications && groupData.notifications.length > 0) {
                                         let notif = primaryNotification;
                                         if (root.toggleBodyExpanded(notif, groupData.latestSummary || "", groupData.latestBody || ""))
+                                            return;
+                                        if (root.handleHyprdotsUpdateClick(notif))
                                             return;
                                         root.invokePrimaryNotification(notif);
                                         root.focusApp(notif.appName);

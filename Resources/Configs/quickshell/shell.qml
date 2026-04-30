@@ -17,6 +17,44 @@ ShellRoot {
     id: root
     property bool hyprshotOpenQueued: false
 
+    readonly property string archtoolsScriptsDir: Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/archtools"
+    readonly property string archtoolsRepoScriptsDir: Quickshell.env("HOME") + "/.config/hyprdots/Resources/Configs/hypr/scripts/quickshell/archtools"
+
+    function shellQuote(value) {
+        return "'" + String(value === undefined || value === null ? "" : value).replace(/'/g, "'\\''") + "'";
+    }
+
+    function archtoolsScriptRunCommand(fileName, args) {
+        var file = String(fileName || "");
+        var runner = file.endsWith(".py") ? "python3" : "bash";
+        var deployed = root.archtoolsScriptsDir + "/" + file;
+        var repo = root.archtoolsRepoScriptsDir + "/" + file;
+        var quotedArgs = (args || []).map(function(arg) {
+            return root.shellQuote(arg);
+        }).join(" ");
+        var suffix = quotedArgs ? " " + quotedArgs : "";
+
+        return "if [ -f " + root.shellQuote(deployed) + " ]; then exec " + runner + " " + root.shellQuote(deployed) + suffix + "; " +
+            "elif [ -f " + root.shellQuote(repo) + " ]; then exec " + runner + " " + root.shellQuote(repo) + suffix + "; " +
+            "else echo '{}'; exit 1; fi";
+    }
+
+    function runTerminalScript(command) {
+        if (!command || command.trim() === "")
+            return;
+        ThemePkg.Theme.globalCloseAllPopups();
+
+        var safeCmd = command.replace(/'/g, "'\\''");
+        var fallbackCmd = safeCmd + "; echo; echo 'Done. Press Enter to close.'; read";
+        var terminalCmd = "(command -v kitty >/dev/null 2>&1 && kitty --hold bash -lc '" + safeCmd + "')" + " || (command -v alacritty >/dev/null 2>&1 && alacritty --hold -e bash -lc '" + safeCmd + "')" + " || (command -v foot >/dev/null 2>&1 && foot -e bash -lc '" + fallbackCmd + "')" + " || (command -v wezterm >/dev/null 2>&1 && wezterm -e bash -lc '" + fallbackCmd + "')" + " || (command -v gnome-terminal >/dev/null 2>&1 && gnome-terminal -- bash -lc '" + fallbackCmd + "')" + " || (command -v xterm >/dev/null 2>&1 && xterm -e bash -lc '" + fallbackCmd + "')";
+
+        Hyprland.dispatch("exec [float;center;size 60% 70%] sh -c \"" + terminalCmd + "\"");
+    }
+
+    function applyHyprdotsUpdates() {
+        root.runTerminalScript(root.archtoolsScriptRunCommand("dotfiles-updates.py", ["--apply"]));
+    }
+
     function hideLauncherProcess() {
         Quickshell.execDetached([
             "qs", "ipc",
@@ -50,6 +88,10 @@ ShellRoot {
 
     Connections {
         target: ThemePkg.Theme
+        function onGlobalApplyHyprdotsUpdates() {
+            root.applyHyprdotsUpdates();
+        }
+
         function onGlobalCloseAllPopups() {
             root.hideLauncherProcess();
             root.hideOverviewProcess();

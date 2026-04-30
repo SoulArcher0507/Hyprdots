@@ -320,6 +320,7 @@ Item {
         archPanel.visible = true;
         loadCacheProc.running = true;
         root._lastProgressLineCount = 0;
+        root.startImmediateStartupRefreshes();
         popupEnterAnim.start();
         startupRefreshTimer.start();
     }
@@ -749,6 +750,13 @@ Item {
             archNewsFetchProc.running = true;
         if (!dotfilesBootCheckProc.running)
             dotfilesBootCheckProc.running = true;
+    }
+
+    function startImmediateStartupRefreshes() {
+        if (!uptimeProc.running)
+            uptimeProc.running = true;
+        if (!updateProgressInitProc.running)
+            updateProgressInitProc.running = true;
     }
 
     function startStartupRefreshes() {
@@ -1276,6 +1284,11 @@ Item {
         var terminalCmd = "(command -v kitty >/dev/null 2>&1 && kitty --hold bash -lc '" + safeCmd + "')" + " || (command -v alacritty >/dev/null 2>&1 && alacritty --hold -e bash -lc '" + safeCmd + "')" + " || (command -v foot >/dev/null 2>&1 && foot -e bash -lc '" + fallbackCmd + "')" + " || (command -v wezterm >/dev/null 2>&1 && wezterm -e bash -lc '" + fallbackCmd + "')" + " || (command -v gnome-terminal >/dev/null 2>&1 && gnome-terminal -- bash -lc '" + fallbackCmd + "')" + " || (command -v xterm >/dev/null 2>&1 && xterm -e bash -lc '" + fallbackCmd + "')";
 
         Hyprland.dispatch("exec [float;center;size 60% 70%] sh -c \"" + terminalCmd + "\"");
+    }
+
+    function applyHyprdotsUpdates() {
+        root.runScript(root.scriptRunCommand("dotfiles-updates.py", ["--apply"]));
+        dotfilesStatusRefreshSoon.start();
     }
 
     function restoreUpdateStateFromSwitcher() {
@@ -2263,10 +2276,7 @@ Item {
                         ToolBtn {
                             icon: "󰊢"
                             tip: "Hyprdots Updates"
-                            onBtnClicked: {
-                                root.runScript(root.scriptRunCommand("dotfiles-updates.py", ["--apply"]));
-                                dotfilesStatusRefreshSoon.start();
-                            }
+                            onBtnClicked: root.applyHyprdotsUpdates()
 
                             Rectangle {
                                 id: dotfilesBadge

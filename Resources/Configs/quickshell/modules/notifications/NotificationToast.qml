@@ -178,6 +178,18 @@ Scope {
         return true;
     }
 
+    function _isHyprdotsUpdateNotification(summary, appName) {
+        return String(appName || "").toLowerCase() === "archtools"
+            && String(summary || "").toLowerCase() === "hyprdots updates";
+    }
+
+    function _handleHyprdotsUpdateClick(summary, appName) {
+        if (!root._isHyprdotsUpdateNotification(summary, appName))
+            return false;
+        ThemePkg.Theme.globalApplyHyprdotsUpdates();
+        return true;
+    }
+
     function _addToast(summary, body, appName, iconHint, payload) {
         while (toastModel.count >= maxToasts) {
             root._removeToastById(toastModel.get(0).toastId);
@@ -609,6 +621,10 @@ Scope {
                                     onClicked: {
                                         if (root._toggleToastBodyExpanded(model.toastId, model.toastBody)) {
                                             dismissTimer.stop();
+                                            return;
+                                        }
+                                        if (root._handleHyprdotsUpdateClick(model.toastSummary, model.toastApp)) {
+                                            toastCard.dismissToast();
                                             return;
                                         }
                                         const actions = root._toastActions(model.toastId);
