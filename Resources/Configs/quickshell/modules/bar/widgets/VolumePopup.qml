@@ -81,6 +81,8 @@ Item {
     property string activeId: ""
     property string activeName: "No Device"
     property string activeDesc: ""
+    property string activePipewireId: ""
+    property string activePipewireName: ""
     property int activeVol: 0
     property real activeVolVisual: 0
     property bool activeMute: false
@@ -100,8 +102,18 @@ Item {
     }
     readonly property real activeFillRatio: Math.max(0, Math.min(1, root.activeVolVisual / 100.0))
     readonly property int activeVolLabel: Math.max(0, Math.round(root.activeVolVisual))
+    readonly property var activePipewireNode: root.findPipewireNode(root.activeDesc, root.activeName, root.activePipewireId, root.activePipewireName)
+    readonly property real activePeakLevel: activePeakMonitor.enabled ? Math.max(0, Math.min(1, activePeakMonitor.peak * 1.8)) : 0
+    property real activePeakVisual: 0
+    property real meterGlowPhase: 0
     onActiveVolChanged: activeVolVisual = activeVol
+    onActivePeakLevelChanged: activePeakVisual = activePeakLevel
     Behavior on activeVolVisual { NumberAnimation { duration: root.draggingMaster ? 80 : 150; easing.type: Easing.OutQuart } }
+    Behavior on activePeakVisual { NumberAnimation { duration: root.activePeakLevel > root.activePeakVisual ? 70 : 260; easing.type: Easing.OutCubic } }
+
+    NumberAnimation on meterGlowPhase {
+        from: 0; to: 1; duration: 850; loops: Animation.Infinite; running: true
+    }
 
     ListModel { id: outputsModel }
     ListModel { id: inputsModel }
@@ -110,7 +122,59 @@ Item {
     property var draggingNodes: ({})
     property bool draggingMaster: false
     Timer { id: syncDelay; interval: 600; onTriggered: { root.draggingNodes = ({}); root.draggingMaster = false; } }
-    PwObjectTracker { objects: [Pipewire.defaultAudioSink] }
+    PwObjectTracker { objects: [Pipewire.defaultAudioSink, Pipewire.defaultAudioSource, root.activePipewireNode] }
+
+    PwNodePeakMonitor {
+        id: activePeakMonitor
+        node: root.activePipewireNode
+        enabled: root.popupTargetVisible && root.activePipewireNode !== null && !root.activeMute
+    }
+
+    function nodeProp(node, key) {
+        if (!node || !node.properties)
+            return "";
+        let value = node.properties[key];
+        if (value === undefined || value === null)
+            return "";
+        return String(value);
+    }
+
+    function findPipewireNode(nodeName, nodeDescription, pipewireId, pipewireName) {
+        let nodes = (Pipewire.nodes && Pipewire.nodes.values) ? Pipewire.nodes.values : [];
+        let wantedId = String(pipewireId || "");
+
+        if (wantedId.length > 0) {
+            for (let i = 0; i < nodes.length; i++) {
+                let n = nodes[i];
+                if (!n)
+                    continue;
+                if (String(n.id) === wantedId || nodeProp(n, "object.id") === wantedId || nodeProp(n, "object.serial") === wantedId)
+                    return n;
+            }
+        }
+
+        let names = [pipewireName, nodeName, nodeDescription].map(v => String(v || "")).filter(v => v.length > 0);
+        for (let i = 0; i < nodes.length; i++) {
+            let n = nodes[i];
+            if (!n)
+                continue;
+
+            let candidates = [
+                String(n.name || ""),
+                String(n.description || ""),
+                nodeProp(n, "node.name"),
+                nodeProp(n, "media.name"),
+                nodeProp(n, "application.name")
+            ];
+
+            for (let c = 0; c < candidates.length; c++) {
+                if (candidates[c].length > 0 && names.indexOf(candidates[c]) !== -1)
+                    return n;
+            }
+        }
+
+        return null;
+    }
 
     function processAudioJson(textData) {
         if (!textData) return;
@@ -135,6 +199,8 @@ Item {
                 root.activeName = d.description;
                 root.activeDesc = d.name;
                 root.activeIcon = d.icon;
+                root.activePipewireId = d.pipewire_id || "";
+                root.activePipewireName = d.pipewire_name || "";
                 if (!root.draggingMaster) {
                     root.activeVol = d.volume;
                     root.activeMute = d.mute;
@@ -150,6 +216,8 @@ Item {
             root.activeName = d.description;
             root.activeDesc = d.name;
             root.activeIcon = d.icon;
+            root.activePipewireId = d.pipewire_id || "";
+            root.activePipewireName = d.pipewire_name || "";
             if (!root.draggingMaster) {
                 root.activeVol = d.volume;
                 root.activeMute = d.mute;
@@ -184,7 +252,8 @@ Item {
 
             let obj = {
                 id: d.id, name: d.name, description: d.description,
-                volume: d.volume, mute: d.mute, is_default: d.is_default, icon: d.icon
+                volume: d.volume, mute: d.mute, is_default: d.is_default, icon: d.icon,
+                pipewire_id: d.pipewire_id || "", pipewire_name: d.pipewire_name || ""
             };
 
             if (foundIdx === -1) {
@@ -699,6 +768,7 @@ Item {
                                         }
 
                                         Rectangle {
+                                            id: masterTrack
                                             anchors.fill: parent; radius: 12
                                             color: "#0dffffff"; border.color: "#1affffff"; border.width: 1
                                             clip: true
@@ -715,6 +785,63 @@ Item {
                                                     orientation: Gradient.Horizontal
                                                     GradientStop { position: 0.0; color: root.activeMute ? root.surface2 : root.tabColor; Behavior on color { ColorAnimation{duration: 300} } }
                                                     GradientStop { position: 1.0; color: root.activeMute ? Qt.lighter(root.surface2, 1.15) : Qt.lighter(root.tabColor, 1.25); Behavior on color { ColorAnimation{duration: 300} } }
+                                                }
+                                            }
+
+                                            Item {
+                                                anchors.fill: parent
+                                                clip: true
+                                                visible: !root.activeMute && root.activePeakVisual > 0.01
+
+                                                Rectangle {
+                                                    id: masterPeakMeter
+                                                    height: parent.height
+                                                    width: parent.width * root.activePeakVisual
+                                                    radius: 12
+                                                    opacity: Math.min(1.0, 0.55 + root.activePeakVisual * 0.35)
+                                                    Behavior on width { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
+
+                                                    gradient: Gradient {
+                                                        orientation: Gradient.Horizontal
+                                                        GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, 0.08) }
+                                                        GradientStop { position: 0.62; color: Qt.rgba(1, 1, 1, 0.18 + root.activePeakVisual * 0.12) }
+                                                        GradientStop { position: 1.0; color: Qt.rgba(1, 1, 1, 0.46 + root.activePeakVisual * 0.24) }
+                                                    }
+
+                                                    Rectangle {
+                                                        anchors.fill: parent
+                                                        radius: parent.radius
+                                                        opacity: 0.34
+                                                        gradient: Gradient {
+                                                            orientation: Gradient.Vertical
+                                                            GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, 0.0) }
+                                                            GradientStop { position: 0.52; color: Qt.rgba(1, 1, 1, 0.18) }
+                                                            GradientStop { position: 1.0; color: Qt.rgba(1, 1, 1, 0.0) }
+                                                        }
+                                                    }
+
+                                                    Rectangle {
+                                                        width: Math.max(22, masterTrack.width * 0.16)
+                                                        height: parent.height
+                                                        radius: parent.radius
+                                                        x: (masterPeakMeter.width + width) * root.meterGlowPhase - width
+                                                        opacity: 0.18 + root.activePeakVisual * 0.22
+                                                        gradient: Gradient {
+                                                            orientation: Gradient.Horizontal
+                                                            GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, 0.0) }
+                                                            GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.65) }
+                                                            GradientStop { position: 1.0; color: Qt.rgba(1, 1, 1, 0.0) }
+                                                        }
+                                                    }
+
+                                                    Rectangle {
+                                                        width: 4
+                                                        height: parent.height
+                                                        radius: 2
+                                                        anchors.right: parent.right
+                                                        color: Qt.rgba(1, 1, 1, 0.9)
+                                                        opacity: 0.55 + root.activePeakVisual * 0.35
+                                                    }
                                                 }
                                             }
                                         }
@@ -915,6 +1042,17 @@ Item {
                             delegate: Rectangle {
                                 id: delegateRoot
                                 width: contentList.width - (vbar.visible ? vbar.width + 4 : 0)
+                                property var pipewireNode: root.findPipewireNode(model.name, model.description, model.pipewire_id || "", model.pipewire_name || "")
+                                property real peakLevel: nodePeakMonitor.enabled ? Math.max(0, Math.min(1, nodePeakMonitor.peak * 1.8)) : 0
+                                property real peakVisual: 0
+                                onPeakLevelChanged: peakVisual = peakLevel
+                                Behavior on peakVisual { NumberAnimation { duration: delegateRoot.peakLevel > delegateRoot.peakVisual ? 70 : 260; easing.type: Easing.OutCubic } }
+
+                                PwNodePeakMonitor {
+                                    id: nodePeakMonitor
+                                    node: delegateRoot.pipewireNode
+                                    enabled: root.popupTargetVisible && delegateRoot.pipewireNode !== null && !model.mute && !delegateRoot.isActiveNode
+                                }
 
                                 property bool isLoaded: false
                                 Timer {
@@ -1055,6 +1193,7 @@ Item {
                                             }
 
                                             Rectangle {
+                                                id: nodeTrack
                                                 anchors.fill: parent; radius: 7
                                                 color: "#0dffffff"; border.color: "#1affffff"; border.width: 1
                                                 clip: true
@@ -1071,6 +1210,63 @@ Item {
                                                         orientation: Gradient.Horizontal
                                                         GradientStop { position: 0.0; color: model.mute ? root.surface2 : root.tabColor; Behavior on color { ColorAnimation { duration: 300 } } }
                                                         GradientStop { position: 1.0; color: model.mute ? Qt.lighter(root.surface2, 1.15) : Qt.lighter(root.tabColor, 1.25); Behavior on color { ColorAnimation { duration: 300 } } }
+                                                    }
+                                                }
+
+                                                Item {
+                                                    anchors.fill: parent
+                                                    clip: true
+                                                    visible: !model.mute && delegateRoot.peakVisual > 0.01
+
+                                                    Rectangle {
+                                                        id: nodePeakMeter
+                                                        height: parent.height
+                                                        width: parent.width * delegateRoot.peakVisual
+                                                        radius: 7
+                                                        opacity: Math.min(1.0, 0.52 + delegateRoot.peakVisual * 0.34)
+                                                        Behavior on width { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
+
+                                                        gradient: Gradient {
+                                                            orientation: Gradient.Horizontal
+                                                            GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, 0.08) }
+                                                            GradientStop { position: 0.62; color: Qt.rgba(1, 1, 1, 0.18 + delegateRoot.peakVisual * 0.12) }
+                                                            GradientStop { position: 1.0; color: Qt.rgba(1, 1, 1, 0.46 + delegateRoot.peakVisual * 0.22) }
+                                                        }
+
+                                                        Rectangle {
+                                                            anchors.fill: parent
+                                                            radius: parent.radius
+                                                            opacity: 0.3
+                                                            gradient: Gradient {
+                                                                orientation: Gradient.Vertical
+                                                                GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, 0.0) }
+                                                                GradientStop { position: 0.52; color: Qt.rgba(1, 1, 1, 0.18) }
+                                                                GradientStop { position: 1.0; color: Qt.rgba(1, 1, 1, 0.0) }
+                                                            }
+                                                        }
+
+                                                        Rectangle {
+                                                            width: Math.max(16, nodeTrack.width * 0.14)
+                                                            height: parent.height
+                                                            radius: parent.radius
+                                                            x: (nodePeakMeter.width + width) * root.meterGlowPhase - width
+                                                            opacity: 0.16 + delegateRoot.peakVisual * 0.2
+                                                            gradient: Gradient {
+                                                                orientation: Gradient.Horizontal
+                                                                GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, 0.0) }
+                                                                GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.62) }
+                                                                GradientStop { position: 1.0; color: Qt.rgba(1, 1, 1, 0.0) }
+                                                            }
+                                                        }
+
+                                                        Rectangle {
+                                                            width: 3
+                                                            height: parent.height
+                                                            radius: 1.5
+                                                            anchors.right: parent.right
+                                                            color: Qt.rgba(1, 1, 1, 0.9)
+                                                            opacity: 0.5 + delegateRoot.peakVisual * 0.35
+                                                        }
                                                     }
                                                 }
                                             }

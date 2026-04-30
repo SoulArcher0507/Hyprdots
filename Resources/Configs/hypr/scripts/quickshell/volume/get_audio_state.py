@@ -22,6 +22,13 @@ def get_valid_string(*args):
             return str(arg)
     return ""
 
+def get_pipewire_id(props):
+    return get_valid_string(
+        props.get("object.id"),
+        props.get("object.serial"),
+        props.get("pipewire.id")
+    )
+
 def get_data():
     sinks = parse_pactl(run_cmd("pactl -f json list sinks"))
     sources = parse_pactl(run_cmd("pactl -f json list sources"))
@@ -61,7 +68,9 @@ def get_data():
             "volume": vol,
             "mute": bool(n.get("mute", False)),
             "is_default": bool(is_default),
-            "icon": icon
+            "icon": icon,
+            "pipewire_id": get_pipewire_id(props),
+            "pipewire_name": get_valid_string(props.get("node.name"), n.get("name"))
         }
 
     apps = []

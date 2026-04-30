@@ -145,6 +145,13 @@ sudo systemctl enable --now cups.service
 sudo usermod -aG lp $USER   # add user to printer group
 sudo systemctl enable --now NetworkManager.service
 sudo systemctl enable --now firewalld
+sudo firewall-cmd --permanent --zone=trusted --add-interface=tailscale0
+for FIREWALL_ZONE in trusted public; do
+    sudo firewall-cmd --permanent --zone="$FIREWALL_ZONE" --add-service=kdeconnect
+    sudo firewall-cmd --permanent --zone="$FIREWALL_ZONE" --add-service=syncthing
+    sudo firewall-cmd --permanent --zone="$FIREWALL_ZONE" --add-service=syncthing-gui
+done
+sudo firewall-cmd --reload
 sudo systemctl enable --now tailscaled
 
 finalize_repo_location
