@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 
 WALLPAPER="${1:-}" 
+TEMP_FRAME=""
 HYPR_CONF="$HOME/.config/hypr/colors.conf"
 QS_JSON="$HOME/.config/quickshell/colors.json"
 KDE_COLORS="$HOME/.local/share/color-schemes/Dynamic.colors"
@@ -32,6 +33,112 @@ need wal
 need jq
 need python3
 
+cleanup() {
+  [[ -n "$TEMP_FRAME" ]] && rm -f -- "$TEMP_FRAME"
+}
+trap cleanup EXIT
+
+lower_ext() {
+  local name="${1##*/}"
+  local ext="${name##*.}"
+  [[ "$name" == "$ext" ]] && return 1
+  printf '%s' "${ext,,}"
+}
+
+is_dynamic_wallpaper() {
+  local file="$1" ext mime frames
+  ext="$(lower_ext "$file" || true)"
+  case "$ext" in
+    mp4|mkv|mov|webm|avi|m4v|ogv|ogg|flv|wmv|mpg|mpeg|gif|apng)
+      return 0
+      ;;
+  esac
+
+  if [[ "$ext" == "webp" ]] && command -v magick >/dev/null 2>&1; then
+    frames="$(magick identify -format '%n\n' "$file" 2>/dev/null | head -n 1 || true)"
+    [[ "$frames" =~ ^[0-9]+$ && "$frames" -gt 1 ]] && return 0
+  fi
+
+  if command -v file >/dev/null 2>&1; then
+    mime="$(file -b --mime-type -- "$file" 2>/dev/null || true)"
+    [[ "$mime" == video/* ]] && return 0
+  fi
+
+  return 1
+}
+
+video_duration() {
+  local source="$1"
+  command -v ffprobe >/dev/null 2>&1 || return 1
+  ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$source" 2>/dev/null \
+    | awk 'NF && $1 > 0 { printf "%.3f\n", $1; exit }'
+}
+
+frame_timestamps() {
+  local source="$1" duration
+  printf '%s\n' "${WALLPAPER_FRAME_TIMESTAMP:-00:00:01}"
+
+  duration="$(video_duration "$source" || true)"
+  if [[ -n "$duration" ]]; then
+    awk -v d="$duration" 'BEGIN {
+      split("0.35 0.50 0.70 0.20 0.85", p, " ");
+      for (i in p) printf "%.3f\n", d * p[i];
+    }'
+  fi
+
+  printf '%s\n' "00:00:00" "00:00:02" "00:00:05"
+}
+
+extract_frame_for_wal() {
+  local source="$1" target="$2" ext
+  ext="$(lower_ext "$source" || true)"
+  if [[ "$ext" =~ ^(gif|apng|webp)$ ]] && command -v magick >/dev/null 2>&1; then
+    magick "$source[0]" -auto-orient "$target" 2>/dev/null && return 0
+  fi
+
+  need ffmpeg
+  ffmpeg -y -v error -ss "${WALLPAPER_FRAME_TIMESTAMP:-00:00:01}" -i "$source" -frames:v 1 "$target" 2>/dev/null \
+    || ffmpeg -y -v error -i "$source" -frames:v 1 "$target" 2>/dev/null
+}
+
+run_wal_for_dynamic_wallpaper() {
+  local source="$1" ts seen=""
+  TEMP_FRAME="$(mktemp --suffix=.jpg)"
+
+  while IFS= read -r ts; do
+    [[ -n "$ts" ]] || continue
+    case " $seen " in
+      *" $ts "*) continue ;;
+    esac
+    seen="$seen $ts"
+
+    rm -f -- "$TEMP_FRAME"
+    if ffmpeg -y -v error -ss "$ts" -i "$source" -frames:v 1 "$TEMP_FRAME" 2>/dev/null \
+      || ffmpeg -y -v error -i "$source" -frames:v 1 "$TEMP_FRAME" 2>/dev/null; then
+      [[ -s "$TEMP_FRAME" ]] || continue
+      wal -i "$TEMP_FRAME" && return 0
+    fi
+  done < <(frame_timestamps "$source")
+
+  return 1
+}
+
+run_wal_for_wallpaper() {
+  if is_dynamic_wallpaper "$WALLPAPER"; then
+    local ext
+    ext="$(lower_ext "$WALLPAPER" || true)"
+    if [[ "$ext" =~ ^(gif|apng|webp)$ ]]; then
+      TEMP_FRAME="$(mktemp --suffix=.jpg)"
+      extract_frame_for_wal "$WALLPAPER" "$TEMP_FRAME"
+      wal -i "$TEMP_FRAME"
+    else
+      run_wal_for_dynamic_wallpaper "$WALLPAPER"
+    fi
+  else
+    wal -i "$WALLPAPER"
+  fi
+}
+
 for helper in \
   "$SCRIPT_DIR/color_mix.py" \
   "$SCRIPT_DIR/color_contrast.py" \
@@ -49,7 +156,7 @@ if [[ -n "$WALLPAPER" ]]; then
     echo "Errore: wallpaper non trovato: $WALLPAPER" >&2
     exit 1
   fi
-  wal -i "$WALLPAPER"
+  run_wal_for_wallpaper
 else
   wal -R
 fi

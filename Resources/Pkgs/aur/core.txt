@@ -4,6 +4,7 @@ epson-inkjet-printer-escpr2
 feishin-bin
 kora-icon-theme
 localsend-bin
+mpvpaper
 pacseek
 qt6ct-kde
 webapp-manager

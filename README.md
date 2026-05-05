@@ -9,7 +9,7 @@ Hyprdots is my personal Arch Linux + Hyprland configuration built around Hyprlan
 
 ## Features
 - Custom Quickshell UI with smooth animations 
-- awww wallpapers and pywal-based dynamic colors
+- Static wallpapers through awww, animated wallpapers through mpvpaper, and pywal-based dynamic colors
 - Dynamic colors applied to Hyprland, Quickshell, Kitty and Qt/KDE
 - Quickshell screenshot tool with region, window, screen, OCR, color picker and save-folder actions
 
@@ -29,7 +29,6 @@ chmod +x install.sh
 You also need to add an openweather api key for the weather widget to work. This can be done via the button in the Arch Tools popup. 
 
 ## Upcoming Features
-- Animated wallpapers support with mpvpaper, using a different script with the wallpaper picker
 - Mouse icon with dynamic colors
 - More battery saving for laptops with tlp
 - File picker with dynamic colors

@@ -23,6 +23,7 @@ dosfstools
 dotnet-sdk
 easyeffects
 fastfetch
+ffmpeg
 ffmpegthumbs
 firefox
 firewall-config

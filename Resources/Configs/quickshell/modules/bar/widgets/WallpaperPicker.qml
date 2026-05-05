@@ -259,7 +259,7 @@ Item {
         window.closePicker();
     }
 
-    property string listCmd: "find \"$HOME/Pictures/Wallpapers\" -follow -regextype posix-extended -type f -iregex \".*\\\\.(jpe?g|png|webp|bmp|gif|avif|heic|mp4|mkv|mov|webm)$\" -printf \"%f\\t%p\\n\" | LC_ALL=C sort"
+    property string listCmd: "find \"$HOME/Pictures/Wallpapers\" -follow -regextype posix-extended -type f -iregex \".*\\\\.(jpe?g|png|webp|bmp|gif|avif|heic|mp4|mkv|mov|webm|avi|m4v|ogv|ogg|flv|wmv|mpg|mpeg|apng)$\" -printf \"%f\\t%p\\n\" | LC_ALL=C sort"
 
     property var _rawFilesBuffer: []
     Process {
@@ -457,14 +457,14 @@ Item {
             export MAGICK_DISK_LIMIT=1GiB
             export OMP_NUM_THREADS=1
 
-            find "$WALL_DIR" -path "$WALL_DIR/active" -prune -o -follow -regextype posix-extended -type f -iregex '.*\\.(jpe?g|png|webp|bmp|gif|avif|heic|mp4|mkv|mov|webm)$' -print0 |
+            find "$WALL_DIR" -path "$WALL_DIR/active" -prune -o -follow -regextype posix-extended -type f -iregex '.*\\.(jpe?g|png|webp|bmp|gif|avif|heic|mp4|mkv|mov|webm|avi|m4v|ogv|ogg|flv|wmv|mpg|mpeg|apng)$' -print0 |
             while IFS= read -r -d '' file; do
                 filename=$(basename "$file")
                 thumb="$THUMB_DIR/$filename.jpg"
 
                 if [ ! -f "$thumb" ]; then
                     case "$file" in
-                        *.mp4|*.mkv|*.mov|*.webm|*.MP4|*.MKV|*.MOV|*.WEBM)
+                        *.mp4|*.mkv|*.mov|*.webm|*.avi|*.m4v|*.ogv|*.ogg|*.flv|*.wmv|*.mpg|*.mpeg|*.MP4|*.MKV|*.MOV|*.WEBM|*.AVI|*.M4V|*.OGV|*.OGG|*.FLV|*.WMV|*.MPG|*.MPEG)
                             ffmpeg -y -v error -i "$file" -vframes 1 -vf "scale='min(960,iw)':-2" "$thumb" 2>/dev/null || true
                             ;;
                         *.gif|*.GIF|*.webp|*.WEBP|*.avif|*.AVIF)
@@ -512,7 +512,7 @@ Item {
 
         for (let i = 0; i < window.rawFiles.length; i++) {
             let fn = window.rawFiles[i].name;
-            let isVid = String(fn).match(/\.(mp4|mkv|mov|webm)$/i) !== null;
+            let isVid = String(fn).match(/\.(mp4|mkv|mov|webm|avi|m4v|ogv|ogg|flv|wmv|mpg|mpeg|gif|apng)$/i) !== null;
             if (window.checkItemMatchesFilter(fn, isVid, window.cacheVersion, window.currentFilter)) {
                 count++;
             }
@@ -633,7 +633,7 @@ Item {
     FolderListModel {
         id: searchFolderModel
         folder: "file://" + window.searchDir
-        nameFilters: ["*.jpg", "*.jpeg", "*.png", "*.webp", "*.gif", "*.mp4", "*.mkv", "*.mov", "*.webm"]
+        nameFilters: ["*.jpg", "*.jpeg", "*.png", "*.webp", "*.gif", "*.avif", "*.heic", "*.mp4", "*.mkv", "*.mov", "*.webm", "*.avi", "*.m4v", "*.ogv", "*.ogg", "*.flv", "*.wmv", "*.mpg", "*.mpeg", "*.apng"]
         showDirs: false
 
         onFolderChanged: {
@@ -752,7 +752,7 @@ Item {
             let fu = window.rawFiles[i].url;
             let fp = window.rawFiles[i].path;
 
-            let isVid = String(fn).match(/\.(mp4|mkv|mov|webm)$/i) !== null;
+            let isVid = String(fn).match(/\.(mp4|mkv|mov|webm|avi|m4v|ogv|ogg|flv|wmv|mpg|mpeg|gif|apng)$/i) !== null;
             if (window.checkItemMatchesFilter(fn, isVid, window.cacheVersion, window.currentFilter)) {
                 newItems.push({
                     "fileName": fn,
