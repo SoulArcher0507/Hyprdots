@@ -402,6 +402,7 @@ Hyprshot.FreezeScreen {
     property string ocrStatusText: ""
     property bool ocrResultVisible: false
     property bool saveToFileEnabled: true
+    property bool externalPickerLaunching: false
 
     property string mode: "region"
     property string selectedRegionShape: "rectangle"
@@ -543,8 +544,6 @@ Hyprshot.FreezeScreen {
             captureProcess.running = false
         if (screenshotProcess.running)
             screenshotProcess.running = false
-        if (colorPickProcess.running)
-            colorPickProcess.running = false
         if (colorPreviewProcess.running)
             colorPreviewProcess.running = false
         if (ocrProcess.running)
@@ -554,6 +553,7 @@ Hyprshot.FreezeScreen {
         captureTimeoutTimer.stop()
         captureRetryTimer.stop()
         root.visible = false
+        root.frozenImagePath = ""
         root.captureReady = false
         root.captureFailed = false
         root.selectionQueued = false
@@ -567,6 +567,7 @@ Hyprshot.FreezeScreen {
         root.ocrStatusText = ""
         root.ocrResultVisible = false
         root.saveToFileEnabled = true
+        root.externalPickerLaunching = false
         root.mode = "region"
         root.selectedRegionShape = "rectangle"
         root.regionShapeMenuOpen = false
@@ -577,7 +578,7 @@ Hyprshot.FreezeScreen {
     }
 
     function open() {
-        if (root.sessionActive && (captureProcess.running || screenshotProcess.running || colorPickProcess.running || ocrProcess.running))
+        if (root.sessionActive && (captureProcess.running || screenshotProcess.running || ocrProcess.running))
             return
 
         root.resetSessionState()
@@ -599,6 +600,7 @@ Hyprshot.FreezeScreen {
     function startCapture() {
         const timestamp = Date.now()
         root.tempPath = Quickshell.cachePath(`screenshot-${timestamp}.png`)
+        root.frozenImagePath = ""
         root.captureReady = false
         root.captureFailed = false
         const monitor = root.hyprlandMonitor || {}
@@ -632,6 +634,7 @@ Hyprshot.FreezeScreen {
                 root.captureRetryCount = 0
                 root.captureReady = true
                 root.captureFailed = false
+                root.frozenImagePath = root.tempPath
                 if (!root.visible)
                     root.visible = true
                 root.flushQueuedSelection()
@@ -695,34 +698,6 @@ Hyprshot.FreezeScreen {
             id: screenshotStderr
         }
 
-    }
-
-    Process {
-        id: colorPickProcess
-        running: false
-
-        onExited: function(exitCode) {
-            if (!root.sessionActive)
-                return
-
-            if (exitCode === 0) {
-                root.lastPickedColor = colorPickStdout.text.trim()
-                root.finish()
-                return
-            }
-
-            root.visible = true
-            console.warn("HyprQuickshot: color pick failed with exit code", exitCode)
-            if (colorPickStderr.text && colorPickStderr.text.trim() !== "")
-                console.warn("HyprQuickshot color picker stderr:", colorPickStderr.text.trim())
-        }
-
-        stdout: StdioCollector {
-            id: colorPickStdout
-        }
-        stderr: StdioCollector {
-            id: colorPickStderr
-        }
     }
 
     Process {
@@ -960,24 +935,36 @@ Hyprshot.FreezeScreen {
     }
 
     function copyColorAt(mouseX, mouseY) {
-        if (!root.captureReady || colorPickProcess.running || !root.tempPath)
+        root.startHyprpickerColorPick()
+    }
+
+    function startHyprpickerColorPick() {
+        if (!root.sessionActive)
             return
 
-        const point = root.scaledPoint(mouseX, mouseY)
-        const quotedTempPath = root.shellQuote(root.tempPath)
-        const formatArg = root.shellQuote(`%[hex:p{${point.x},${point.y}}]`)
-        const command =
-            `if command -v magick >/dev/null 2>&1; then PICK_BIN=magick; ` +
-            `elif command -v convert >/dev/null 2>&1; then PICK_BIN=convert; ` +
-            `else exit 127; fi && ` +
-            `COLOR=$(env MAGICK_OCL_DEVICE=OFF "$PICK_BIN" ${quotedTempPath} -alpha off -format ${formatArg} info:) && ` +
-            'COLOR="#${COLOR:0:6}" && ' +
-            `printf %s "$COLOR" | wl-copy && ` +
-            `printf %s "$COLOR"`
+        if (captureProcess.running) {
+            captureProcess.running = false
+            captureTimeoutTimer.stop()
+        }
+        if (colorPreviewProcess.running)
+            colorPreviewProcess.running = false
 
-        colorPickProcess.command = ["sh", "-c", command]
-        colorPickProcess.running = true
+        root.regionShapeMenuOpen = false
+        root.externalPickerLaunching = true
+        root.lastPickedColor = ""
+        root.mode = ""
         root.visible = false
+
+        const pickerScript =
+            `sleep 0.55; ` +
+            `if ! command -v hyprpicker >/dev/null 2>&1; then ` +
+            `notify-send --app-name=HyprQuickshot "Color picker unavailable" "hyprpicker is not installed"; ` +
+            `exit 127; fi; ` +
+            `NO_COLOR=1 hyprpicker -a -f hex`
+        const command = `sh -lc ${root.shellQuote(pickerScript)}`
+
+        Quickshell.execDetached(["hyprctl", "dispatch", "exec", command])
+        root.finish()
     }
 
     function refreshPickerPreviewColor(mouseX, mouseY) {
@@ -1366,7 +1353,7 @@ Hyprshot.FreezeScreen {
     }
 
     Hyprshot.RegionSelector {
-        visible: (root.mode === "region" || root.mode === "ocr") && !root.ocrResultVisible && !ocrProcess.running
+        visible: !root.externalPickerLaunching && (root.mode === "region" || root.mode === "ocr") && !root.ocrResultVisible && !ocrProcess.running
         id: regionSelector
         anchors.fill: parent
  
@@ -1385,7 +1372,7 @@ Hyprshot.FreezeScreen {
     }
  
     Hyprshot.WindowSelector {
-        visible: root.mode === "window"
+        visible: !root.externalPickerLaunching && root.mode === "window"
         id: windowSelector
         anchors.fill: parent
  
@@ -1402,7 +1389,7 @@ Hyprshot.FreezeScreen {
 
     Item {
         id: colorPickerOverlay
-        visible: root.mode === "picker"
+        visible: !root.externalPickerLaunching && root.mode === "picker"
         anchors.fill: parent
         z: 4
 
@@ -1446,7 +1433,7 @@ Hyprshot.FreezeScreen {
         MouseArea {
             anchors.fill: parent
             hoverEnabled: true
-            cursorShape: Qt.BlankCursor
+            cursorShape: Qt.ArrowCursor
 
             onPositionChanged: (mouse) => {
                 colorPickerOverlay.cursorX = mouse.x
@@ -1597,29 +1584,6 @@ Hyprshot.FreezeScreen {
             }
         }
 
-        Item {
-            x: colorPickerOverlay.cursorX - 7
-            y: colorPickerOverlay.cursorY - 21
-            width: 24
-            height: 24
-            z: 10
-
-            Image {
-                id: pickerCursorIcon
-                anchors.fill: parent
-                source: root.modeIconSource("picker")
-                fillMode: Image.PreserveAspectFit
-                smooth: true
-                visible: false
-            }
-
-            MultiEffect {
-                anchors.fill: pickerCursorIcon
-                source: pickerCursorIcon
-                colorization: 1.0
-                colorizationColor: root.modeColor("picker")
-            }
-        }
     }
 
     Rectangle {
@@ -1868,6 +1832,7 @@ Hyprshot.FreezeScreen {
  
     Rectangle {
         id: actionPanel
+        visible: !root.externalPickerLaunching
         z: 5
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
@@ -2256,7 +2221,7 @@ Hyprshot.FreezeScreen {
 
                     onClicked: {
                         root.regionShapeMenuOpen = false
-                        root.mode = "picker"
+                        root.startHyprpickerColorPick()
                     }
                 }
 

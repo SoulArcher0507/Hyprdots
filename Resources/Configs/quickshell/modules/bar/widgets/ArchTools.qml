@@ -6706,7 +6706,7 @@ Item {
             }
             Text {
                 Layout.alignment: Qt.AlignHCenter
-                text: bubble.fillLevel > 0.01 ? "Hold..." : bubble.label
+                text: bubble.fillLevel > 0.01 ? (root.updateRunning ? "Cancel..." : "Hold...") : bubble.label
                 font.family: root.textFont
                 font.weight: Font.Bold
                 font.pixelSize: bubble.compact ? 9 : 11
@@ -6739,7 +6739,7 @@ Item {
                 }
                 Text {
                     Layout.alignment: Qt.AlignHCenter
-                    text: bubble.fillLevel > 0.01 ? "Hold..." : bubble.label
+                    text: bubble.fillLevel > 0.01 ? (root.updateRunning ? "Cancel..." : "Hold...") : bubble.label
                     font.family: root.textFont
                     font.weight: Font.Bold
                     font.pixelSize: bubble.compact ? 9 : 11

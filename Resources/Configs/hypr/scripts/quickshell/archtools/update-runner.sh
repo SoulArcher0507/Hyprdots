@@ -11,14 +11,17 @@ PID_FILE="$HOME/.cache/quickshell/archtools_update.pid"
 CURRENT_CMD_PID_FILE="$HOME/.cache/quickshell/archtools_update.current-pid"
 CURRENT_CMD_PGID_FILE="$HOME/.cache/quickshell/archtools_update.current-pgid"
 CURRENT_CMD_SID_FILE="$HOME/.cache/quickshell/archtools_update.current-sid"
+CURRENT_CMD_ARGS_FILE="$HOME/.cache/quickshell/archtools_update.current-args"
 MAX_ERROR_LINES="${ARCHTOOLS_UPDATE_MAX_ERROR_LINES:-40}"
 PROGRESS_MAX_LINES="${ARCHTOOLS_UPDATE_PROGRESS_MAX_LINES:-200}"
 PROGRESS_MAX_BYTES="${ARCHTOOLS_UPDATE_PROGRESS_MAX_BYTES:-65536}"
 AUR_BUILD_JOBS="${ARCHTOOLS_AUR_BUILD_JOBS:-}"
+PACMAN_CANCEL_GRACE_SECONDS="${ARCHTOOLS_PACMAN_CANCEL_GRACE_SECONDS:-45}"
 
 [[ "$MAX_ERROR_LINES" =~ ^[0-9]+$ ]] && (( MAX_ERROR_LINES > 0 )) || MAX_ERROR_LINES=40
 [[ "$PROGRESS_MAX_LINES" =~ ^[0-9]+$ ]] && (( PROGRESS_MAX_LINES > 0 )) || PROGRESS_MAX_LINES=200
 [[ "$PROGRESS_MAX_BYTES" =~ ^[0-9]+$ ]] && (( PROGRESS_MAX_BYTES > 0 )) || PROGRESS_MAX_BYTES=65536
+[[ "$PACMAN_CANCEL_GRACE_SECONDS" =~ ^[0-9]+$ ]] && (( PACMAN_CANCEL_GRACE_SECONDS > 0 )) || PACMAN_CANCEL_GRACE_SECONDS=45
 
 if [[ -z "$AUR_BUILD_JOBS" ]]; then
     cpu_count="$(nproc 2>/dev/null || echo 1)"
@@ -51,7 +54,7 @@ cleanup() {
         kill "$CANCEL_WATCHER_PID" >/dev/null 2>&1 || true
     fi
     rm -f "/tmp/quickshell_sudo_pass_$$" "/tmp/quickshell_askpass_$$" "/tmp/quickshell_auth_cancel_$$"
-    rm -f "$PID_FILE" "$CURRENT_CMD_PID_FILE" "$CURRENT_CMD_PGID_FILE" "$CURRENT_CMD_SID_FILE" "$CANCEL_FILE"
+    rm -f "$PID_FILE" "$CURRENT_CMD_PID_FILE" "$CURRENT_CMD_PGID_FILE" "$CURRENT_CMD_SID_FILE" "$CURRENT_CMD_ARGS_FILE" "$CANCEL_FILE"
 }
 trap cleanup EXIT
 
@@ -77,6 +80,7 @@ run_bounded() {
     local fifo="/tmp/archtools_update_fifo_$$"
     local cmd_pid=""
     local reader_pid=""
+    local heartbeat_pid=""
     local cmd_status=0
     rm -f "$tmp"
     rm -f "$fifo"
@@ -107,20 +111,38 @@ run_bounded() {
     ' < "$fifo" > "$tmp" &
     reader_pid=$!
 
+    printf '%s\n' "$@" > "$CURRENT_CMD_ARGS_FILE"
     if has setsid; then
-        setsid "$@" > "$fifo" 2>&1 &
+        ( trap - INT QUIT TERM; exec setsid "$@" ) > "$fifo" 2>&1 &
     else
-        "$@" > "$fifo" 2>&1 &
+        ( trap - INT QUIT TERM; exec "$@" ) > "$fifo" 2>&1 &
     fi
     cmd_pid=$!
     echo "$cmd_pid" > "$CURRENT_CMD_PID_FILE"
     ps -o pgid= -p "$cmd_pid" 2>/dev/null | tr -d '[:space:]' > "$CURRENT_CMD_PGID_FILE" || true
     ps -o sid= -p "$cmd_pid" 2>/dev/null | tr -d '[:space:]' > "$CURRENT_CMD_SID_FILE" || true
 
+    (
+        while kill -0 "$cmd_pid" >/dev/null 2>&1; do
+            sleep 15
+            kill -0 "$cmd_pid" >/dev/null 2>&1 || break
+            {
+                printf '[command/running] still active:'
+                printf ' %q' "$@"
+                printf '\n'
+            } >> "$LOG_FILE"
+        done
+    ) &
+    heartbeat_pid=$!
+
     wait "$cmd_pid"
     cmd_status=$?
+    if [[ -n "$heartbeat_pid" ]]; then
+        kill "$heartbeat_pid" >/dev/null 2>&1 || true
+        wait "$heartbeat_pid" 2>/dev/null || true
+    fi
     wait "$reader_pid" 2>/dev/null || true
-    rm -f "$fifo" "$CURRENT_CMD_PID_FILE" "$CURRENT_CMD_PGID_FILE" "$CURRENT_CMD_SID_FILE"
+    rm -f "$fifo" "$CURRENT_CMD_PID_FILE" "$CURRENT_CMD_PGID_FILE" "$CURRENT_CMD_SID_FILE" "$CURRENT_CMD_ARGS_FILE"
 
     if [[ -f "$CANCEL_FILE" ]]; then
         finish_cancelled
@@ -208,6 +230,58 @@ collect_process_tree() {
     fi
 }
 
+process_tree_has_pacman() {
+    local pid="$1"
+    local proc_name proc_args
+    while IFS= read -r pid; do
+        proc_name="$(ps -o comm= -p "$pid" 2>/dev/null | awk '{print $1}' || true)"
+        proc_args="$(ps -o args= -p "$pid" 2>/dev/null || true)"
+        if [[ "$proc_name" == "pacman" || "$proc_args" =~ (^|[[:space:]/])pacman([[:space:]]|$) ]]; then
+            return 0
+        fi
+    done < <(collect_process_tree "$1")
+    return 1
+}
+
+current_args_has_pacman() {
+    grep -Fxq "pacman" "$CURRENT_CMD_ARGS_FILE" 2>/dev/null
+}
+
+process_still_alive() {
+    local pid="$1"
+    [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+    kill -0 "$pid" >/dev/null 2>&1
+}
+
+process_groups_have_pacman() {
+    local pgid
+    for pgid in "$@"; do
+        [[ "$pgid" =~ ^[0-9]+$ ]] || continue
+        if has pgrep && pgrep -g "$pgid" -x pacman >/dev/null 2>&1; then
+            return 0
+        fi
+        if ps -eo pgid=,comm= 2>/dev/null | awk -v target="$pgid" '$1 == target && $2 == "pacman" { found = 1 } END { exit !found }'; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+wait_for_pacman_cleanup() {
+    local pid="$1"
+    local seconds="$2"
+    local elapsed=0
+    shift 2
+    while process_still_alive "$pid" || process_groups_have_pacman "$@"; do
+        if (( elapsed >= seconds )); then
+            return 1
+        fi
+        sleep 1
+        elapsed=$((elapsed + 1))
+    done
+    return 0
+}
+
 append_unique_number() {
     local value="$1"
     local existing
@@ -221,11 +295,12 @@ append_unique_number() {
 
 signal_current_command() {
     local current_pid="$1"
-    local parent_pgid parent_sid pid pgid sid sig
+    local parent_pgid parent_sid pid pgid sid sig pacman_command
     local -a pids=()
     local -a pgids=()
     local -a sids=()
     [[ "$current_pid" =~ ^[0-9]+$ ]] || return 1
+    pacman_command=0
 
     parent_pgid="$(ps -o pgid= -p "$$" 2>/dev/null | tr -d '[:space:]' || true)"
     parent_sid="$(ps -o sid= -p "$$" 2>/dev/null | tr -d '[:space:]' || true)"
@@ -256,7 +331,11 @@ signal_current_command() {
         sids+=("$sid")
     fi
 
-    printf '[cancel/debug] pid=%s pgids=%s sids=%s\n' "$current_pid" "${pgids[*]:-none}" "${sids[*]:-none}" >> "$LOG_FILE"
+    if current_args_has_pacman || process_tree_has_pacman "$current_pid"; then
+        pacman_command=1
+    fi
+
+    printf '[cancel/debug] pid=%s pgids=%s sids=%s pacman=%s\n' "$current_pid" "${pgids[*]:-none}" "${sids[*]:-none}" "$pacman_command" >> "$LOG_FILE"
 
     for sig in INT TERM KILL; do
         for pgid in "${pgids[@]}"; do
@@ -272,6 +351,14 @@ signal_current_command() {
         done
 
         if [[ "$sig" == "INT" ]]; then
+            if [[ "$pacman_command" == "1" ]]; then
+                printf '[cancel/pacman] Sent SIGINT to pacman process group; waiting up to %ss for pacman cleanup.\n' "$PACMAN_CANCEL_GRACE_SECONDS" >> "$LOG_FILE"
+                if wait_for_pacman_cleanup "$current_pid" "$PACMAN_CANCEL_GRACE_SECONDS" "${pgids[@]}"; then
+                    return 0
+                fi
+                printf '[cancel/pacman] Pacman is still running after SIGINT grace period; leaving it alive to avoid corrupting the database lock.\n' >> "$LOG_FILE"
+                return 0
+            fi
             sleep 1
         elif [[ "$sig" == "TERM" ]]; then
             sleep 2
@@ -321,7 +408,7 @@ echo "{\"stage\":\"init\",\"status\":\"starting\",\"provider\":\"$PROVIDER\",\"p
 : > "$LOG_FILE"
 printf 'ArchTools update started: provider=%s pid=%s\n\n' "$PROVIDER" "$$" >> "$LOG_FILE"
 echo "$$" > "$PID_FILE"
-rm -f "$CANCEL_FILE" "$CURRENT_CMD_PID_FILE" "$CURRENT_CMD_PGID_FILE" "$CURRENT_CMD_SID_FILE"
+rm -f "$CANCEL_FILE" "$CURRENT_CMD_PID_FILE" "$CURRENT_CMD_PGID_FILE" "$CURRENT_CMD_SID_FILE" "$CURRENT_CMD_ARGS_FILE"
 start_cancel_watcher
 
 count_pacman=0
@@ -418,33 +505,11 @@ run_pacman() {
         return 1
     fi
 
-    if has yay && [[ "$PROVIDER" == "all" ]]; then
-        if ! run_bounded yay -Syu --noconfirm; then
-            err_output="$(truncate_err "$RUN_BOUNDED_OUTPUT")"
-            errors+=("pacman: $err_output")
-            emit pacman error "detail=$err_output"
-            return 1
-        fi
-        count_pacman=$n_before
-        emit pacman done "count=$n_before" "detail=Updated $n_before packages"
-        return 0
-    elif has paru && [[ "$PROVIDER" == "all" ]]; then
-        if ! run_bounded paru -Syu --noconfirm; then
-            err_output="$(truncate_err "$RUN_BOUNDED_OUTPUT")"
-            errors+=("pacman: $err_output")
-            emit pacman error "detail=$err_output"
-            return 1
-        fi
-        count_pacman=$n_before
-        emit pacman done "count=$n_before" "detail=Updated $n_before packages"
-        return 0
-    else
-        if ! run_bounded sudo -A pacman -Syu --noconfirm; then
-            err_output="$(truncate_err "$RUN_BOUNDED_OUTPUT")"
-            errors+=("pacman: $err_output")
-            emit pacman error "detail=$err_output"
-            return 1
-        fi
+    if ! run_bounded sudo -A pacman --noconfirm --noprogressbar -Syu; then
+        err_output="$(truncate_err "$RUN_BOUNDED_OUTPUT")"
+        errors+=("pacman: $err_output")
+        emit pacman error "detail=$err_output"
+        return 1
     fi
 
     count_pacman=$n_before
@@ -535,18 +600,8 @@ run_flatpak() {
 
 case "$PROVIDER" in
     all)
-        if has yay || has paru; then
-            run_pacman || true
-            aur_helper=""
-            if has yay; then aur_helper="yay"; elif has paru; then aur_helper="paru"; fi
-            if [[ -n "$aur_helper" ]]; then
-                emit aur starting "detail=AUR handled by $aur_helper -Syu"
-                emit aur done "count=0" "detail=Included in $aur_helper -Syu"
-            fi
-        else
-            run_pacman || true
-            run_aur    || true
-        fi
+        run_pacman || true
+        run_aur    || true
         run_flatpak || true
         ;;
     pacman)
@@ -566,7 +621,7 @@ case "$PROVIDER" in
             else
                 emit pacman running "detail=Updating $pac_n_before packages..."
                 if ensure_sudo "pacman"; then
-                    if ! run_bounded sudo -A pacman -Syu --noconfirm; then
+                    if ! run_bounded sudo -A pacman --noconfirm --noprogressbar -Syu; then
                         pac_err_output="$(truncate_err "$RUN_BOUNDED_OUTPUT")"
                         errors+=("pacman: $pac_err_output")
                         emit pacman error "detail=$pac_err_output"

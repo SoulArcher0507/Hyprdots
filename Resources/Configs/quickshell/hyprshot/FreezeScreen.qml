@@ -8,6 +8,7 @@ PanelWindow {
     property var targetScreen: Quickshell.screens[0]
     property alias contentItem: root.contentItem  
     readonly property var frozenView: screenCopyLoader.item
+    property string frozenImagePath: ""
 
     screen: targetScreen
 
@@ -26,11 +27,21 @@ PanelWindow {
         id: screenCopyLoader
         anchors.fill: parent
         z: -1
-        active: root.visible
+        active: root.visible && root.frozenImagePath === ""
 
         sourceComponent: ScreencopyView {
             captureSource: root.targetScreen
             anchors.fill: parent
         }
+    }
+
+    Image {
+        anchors.fill: parent
+        z: -1
+        visible: root.visible && root.frozenImagePath !== ""
+        source: visible ? "file://" + root.frozenImagePath : ""
+        fillMode: Image.Stretch
+        cache: false
+        asynchronous: false
     }
 }

@@ -36,6 +36,8 @@ gsfonts
 gwenview
 hypridle
 hyprland
+hyprpicker
+hyprutils
 hyprsunset
 icoutils
 imagemagick
