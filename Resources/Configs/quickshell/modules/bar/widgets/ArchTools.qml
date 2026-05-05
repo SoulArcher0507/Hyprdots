@@ -56,6 +56,7 @@ Item {
     readonly property color surface2: ThemePkg.Theme.surface(0.12)
     readonly property color accent: ThemePkg.Theme.accent
     readonly property color accent2: ThemePkg.Theme.accent2
+    readonly property color success: ThemePkg.Theme.success
     readonly property color red: ThemePkg.Theme.danger
     readonly property color maroon: ThemePkg.Theme.c1
     readonly property color panelBorderColor: ThemePkg.Theme.mix(ThemePkg.Theme.background, ThemePkg.Theme.foreground, 0.35)
@@ -141,6 +142,7 @@ Item {
     property real updateFinishedTimestamp: (switcher ? switcher.archUpdFinishedTs : 0)
     readonly property bool updateResultVisible: updateFinishedTimestamp > 0
     readonly property bool updateShowStatus: updateRunning || updateResultVisible
+    readonly property int updateResultTtlMs: 60000
 
     property string weatherApiKey: ""
     property string weatherCityId: ""
@@ -1312,6 +1314,8 @@ Item {
         root.updateRestoredFromSwitcher = root.updateRunning;
         if (root.updateRunning && root.updateStage !== "complete")
             updateProgressPoller.start();
+        else if (root.updateFinishedTimestamp > 0)
+            root.scheduleUpdateDisplayClear();
     }
 
     function clearUpdateState() {
@@ -1331,6 +1335,7 @@ Item {
         root.updateStageAur = "";
         root.updateStageFlatpak = "";
         root.updateRestoredFromSwitcher = false;
+        updateDisplayClearTimer.stop();
         root.persistUpdateStateToSwitcher();
     }
 
@@ -1432,6 +1437,34 @@ Item {
 
     property bool _notificationSentForRun: false
 
+    function updateProviderKey(providerLabel) {
+        return providerLabel === "yay" ? "aur" : providerLabel;
+    }
+
+    function updateProviderWasRequested(providerKey) {
+        return root.updateProvider === "all" || root.updateProvider === providerKey;
+    }
+
+    function isTerminalUpdateStatus(status) {
+        return status === "done" || status === "success" || status === "error" || status === "skipped";
+    }
+
+    function finalProviderStatus(providerKey, currentStatus, completeStatus) {
+        if (!root.updateProviderWasRequested(providerKey))
+            return "";
+        if (root.isTerminalUpdateStatus(currentStatus))
+            return currentStatus;
+        return completeStatus === "success" ? "done" : "error";
+    }
+
+    function scheduleUpdateDisplayClear() {
+        if (root.updateFinishedTimestamp <= 0)
+            return;
+        var elapsed = Math.max(0, Date.now() - root.updateFinishedTimestamp);
+        updateDisplayClearTimer.interval = Math.max(1, root.updateResultTtlMs - elapsed);
+        updateDisplayClearTimer.restart();
+    }
+
     function handleUpdateLine(line, isRestoring) {
         var trimmed = (line || "").trim();
         if (!trimmed || trimmed.charAt(0) !== "{")
@@ -1486,10 +1519,13 @@ Item {
                     root.updateHadError = true;
                     root.updateErrorText = String(obj.errors);
                 }
+                root.updateStagePacman = root.finalProviderStatus("pacman", root.updateStagePacman, status);
+                root.updateStageAur = root.finalProviderStatus("aur", root.updateStageAur, status);
+                root.updateStageFlatpak = root.finalProviderStatus("flatpak", root.updateStageFlatpak, status);
                 root.updateRunning = false;
-                root.updateFinishedTimestamp = Date.now();
+                root.updateFinishedTimestamp = Number(obj.finishedTimestamp || root.updateFinishedTimestamp || Date.now());
                 updateProgressPoller.stop();
-                updateDisplayClearTimer.start();
+                root.scheduleUpdateDisplayClear();
                 updatesRecheckSoon.start();
             }
 
@@ -1557,6 +1593,24 @@ Item {
             }
         }
         return status;
+    }
+
+    function providerStatusLabel(status) {
+        switch (status) {
+        case "starting":
+        case "running":
+        case "queued":
+            return "...";
+        case "done":
+        case "success":
+            return "Done";
+        case "error":
+            return "Error";
+        case "skipped":
+            return "Skip";
+        default:
+            return status;
+        }
     }
 
     function providerStatusIcon(providerLabel) {
@@ -1631,7 +1685,9 @@ Item {
         onExited: function (exitCode, exitStatus) {
             var raw = (progressInitOut.text || "").trim();
             if (!raw) {
-                if (root.updateRunning && root.updateStage !== "complete")
+                if (root.updateRestoredFromSwitcher || (root.updateRunning && root.updateStage === "complete"))
+                    root.clearUpdateState();
+                else if (root.updateRunning && root.updateStage !== "complete")
                     updateProgressPoller.start();
                 return;
             }
@@ -1644,18 +1700,18 @@ Item {
             if (root.updateRunning && root.updateStage !== "complete") {
                 updateProgressPoller.start();
             } else if (root.updateStage === "complete" && root.updateFinishedTimestamp > 0) {
-                updateDisplayClearTimer.start();
+                root.scheduleUpdateDisplayClear();
             }
         }
     }
 
     Timer {
         id: updateDisplayClearTimer
-        interval: 60000
+        interval: root.updateResultTtlMs
         repeat: false
         onTriggered: {
             root.clearUpdateState();
-            Quickshell.execDetached(["bash", "-c", "rm -f " + root.progressFile]);
+            Quickshell.execDetached(["bash", "-c", "rm -f " + root.shellQuote(root.progressFile)]);
         }
     }
 
@@ -2589,8 +2645,8 @@ Item {
                             compact: true
                             property string providerStatus: root.updateShowStatus ? root.providerStageStatus(modelData.label) : ""
                             value: providerStatus ? root.updateStatusIcon(providerStatus) : String(modelData.count())
-                            label: providerStatus ? (providerStatus === "queued" ? "..." : providerStatus) : modelData.label
-                            isUpdateRunning: root.updateRunning && (root.updateProvider === "all" || root.updateProvider === (modelData.label === "yay" ? "aur" : modelData.label))
+                            label: providerStatus ? root.providerStatusLabel(providerStatus) : modelData.label
+                            isUpdateRunning: root.updateRunning && root.updateProviderWasRequested(root.updateProviderKey(modelData.label))
                             isUpdateResult: root.updateResultVisible && providerStatus !== ""
                             isUpdateError: providerStatus === "error"
                             onHoldComplete: {
@@ -6479,7 +6535,7 @@ Item {
         property bool isUpdateResult: false
         property bool isUpdateError: false
         readonly property bool showUpdateState: isUpdateRunning || isUpdateResult
-        readonly property color updateStateColor: root.red
+        readonly property color updateStateColor: isUpdateError ? root.red : (isUpdateRunning ? root.accent2 : root.success)
         readonly property color effectiveAccent: showUpdateState ? updateStateColor : accentColor
         readonly property bool hovered: bubbleMa.containsMouse
         readonly property bool isDangerState: bubble.hovered || bubble.fillLevel > 0.0

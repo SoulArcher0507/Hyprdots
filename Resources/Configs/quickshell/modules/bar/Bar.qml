@@ -131,18 +131,6 @@ Variants {
                     property string archUpdStageFlatpak: ""
 
 
-                    property string archProgressFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_update.jsonl"
-                    property int archProgressLineCount: 0
-
-                    Component.onCompleted: {
-                        if (!archProgressStateProc.running)
-                            archProgressStateProc.running = true;
-                    }
-
-                    function archProgressReadCommand() {
-                        return "tail -n 200 " + "'" + archProgressFile.replace(/'/g, "'\\''") + "'" + " 2>/dev/null || echo ''";
-                    }
-
                     function syncArchScalars() {
                         var s = archUpdateState || ({});
                         archUpdRunning = !!s.running;
@@ -186,7 +174,6 @@ Variants {
                     }
 
                     function clearArchUpdateState() {
-                        archProgressLineCount = 0;
                         archUpdateState = {
                             running: false,
                             provider: "",
@@ -205,118 +192,6 @@ Variants {
                             stageFlatpak: ""
                         };
                         syncArchScalars();
-                    }
-
-                    function handleArchProgressLine(line) {
-                        var trimmed = (line || "").trim();
-                        if (!trimmed || trimmed.charAt(0) !== "{")
-                            return;
-
-                        try {
-                            var obj = JSON.parse(trimmed);
-                            var stage = obj.stage || "";
-                            var status = obj.status || "";
-                            var detail = obj.detail || "";
-                            var patch = {
-                                stage: stage,
-                                status: status,
-                                detail: detail
-                            };
-
-                            if (stage === "init") {
-                                patch.running = true;
-                                patch.provider = obj.provider || archUpdateState.provider || "";
-                                patch.status = "starting";
-                                patch.finishedTimestamp = 0;
-                                updateArchState(patch);
-                                return;
-                            }
-
-                            if (stage !== "complete" && status !== "") {
-                                patch.running = true;
-                                patch.finishedTimestamp = 0;
-                            }
-
-                            if (stage === "pacman")
-                                patch.stagePacman = status;
-                            else if (stage === "aur")
-                                patch.stageAur = status;
-                            else if (stage === "flatpak")
-                                patch.stageFlatpak = status;
-
-                            if (status === "error") {
-                                var existingError = archUpdateState.errorText || "";
-                                patch.hadError = true;
-                                patch.errorText = detail ? (existingError ? existingError + "\n" : "") + stage + ": " + detail : existingError;
-                            }
-
-                            if (stage === "pacman" && (status === "done" || status === "error")) {
-                                patch.countPacman = Number(obj.count || 0);
-                            } else if (stage === "aur" && (status === "done" || status === "error")) {
-                                patch.countAur = Number(obj.count || 0);
-                            } else if (stage === "flatpak" && (status === "done" || status === "error")) {
-                                patch.countFlatpak = Number(obj.count || 0);
-                            }
-
-                            if (stage === "complete") {
-                                patch.running = false;
-                                patch.countPacman = Number(obj.pacman || 0);
-                                patch.countAur = Number(obj.aur || 0);
-                                patch.countFlatpak = Number(obj.flatpak || 0);
-                                patch.countTotal = Number(obj.total || 0);
-                                patch.finishedTimestamp = Date.now();
-                                if (obj.errors) {
-                                    patch.hadError = true;
-                                    patch.errorText = String(obj.errors);
-                                }
-                                archUpdateStateClearTimer.restart();
-                            }
-
-                            updateArchState(patch);
-                        } catch (e) {}
-                    }
-
-                    Timer {
-                        id: archProgressStateTimer
-                        interval: 1500
-                        repeat: true
-                        running: true
-                        onTriggered: {
-                            if (!archProgressStateProc.running)
-                                archProgressStateProc.running = true;
-                        }
-                    }
-
-                    Timer {
-                        id: archUpdateStateClearTimer
-                        interval: 60000
-                        repeat: false
-                        onTriggered: {
-                            if (switcher.archUpdateState && switcher.archUpdateState.running)
-                                return;
-                            switcher.clearArchUpdateState();
-                        }
-                    }
-
-                    Process {
-                        id: archProgressStateProc
-                        command: ["bash", "-lc", switcher.archProgressReadCommand()]
-                        stdout: StdioCollector {
-                            id: archProgressStateOut
-                            waitForEnd: true
-                        }
-                        onExited: function (exitCode, exitStatus) {
-                            var raw = (archProgressStateOut.text || "").trim();
-                            if (!raw)
-                                return;
-                            var lines = raw.split("\n");
-                            if (switcher.archProgressLineCount > lines.length)
-                                switcher.archProgressLineCount = 0;
-                            for (var i = switcher.archProgressLineCount; i < lines.length; i++) {
-                                switcher.handleArchProgressLine(lines[i]);
-                            }
-                            switcher.archProgressLineCount = lines.length;
-                        }
                     }
 
                     property string shownOverlay: ""

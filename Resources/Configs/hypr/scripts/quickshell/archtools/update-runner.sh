@@ -75,6 +75,10 @@ trim_progress_file() {
     fi
 }
 
+current_millis() {
+    date +%s%3N 2>/dev/null || printf '%s000' "$(date +%s)"
+}
+
 run_bounded() {
     local tmp="/tmp/archtools_update_output_$$"
     local fifo="/tmp/archtools_update_fifo_$$"
@@ -179,6 +183,9 @@ emit() {
             json+=",\"$key\":\"$val\""
         fi
     done
+    if [[ "$stage" == "complete" ]]; then
+        json+=",\"finishedTimestamp\":$(current_millis)"
+    fi
     json+="}"
     echo "$json"
     echo "$json" >> "$PROGRESS_FILE"
@@ -398,7 +405,8 @@ done
 mkdir -p "$(dirname "$PROGRESS_FILE")"
 exec 9>"$LOCK_FILE"
 if has flock && ! flock -n 9; then
-    echo "{\"stage\":\"complete\",\"status\":\"error\",\"total\":0,\"errors\":\"Another ArchTools update is already running\"}" > "$PROGRESS_FILE"
+    : > "$PROGRESS_FILE"
+    emit complete error "total=0" "errors=Another ArchTools update is already running"
     notify-send -a "ArchTools" -i software-update-urgent -u critical "⚠ Update Already Running" "Another ArchTools update is already running."
     FINISHED=1
     exit 1
