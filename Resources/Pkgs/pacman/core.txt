@@ -1,3 +1,4 @@
+adwaita-fonts
 archlinux-xdg-menu
 ark
 awww
@@ -11,6 +12,7 @@ breeze
 brightnessctl
 btop
 cliphist
+cmatrix
 cups
 cups-pdf
 cups-filters
@@ -29,6 +31,7 @@ flatpak
 fzf
 ghostscript
 grim
+gnu-free-fonts
 gsfonts
 gwenview
 hypridle
@@ -62,6 +65,8 @@ mtools
 neovim
 networkmanager
 nmap
+noto-fonts
+noto-fonts-emoji
 obs-studio
 obsidian
 okular
@@ -106,8 +111,13 @@ typst
 kitty
 otf-font-awesome
 tailscale
+ttf-0xproto-nerd
+ttf-cascadia-mono-nerd
+ttf-fira-sans
 ttf-hack
 ttf-cascadia-code-nerd
+ttf-liberation
+ttf-nerd-fonts-symbols
 ttf-nerd-fonts-symbols-mono
 upower
 vivaldi
@@ -116,10 +126,13 @@ vlc-plugin-ffmpeg
 wine
 winetricks
 wireplumber
+woff2-font-awesome
 wireshark-qt
 wl-clipboard
 wlroots0.18
 xdg-desktop-portal-hyprland
+xdg-desktop-portal-kde
+xdg-desktop-portal-gtk
 xdg-utils
 xorg-xwayland
 zoxide

@@ -6,5 +6,4 @@ kora-icon-theme
 localsend-bin
 pacseek
 qt6ct-kde
-ttf-fira-sans
 webapp-manager
