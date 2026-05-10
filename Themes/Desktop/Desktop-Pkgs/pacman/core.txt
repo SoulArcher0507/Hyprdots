@@ -1,4 +1,4 @@
 digikam
-pika-backup
 solaar
 nvtop
+vorta
