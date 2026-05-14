@@ -31,5 +31,4 @@ You also need to add an openweather api key for the weather widget to work. This
 ## Upcoming Features
 - Mouse icon with dynamic colors
 - More battery saving for laptops with tlp
-- File picker with dynamic colors
 - Better nvim esthetic
