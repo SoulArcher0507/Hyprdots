@@ -32,6 +32,14 @@ Variants {
         DndMod.DndState.dnd = !DndMod.DndState.dnd;
     }
 
+    function focusWorkspace(workspaceId) {
+        var id = Number(workspaceId);
+        if (!Number.isFinite(id) || id <= 0)
+            return;
+
+        Hyprland.dispatch("hl.dsp.focus({ workspace = " + id + " })");
+    }
+
     readonly property color moduleColor: ThemePkg.Theme.surface(0.10)
     readonly property color moduleBorderColor: ThemePkg.Theme.mix(ThemePkg.Theme.background, ThemePkg.Theme.foreground, 0.35)
     readonly property color moduleFontColor: ThemePkg.Theme.accent
@@ -772,7 +780,7 @@ Variants {
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: Hyprland.dispatch("workspace " + modelData.id)
+                                    onClicked: bar.focusWorkspace(modelData.id)
                                 }
 
                                 Text {
