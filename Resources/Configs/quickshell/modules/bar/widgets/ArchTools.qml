@@ -10,7 +10,6 @@ import QtMultimedia
 import Quickshell.Io as Io
 import Qt.labs.folderlistmodel
 import QtMultimedia
-import Quickshell.Hyprland
 import "../../theme" as ThemePkg
 import "archtools_state" as ArchState
 
@@ -685,6 +684,10 @@ Item {
         return clause(deployed, "if") + clause(bundled, "elif") + "else echo '{}'; exit 1; fi";
     }
 
+    function runDetachedShell(command) {
+        Quickshell.execDetached(["sh", "-c", command]);
+    }
+
     function pushHistory(history, value) {
         var next = (history || []).slice(0);
         next.push(root.safeNumber(value, 0));
@@ -1285,7 +1288,7 @@ Item {
 
         var terminalCmd = "(command -v kitty >/dev/null 2>&1 && kitty --hold bash -lc '" + safeCmd + "')" + " || (command -v alacritty >/dev/null 2>&1 && alacritty --hold -e bash -lc '" + safeCmd + "')" + " || (command -v foot >/dev/null 2>&1 && foot -e bash -lc '" + fallbackCmd + "')" + " || (command -v wezterm >/dev/null 2>&1 && wezterm -e bash -lc '" + fallbackCmd + "')" + " || (command -v gnome-terminal >/dev/null 2>&1 && gnome-terminal -- bash -lc '" + fallbackCmd + "')" + " || (command -v xterm >/dev/null 2>&1 && xterm -e bash -lc '" + fallbackCmd + "')";
 
-        Hyprland.dispatch("exec [float;center;size 60% 70%] sh -c \"" + terminalCmd + "\"");
+        root.runDetachedShell(terminalCmd);
     }
 
     function applyHyprdotsUpdates() {
@@ -1412,7 +1415,7 @@ Item {
             + " || (command -v gnome-terminal >/dev/null 2>&1 && gnome-terminal -- bash -lc '" + safeCmd + "')"
             + " || (command -v xterm >/dev/null 2>&1 && xterm -e bash -lc '" + safeCmd + "')";
 
-        Hyprland.dispatch("exec [float;center;size 70% 75%] sh -c \"" + terminalCmd + "\"");
+        root.runDetachedShell(terminalCmd);
         root.closeArchToolsPanel();
     }
 
@@ -1723,7 +1726,7 @@ Item {
         var editCmd = "nvim '" + safeTarget + "'";
         var terminalCmd = "(command -v kitty >/dev/null 2>&1 && kitty bash -lc '" + editCmd + "')" + " || (command -v alacritty >/dev/null 2>&1 && alacritty -e bash -lc '" + editCmd + "')" + " || (command -v foot >/dev/null 2>&1 && foot -e bash -lc '" + editCmd + "')" + " || (command -v wezterm >/dev/null 2>&1 && wezterm -e bash -lc '" + editCmd + "')" + " || (command -v gnome-terminal >/dev/null 2>&1 && gnome-terminal -- bash -lc '" + editCmd + "')" + " || (command -v xterm >/dev/null 2>&1 && xterm -e bash -lc '" + editCmd + "')";
 
-        Hyprland.dispatch("exec sh -c \"" + terminalCmd + "\"");
+        root.runDetachedShell(terminalCmd);
     }
 
     function openUpdatesList(title, manager, listPath) {
