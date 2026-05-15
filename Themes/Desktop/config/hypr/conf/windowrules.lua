@@ -1,0 +1,21 @@
+-- hyprctl clients: window titles/classes
+-- hyprctl layers: layer addresses
+
+hl.window_rule({ match = { title = "^(.*All Files*.)$" }, float = true })
+hl.window_rule({ match = { title = "Typst Preview — Mozilla Firefox" }, opacity = "1.2" })
+
+-- Browser Picture in Picture
+hl.window_rule({ match = { title = "^(Picture-in-Picture)$" }, float = true })
+hl.window_rule({ match = { title = "^(Picture-in-Picture)$" }, pin = true })
+hl.window_rule({ match = { title = "^(Picture-in-Picture)$" }, move = "69.5% 4%" })
+
+-- idleinhibit
+hl.window_rule({ match = { class = "([window])" }, idle_inhibit = "fullscreen" })
+
+-- workspaces
+hl.window_rule({ match = { title = "^(.*Discord.*)$" }, workspace = "3 silent" })
+hl.window_rule({ match = { title = "^(.*Steam.*)$" }, workspace = "4 silent" })
+hl.window_rule({ match = { class = "^(.*Spotify.*)$" }, workspace = "4", tile = true })
+hl.window_rule({ match = { class = "^(.*feishin.*)$" }, workspace = "4", tile = true })
+hl.window_rule({ match = { title = "^(.*Steam\\sBig\\sPicture\\sMode.*)$" }, workspace = "1" })
+hl.window_rule({ match = { class = "^(.*Element.*)$" }, workspace = "3", tile = true })

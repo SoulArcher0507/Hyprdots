@@ -96,8 +96,7 @@ Item {
     ListModel { id: filteredModel }
     property var allBindings: []
 
-    readonly property string keybindingsFile: Quickshell.env("HOME") + "/.config/hypr/conf/keybindings.conf"
-
+    readonly property string keybindingsFile: Quickshell.env("HOME") + "/.config/hypr/conf/keybindings.lua"
     function loadKeybindings() {
         keybindingsReadProc.running = true;
     }
@@ -121,6 +120,18 @@ Item {
 
         for (var i = 0; i < lines.length; i++) {
             var line = lines[i].trim();
+
+            var luaMatch = line.match(/^--\s*@bind\s+(.+?)\s+::\s+(.+?)\s+::\s+(.+?)\s+::\s+(.+)$/);
+            if (luaMatch) {
+                result.push({
+                    category: luaMatch[1].trim(),
+                    keybind: formatLuaKeybind(luaMatch[2].trim()),
+                    description: luaMatch[4].trim(),
+                    dispatcher: luaMatch[3].trim(),
+                    dispatchArgs: ""
+                });
+                continue;
+            }
 
             var categoryMatch = line.match(/^#\s+(.+)$/);
             if (categoryMatch && !line.match(/^#\s*bind/i)) {
@@ -175,7 +186,7 @@ Item {
 
     function formatKeybind(mods, key) {
         var modStr = String(mods || "");
-        var keyStr = String(key || "");
+        var keyStr = prettyKeyToken(key);
 
         modStr = modStr.replace(/\$mainMod/gi, "Super");
         modStr = modStr.replace(/SUPER/gi, "Super");
@@ -184,7 +195,31 @@ Item {
         modStr = modStr.replace(/ALT/gi, "Alt");
 
         var modParts = modStr.split(/\s+/).filter(function(s) { return s.length > 0; });
+        if (keyStr.length <= 0)
+            return modParts.join(" + ");
 
+        if (modParts.length > 0) {
+            return modParts.join(" + ") + " + " + keyStr;
+        }
+        return keyStr;
+    }
+
+    function formatLuaKeybind(keys) {
+        var parts = String(keys || "").split(/\s*\+\s*/).filter(function(s) { return s.length > 0; });
+        var formatted = [];
+        for (var i = 0; i < parts.length; i++)
+            formatted.push(prettyKeyToken(parts[i]));
+        return formatted.join(" + ");
+    }
+
+    function prettyKeyToken(key) {
+        var keyStr = String(key || "").trim();
+
+        keyStr = keyStr.replace(/\$mainMod/gi, "Super");
+        keyStr = keyStr.replace(/^SUPER$/i, "Super");
+        keyStr = keyStr.replace(/^SHIFT$/i, "Shift");
+        keyStr = keyStr.replace(/^CTRL$/i, "Ctrl");
+        keyStr = keyStr.replace(/^ALT$/i, "Alt");
         keyStr = keyStr.replace(/^XF86MonBrightnessUp$/i, "Brightness ↑");
         keyStr = keyStr.replace(/^XF86MonBrightnessDown$/i, "Brightness ↓");
         keyStr = keyStr.replace(/^XF86AudioRaiseVolume$/i, "Vol ↑");
@@ -195,7 +230,7 @@ Item {
         keyStr = keyStr.replace(/^XF86AudioNext$/i, "Next");
         keyStr = keyStr.replace(/^XF86AudioPrev$/i, "Prev");
         keyStr = keyStr.replace(/^XF86AudioMicMute$/i, "Mic Mute");
-        keyStr = keyStr.replace(/^XF86Lock$/i, "Lock");
+        keyStr = keyStr.replace(/^XF86ScreenSaver$/i, "Lock");
         keyStr = keyStr.replace(/^PRINT$/i, "PrtSc");
         keyStr = keyStr.replace(/^mouse:272$/i, "LMB");
         keyStr = keyStr.replace(/^mouse:273$/i, "RMB");
@@ -210,9 +245,6 @@ Item {
         keyStr = keyStr.replace(/^down$/i, "↓");
         keyStr = keyStr.replace(/^code:(\d+)$/i, "Fn:$1");
 
-        if (modParts.length > 0) {
-            return modParts.join(" + ") + " + " + keyStr;
-        }
         return keyStr;
     }
 
@@ -306,7 +338,11 @@ Item {
         if (!dispatcher)
             return;
         root.hidePopup();
-        Quickshell.execDetached(["hyprctl", "dispatch", dispatcher, String(dispatchArgs || "")]);
+        if (String(dispatcher).indexOf("hl.") === 0) {
+            Quickshell.execDetached(["hyprctl", "dispatch", String(dispatcher)]);
+        } else {
+            Quickshell.execDetached(["hyprctl", "dispatch", dispatcher, String(dispatchArgs || "")]);
+        }
     }
 
     PanelWindow {

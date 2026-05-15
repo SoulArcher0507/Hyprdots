@@ -77,7 +77,7 @@ Item {
     readonly property var transformLabels: ["0°", "90°", "180°", "270°"]
     readonly property var transformValues: [0, 1, 2, 3]
 
-    readonly property string configPath: Quickshell.env("HOME") + "/.config/hypr/conf/monitor.conf"
+    readonly property string configPath: Quickshell.env("HOME") + "/.config/hypr/conf/monitor.lua"
     readonly property string activeWallpaperPath: Quickshell.env("HOME") + "/Pictures/Wallpapers/active/active.jpg"
     readonly property string wallpaperScriptPath: Quickshell.env("HOME") + "/.config/awww/wallpaper.sh"
 
@@ -258,6 +258,10 @@ Item {
         return "'" + String(value === undefined || value === null ? "" : value).replace(/'/g, "'\\''") + "'";
     }
 
+    function luaQuote(value) {
+        return "\"" + String(value === undefined || value === null ? "" : value).replace(/\\/g, "\\\\").replace(/"/g, "\\\"") + "\"";
+    }
+
     function layoutWidthFor(monitor) {
         return Math.round(root.displayW(monitor) / monitor.sysScale);
     }
@@ -377,16 +381,22 @@ Item {
     function monitorConfigLine(monitor) {
         var rate = String(monitor.rate || "60");
         if (monitor.isMirror && monitor.mirrorTarget) {
-            var mirrorLine = monitor.name + "," + monitor.resW + "x" + monitor.resH + "@" + rate + ",auto," + monitor.sysScale + ",mirror," + monitor.mirrorTarget;
+            var mirrorLine = "hl.monitor({ output = " + root.luaQuote(monitor.name)
+                + ", mode = " + root.luaQuote(monitor.resW + "x" + monitor.resH + "@" + rate)
+                + ", position = \"auto\", scale = " + monitor.sysScale
+                + ", mirror = " + root.luaQuote(monitor.mirrorTarget);
             if (monitor.transform > 0)
-                mirrorLine += ",transform," + monitor.transform;
-            return "monitor=" + mirrorLine;
+                mirrorLine += ", transform = " + monitor.transform;
+            return mirrorLine + " })";
         }
 
-        var line = monitor.name + "," + monitor.resW + "x" + monitor.resH + "@" + rate + "," + monitor.layoutX + "x" + monitor.layoutY + "," + monitor.sysScale;
+        var line = "hl.monitor({ output = " + root.luaQuote(monitor.name)
+            + ", mode = " + root.luaQuote(monitor.resW + "x" + monitor.resH + "@" + rate)
+            + ", position = " + root.luaQuote(monitor.layoutX + "x" + monitor.layoutY)
+            + ", scale = " + monitor.sysScale;
         if (monitor.transform > 0)
-            line += ",transform," + monitor.transform;
-        return "monitor=" + line;
+            line += ", transform = " + monitor.transform;
+        return line + " })";
     }
 
     function applyMonitorConfig(configContent) {
@@ -408,9 +418,9 @@ Item {
 
         var layout = root.normalizedMonitorLayout();
         var configLines = [
-            "# " + "-".repeat(53),
-            "# Monitor",
-            "# " + "-".repeat(53)
+            "-- " + "-".repeat(53),
+            "-- Monitor",
+            "-- " + "-".repeat(53)
         ];
         var summaryParts = [];
 

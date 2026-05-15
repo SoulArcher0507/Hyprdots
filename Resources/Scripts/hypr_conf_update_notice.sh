@@ -31,11 +31,18 @@ hypr_conf_valid_commit() {
 hypr_conf_collect_sources() {
     local base_dir="$1"
     local source_root="$base_dir/hypr/conf"
+    local entrypoint="$base_dir/hypr/hyprland.lua"
+    local rel_path
+
+    if [[ -f "$entrypoint" ]]; then
+        rel_path="${entrypoint#"$base_dir/"}"
+        HYPR_CONF_SOURCES["$rel_path"]="$entrypoint"
+    fi
 
     [[ -d "$source_root" ]] || return 0
 
     while IFS= read -r -d '' source_file; do
-        local rel_path="${source_file#"$base_dir/"}"
+        rel_path="${source_file#"$base_dir/"}"
         HYPR_CONF_SOURCES["$rel_path"]="$source_file"
     done < <(find "$source_root" -type f -print0 | sort -z)
 }
@@ -50,8 +57,14 @@ hypr_conf_collect_changed_rels() {
 
     while IFS= read -r -d '' changed_path; do
         case "$changed_path" in
+            Resources/Configs/hypr/hyprland.lua)
+                rel_path="${changed_path#Resources/Configs/}"
+                ;;
             Resources/Configs/hypr/conf/*)
                 rel_path="${changed_path#Resources/Configs/}"
+                ;;
+            "$theme_rel"/config/hypr/hyprland.lua)
+                rel_path="${changed_path#"$theme_rel"/config/}"
                 ;;
             "$theme_rel"/config/hypr/conf/*)
                 rel_path="${changed_path#"$theme_rel"/config/}"
@@ -67,6 +80,8 @@ hypr_conf_collect_changed_rels() {
         git -C "$repo_root" diff -z --name-only --diff-filter=ACMRT \
             "$old_ref" "$new_ref" -- \
             "Resources/Configs/hypr/conf" \
+            "Resources/Configs/hypr/hyprland.lua" \
+            "$theme_rel/config/hypr/hyprland.lua" \
             "$theme_rel/config/hypr/conf" 2>/dev/null || true
     )
 }
