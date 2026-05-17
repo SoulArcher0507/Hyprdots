@@ -1,6 +1,5 @@
 import QtQuick
 import Quickshell
-import Quickshell.Hyprland
 import "../../theme" as ThemePkg
 
 Item {
@@ -46,6 +45,7 @@ Item {
     readonly property color mauve: _theme.c5
     readonly property color peach: _theme.warning
     readonly property color surface1: _theme.surface(0.2)
+    readonly property string lockScript: Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/lock/lock_screen.sh"
 
     property real introMain: 0
     Component.onCompleted: {
@@ -100,6 +100,31 @@ Item {
             + "fi\n"
             + "exit \"$status\"\n";
         Quickshell.execDetached(["bash", "-lc", cmd]);
+    }
+
+    function triggerPowerAction(actionType) {
+        switch (String(actionType || "")) {
+        case "lock":
+            Quickshell.execDetached(["bash", root.lockScript]);
+            break;
+        case "logout":
+            Quickshell.execDetached(["hyprctl", "dispatch", "exit"]);
+            break;
+        case "suspend":
+            Quickshell.execDetached(["systemctl", "suspend"]);
+            break;
+        case "hibernate":
+            root.triggerHibernate();
+            break;
+        case "reboot":
+            Quickshell.execDetached(["systemctl", "reboot"]);
+            break;
+        case "shutdown":
+            Quickshell.execDetached(["systemctl", "poweroff"]);
+            break;
+        default:
+            console.warn("PowerMenu.qml: unknown power action:", actionType);
+        }
     }
 
     SequentialAnimation {
@@ -158,38 +183,37 @@ Item {
         ListElement {
             iconText: ""
             labelText: "Lock"
-            actionStr: "exec ~/.config/hypr/scripts/quickshell/lock/lock_screen.sh"
+            actionType: "lock"
             btnColor: "yellow"
         }
         ListElement {
             iconText: ""
             labelText: "Logout"
-            actionStr: "exit"
+            actionType: "logout"
             btnColor: "peach"
         }
         ListElement {
             iconText: ""
             labelText: "Suspend"
-            actionStr: "exec systemctl suspend"
+            actionType: "suspend"
             btnColor: "blue"
         }
         ListElement {
             iconText: ""
             labelText: "Hibernate"
-            actionStr: ""
             actionType: "hibernate"
             btnColor: "mauve"
         }
         ListElement {
             iconText: ""
             labelText: "Reboot"
-            actionStr: "exec systemctl reboot"
+            actionType: "reboot"
             btnColor: "green"
         }
         ListElement {
             iconText: ""
             labelText: "Shutdown"
-            actionStr: "exec systemctl poweroff"
+            actionType: "shutdown"
             btnColor: "red"
         }
     }
@@ -499,10 +523,7 @@ Item {
                         id: exitTimer
                         interval: 500
                         onTriggered: {
-                            if (model.actionType === "hibernate")
-                                root.triggerHibernate();
-                            else
-                                Hyprland.dispatch(model.actionStr);
+                            root.triggerPowerAction(model.actionType);
                             _theme.globalTogglePower();
                         }
                     }
