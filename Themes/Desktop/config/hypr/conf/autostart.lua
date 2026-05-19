@@ -41,7 +41,7 @@ start_once({
     "sh -c 'command -v easyeffects >/dev/null 2>&1 && exec easyeffects --hide-window' &",
     "sh -c 'command -v localsend >/dev/null 2>&1 && exec localsend --hidden' &",
     "sh -c 'command -v sunshine >/dev/null 2>&1 && exec sunshine' &",
-    "sh -c 'command -v vesktop >/dev/null 2>&1 && sleep 6 && exec ~/.config/hypr/scripts/quickshell/tray/trayctl.sh launch 30 vesktop' &",
+    "sh -c 'command -v vesktop >/dev/null 2>&1 && sleep 6 && exec ~/.config/hypr/scripts/quickshell/tray/trayctl.sh launch 30 discord' &",
     -- "~/.config/hypr/scripts/quickshell/tray/trayctl.sh launch 30 element-desktop &",
 })
 

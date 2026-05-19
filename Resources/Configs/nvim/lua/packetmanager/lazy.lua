@@ -27,3 +27,4 @@ require("lazy").setup({
 })
 
 require("core.theme").setup()
+require("core.lazyvim_look").setup()

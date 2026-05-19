@@ -11,24 +11,24 @@ local setup_done = false
 local last_mtime = nil
 
 local defaults = {
-  foreground = "#cdd6f4",
-  background = "#1e1e2e",
-  color0 = "#45475a",
-  color1 = "#f38ba8",
-  color2 = "#a6e3a1",
-  color3 = "#f9e2af",
-  color4 = "#89b4fa",
-  color5 = "#f5c2e7",
-  color6 = "#94e2d5",
-  color7 = "#bac2de",
-  color8 = "#585b70",
-  color9 = "#f38ba8",
-  color10 = "#a6e3a1",
-  color11 = "#f9e2af",
-  color12 = "#89b4fa",
-  color13 = "#f5c2e7",
-  color14 = "#94e2d5",
-  color15 = "#a6adc8",
+  foreground = "#c8d3f5",
+  background = "#222436",
+  color0 = "#1b1d2b",
+  color1 = "#ff757f",
+  color2 = "#c3e88d",
+  color3 = "#ffc777",
+  color4 = "#82aaff",
+  color5 = "#c099ff",
+  color6 = "#86e1fc",
+  color7 = "#c8d3f5",
+  color8 = "#444a73",
+  color9 = "#ff757f",
+  color10 = "#c3e88d",
+  color11 = "#ffc777",
+  color12 = "#82aaff",
+  color13 = "#c099ff",
+  color14 = "#86e1fc",
+  color15 = "#c8d3f5",
 }
 
 local state = {
@@ -307,6 +307,14 @@ local function apply_palette(c)
   set_hl("CmpItemAbbrMatchFuzzy", { fg = accent2, bg = pmenu_bg, italic = true })
   set_hl("CmpItemKind", { fg = cyan, bg = pmenu_bg })
   set_hl("CmpItemMenu", { fg = subtle, bg = pmenu_bg })
+
+  pcall(function()
+    require("core.lazyvim_look").apply_palette(c, {
+      set_hl = set_hl,
+      blend = blend,
+      contrast = contrast,
+    })
+  end)
 
   vim.g.colors_name = "kitty_dynamic"
   for i = 0, 15 do
