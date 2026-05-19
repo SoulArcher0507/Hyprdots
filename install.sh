@@ -146,6 +146,8 @@ sudo usermod -aG lp $USER   # add user to printer group
 sudo systemctl enable --now NetworkManager.service
 sudo systemctl enable --now firewalld
 sudo firewall-cmd --permanent --zone=trusted --add-interface=tailscale0
+sudo firewall-cmd --permanent --zone=trusted --add-port=53317/tcp
+sudo firewall-cmd --permanent --zone=trusted --add-port=53317/udp
 for FIREWALL_ZONE in trusted public; do
     sudo firewall-cmd --permanent --zone="$FIREWALL_ZONE" --add-service=kdeconnect
     sudo firewall-cmd --permanent --zone="$FIREWALL_ZONE" --add-service=syncthing
