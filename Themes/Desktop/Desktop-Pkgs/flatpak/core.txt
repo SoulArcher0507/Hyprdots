@@ -1,2 +1,1 @@
-com.core447.StreamController
-
+# No desktop-specific core Flatpak packages.

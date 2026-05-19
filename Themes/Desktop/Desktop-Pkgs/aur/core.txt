@@ -1,1 +1,1 @@
-sunshine-bin
+# No desktop-specific core AUR packages.

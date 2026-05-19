@@ -1,0 +1,1 @@
+# No laptop-specific opinionated Flatpak packages.

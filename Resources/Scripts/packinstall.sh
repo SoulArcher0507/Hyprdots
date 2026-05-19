@@ -82,14 +82,10 @@ echo "[multilib] section enabled in $PACMAN_CONF"
 echo "Updating pacman database..."
 pacman -Syu --noconfirm
 
-# Optional package groups 
-read -p "Install development packages (dev.txt)? [Y/n]: " DEV_ANSWER
-INSTALL_DEV=true
-if [[ "$DEV_ANSWER" =~ ^[Nn] ]]; then INSTALL_DEV=false; fi
-
-read -p "Install gaming packages (gaming.txt)? [Y/n]: " GAMING_ANSWER
-INSTALL_GAMING=true
-if [[ "$GAMING_ANSWER" =~ ^[Nn] ]]; then INSTALL_GAMING=false; fi
+# Optional package group
+read -p "Install opinionated packages (opinionated.txt)? [Y/n]: " OPINIONATED_ANSWER
+INSTALL_OPINIONATED=true
+if [[ "$OPINIONATED_ANSWER" =~ ^[Nn] ]]; then INSTALL_OPINIONATED=false; fi
 
 # Package arrays 
 PACMAN_PACKAGES=()
@@ -105,19 +101,30 @@ read_packages() {
   done < "$file"
 }
 
+load_package_file() {
+  local dir="$1"
+  local category="$2"
+  local target_name="$3"
+  local label="$4"
+  local file="$dir/$category.txt"
+
+  [[ -f "$file" ]] || return 0
+  echo "Loading $label: $category.txt"
+  read_packages "$file" "$target_name"
+}
+
 load_packages() {
   local dir="$1"
-  local -n target="$2"
+  local target_name="$2"
   local label="$3"
+
   [[ -d "$dir" ]] || return 0  # skip silently if dir doesn't exist
-  for file in "$dir"/*.txt; do
-    [[ -f "$file" ]] || continue
-    base=$(basename "$file")
-    if [[ "$base" == "dev.txt"    && "$INSTALL_DEV"    != true ]]; then continue; fi
-    if [[ "$base" == "gaming.txt" && "$INSTALL_GAMING" != true ]]; then continue; fi
-    echo "Loading $label: $base"
-    read_packages "$file" target
-  done
+
+  load_package_file "$dir" "core" "$target_name" "$label"
+
+  if [[ "$INSTALL_OPINIONATED" == true ]]; then
+    load_package_file "$dir" "opinionated" "$target_name" "$label"
+  fi
 }
 
 # Load base packages (always)

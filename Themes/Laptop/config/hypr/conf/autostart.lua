@@ -26,7 +26,7 @@ hl.on("hyprland.start", function()
 
         -- AutoRun apps
         "kdeconnect-indicator &",
-        "localsend --hidden &",
+        "sh -c 'command -v localsend >/dev/null 2>&1 && exec localsend --hidden' &",
     }
 
     for _, cmd in ipairs(commands) do

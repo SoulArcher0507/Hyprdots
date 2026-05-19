@@ -3,6 +3,17 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ICON_DIR="$HOME/Pictures/Icons"
+WEBAPP_MANAGER_COMMON="/usr/lib/webapp-manager/common.py"
+
+if [[ ! -f "$WEBAPP_MANAGER_COMMON" ]]; then
+  echo "Skipping default web apps because webapp-manager is not installed."
+  exit 0
+fi
+
+if ! command -v vivaldi >/dev/null 2>&1 && ! command -v vivaldi-stable >/dev/null 2>&1; then
+  echo "Skipping default web apps because Vivaldi is not installed."
+  exit 0
+fi
 
 python3 "$SCRIPT_DIR/create_webapp.py" \
   --name "Amazon Prime Video" \

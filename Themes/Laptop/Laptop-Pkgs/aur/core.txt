@@ -1,2 +1,1 @@
-galaxybudsclient-bin
-
+# No laptop-specific core AUR packages.

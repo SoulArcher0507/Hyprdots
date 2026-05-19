@@ -35,18 +35,18 @@ start_once({
 
     -- AutoRun apps
     "kdeconnect-indicator &",
-    "solaar --window=hide &",
-    "sleep 6 && flatpak run com.core447.StreamController -b &",
-    "steam --window=hide &",
-    "easyeffects --hide-window &",
-    "localsend --hidden &",
-    "sunshine &",
-    "sh -c 'sleep 6 && ~/.config/hypr/scripts/quickshell/tray/trayctl.sh launch 30 discord' &",
+    "sh -c 'command -v solaar >/dev/null 2>&1 && exec solaar --window=hide' &",
+    "sh -c 'flatpak info com.core447.StreamController >/dev/null 2>&1 && sleep 6 && exec flatpak run com.core447.StreamController -b' &",
+    "sh -c 'command -v steam >/dev/null 2>&1 && exec steam --window=hide' &",
+    "sh -c 'command -v easyeffects >/dev/null 2>&1 && exec easyeffects --hide-window' &",
+    "sh -c 'command -v localsend >/dev/null 2>&1 && exec localsend --hidden' &",
+    "sh -c 'command -v sunshine >/dev/null 2>&1 && exec sunshine' &",
+    "sh -c 'command -v vesktop >/dev/null 2>&1 && sleep 6 && exec ~/.config/hypr/scripts/quickshell/tray/trayctl.sh launch 30 vesktop' &",
     -- "~/.config/hypr/scripts/quickshell/tray/trayctl.sh launch 30 element-desktop &",
 })
 
 hl.on("hyprland.start", function()
-    hl.exec_cmd("sleep 2 && vivaldi", { workspace = "2 silent" })
+    hl.exec_cmd("sh -c 'command -v vivaldi >/dev/null 2>&1 && sleep 2 && exec vivaldi'", { workspace = "2 silent" })
 end)
 
 -- Legacy `exec` behavior: run on config load/reload, not only at startup.

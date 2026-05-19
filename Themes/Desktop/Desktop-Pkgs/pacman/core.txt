@@ -1,4 +1,1 @@
-digikam
-solaar
-nvtop
-vorta
+# No desktop-specific core pacman packages.

@@ -1,1 +1,2 @@
 blockbench-bin
+sunshine-bin

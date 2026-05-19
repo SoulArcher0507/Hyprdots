@@ -1,0 +1,4 @@
+app.fluxer.Fluxer
+com.github.tchx84.Flatseal
+com.heroicgameslauncher.hgl
+org.telegram.desktop

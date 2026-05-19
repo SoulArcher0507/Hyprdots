@@ -1,0 +1,8 @@
+adwsteamgtk
+antigravity
+epson-inkjet-printer-escpr2
+feishin-bin
+localsend-bin
+pacseek
+vesktop-bin
+webapp-manager

@@ -1,0 +1,5 @@
+digikam
+nvtop
+prismlauncher
+solaar
+vorta
