@@ -537,6 +537,8 @@ Item {
                 speedtestPollerProc.running = true;
             window.updateInfoNodes();
         }
+        if (window.activeMode === "bt" && window.btPower === "on" && window.btConnected.length === 0)
+            window.requestBtScan(false);
     }
 
     ListModel {
@@ -673,6 +675,7 @@ Item {
     property bool btPowerPending: false
     property string expectedBtPower: ""
     property string btPower: "off"
+    property bool btScanning: false
     property var btConnected: []
     property var btList: []
     readonly property bool isBtConn: window.btConnected.length > 0
@@ -888,7 +891,7 @@ Item {
             }
             nodes.push({
                 id: "action_scan",
-                name: "Scan Devices",
+                name: "Device List",
                 icon: "󰍉",
                 action: "Switch View",
                 isInfoNode: true,
@@ -1048,6 +1051,7 @@ Item {
                 window.btPower = fetchedPower;
                 window.expectedBtPower = "";
             }
+            window.btScanning = !!data.scanning;
 
             let newBtConnected = data.connected || [];
             if (!Array.isArray(newBtConnected))
@@ -1058,6 +1062,21 @@ Item {
 
             let newDevices = data.devices ? data.devices : [];
             newDevices.sort((a, b) => a.id.localeCompare(b.id));
+            if (window.activeMode === "bt") {
+                newDevices.push({
+                    id: "action_refresh",
+                    ssid: "",
+                    mac: "action_refresh",
+                    name: window.btScanning ? "Scanning..." : "Refresh Scan",
+                    icon: window.btScanning ? "󰑮" : "󰑐",
+                    action: window.btScanning ? "Searching" : "Rescan",
+                    isInfoNode: false,
+                    isActionable: !window.btScanning,
+                    cmdStr: "RESCAN",
+                    parentIndex: -1,
+                    known: false
+                });
+            }
             if (window.isBtConn && window.activeMode === "bt") {
                 newDevices.push({
                     id: "action_settings",
@@ -1069,7 +1088,8 @@ Item {
                     isInfoNode: false,
                     isActionable: true,
                     cmdStr: "TOGGLE_VIEW",
-                    parentIndex: -1
+                    parentIndex: -1,
+                    known: false
                 });
             }
             if (JSON.stringify(window.btList) !== JSON.stringify(newDevices)) {
@@ -1085,6 +1105,8 @@ Item {
                 if (window.btConnected.length === 0 && window.showInfoView) {
                     window.showInfoView = false;
                 }
+                if (window.btPower === "on" && window.btConnected.length === 0 && !window.btScanning)
+                    window.requestBtScan(false);
                 let dd = window.disconnectingDevices;
                 let ddChanged = false;
                 for (let mac in dd) {
@@ -1193,6 +1215,20 @@ Item {
     function markRecentAction() {
         recentAction = true;
         recentActionTimer.restart();
+    }
+
+    property double lastBtScanRequest: 0
+    function requestBtScan(force) {
+        if (window.activeMode !== "bt" || window.btPower !== "on")
+            return;
+        let now = Date.now();
+        if (!force && now - window.lastBtScanRequest < 15000)
+            return;
+        window.lastBtScanRequest = now;
+        Quickshell.execDetached(["bash", window.scriptsDir + "/bluetooth_panel_logic.sh", "--scan"]);
+        window.markRecentAction();
+        if (!btPoller.running)
+            btPoller.running = true;
     }
     Timer {
         interval: window.recentAction ? 500 : ((Object.keys(window.busyTasks).length > 0 || Object.keys(window.disconnectingDevices).length > 0) ? 1000 : 3000)
@@ -2252,7 +2288,8 @@ Item {
                                 property bool isKnownNetwork: model.known || false
                                 property bool connectionFailed: false
                                 property bool isMyBusy: !!window.busyTasks[itemId]
-                                property bool isPairedBT: window.activeMode === "bt" && action === "Connect"
+                                property bool isPairedBT: window.activeMode === "bt" && isKnownNetwork
+                                property bool canForget: (window.activeMode === "wifi" && isKnownNetwork) || (window.activeMode === "bt" && isKnownNetwork)
                                 property bool isTargetWifi: window.activeMode === "wifi" && !window.isWifiConn && itemId === window.targetWifiSsid
                                 property bool isSpecialAction: itemId === "action_scan" || itemId === "action_settings" || itemId === "action_refresh" || cmdStr === "RUN_SPEEDTEST" || cmdStr === "OPEN_VPN"
                                 property bool isSpeedtestCard: cmdStr === "RUN_SPEEDTEST"
@@ -2690,7 +2727,7 @@ Item {
                                     anchors.margins: 4
                                     anchors.rightMargin: 8
                                     spacing: 4
-                                    opacity: (floatMa.containsMouse || floatCard.forgetActive) && !floatCard.askingPassword && !floatCard.isSpecialAction && !floatCard.isInfoNode ? 1.0 : 0.0
+                                    opacity: floatCard.canForget && (floatMa.containsMouse || floatCard.forgetActive) && !floatCard.askingPassword && !floatCard.isSpecialAction && !floatCard.isInfoNode ? 1.0 : 0.0
                                     visible: opacity > 0.0
                                     z: 15
                                     Behavior on opacity {
@@ -2701,7 +2738,7 @@ Item {
 
                                     Rectangle {
                                         id: forgetBtnRect
-                                        visible: window.activeMode === "wifi" ? floatCard.isKnownNetwork : true
+                                        visible: floatCard.canForget
                                         Layout.preferredWidth: 32
                                         Layout.fillHeight: true
                                         radius: 10
@@ -2769,8 +2806,7 @@ Item {
                                                     Quickshell.execDetached(["nmcli", "connection", "delete", "id", floatCard.mySsid]);
                                                     wifiPoller.running = true;
                                                 } else {
-                                                    let cmd = "bash " + window.scriptsDir + "/bluetooth_panel_logic.sh --disconnect " + floatCard.itemId + "; bash " + window.scriptsDir + "/bluetooth_panel_logic.sh --remove " + floatCard.itemId;
-                                                    Quickshell.execDetached(["sh", "-c", cmd]);
+                                                    Quickshell.execDetached(["bash", window.scriptsDir + "/bluetooth_panel_logic.sh", "--remove", floatCard.itemId]);
                                                     btPoller.running = true;
                                                 }
                                                 forgetDrainAnim.start();
@@ -2935,8 +2971,11 @@ Item {
                                             floatCard.triggered = false;
                                             drainAnim.start();
                                         } else if (cmdStr === "RESCAN") {
-                                            let cmd = window.activeMode === "wifi" ? "nmcli device wifi rescan" : "bash " + window.scriptsDir + "/bluetooth_panel_logic.sh --scan";
-                                            Quickshell.execDetached(["sh", "-c", cmd]);
+                                            if (window.activeMode === "wifi") {
+                                                Quickshell.execDetached(["nmcli", "device", "wifi", "rescan"]);
+                                            } else {
+                                                window.requestBtScan(true);
+                                            }
                                             floatCard.triggered = false;
                                             drainAnim.start();
                                         } else if (cmdStr === "RUN_SPEEDTEST") {
@@ -2970,8 +3009,7 @@ Item {
                                                 if (window.activeMode === "wifi") {
                                                     Quickshell.execDetached(["nmcli", "device", "wifi", "connect", floatCard.mySsid]);
                                                 } else {
-                                                    let cmd = "bash " + window.scriptsDir + "/bluetooth_panel_logic.sh --connect " + mac;
-                                                    Quickshell.execDetached(["sh", "-c", cmd]);
+                                                    Quickshell.execDetached(["bash", window.scriptsDir + "/bluetooth_panel_logic.sh", "--connect", mac]);
                                                 }
                                                 window.markRecentAction();
                                                 if (window.activeMode === "wifi")
