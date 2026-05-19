@@ -86,6 +86,14 @@ bind(mainMod .. " + right", hl.dsp.focus({ direction = "r" }))
 bind(mainMod .. " + up", hl.dsp.focus({ direction = "u" }))
 -- @bind Windows :: SUPER + down :: hl.dsp.focus({ direction = [[d]] }) :: Move Focus Down
 bind(mainMod .. " + down", hl.dsp.focus({ direction = "d" }))
+-- @bind Windows :: SUPER + ALT + left :: hl.dsp.window.move({ direction = [[l]] }) :: Move Active Window Left
+bind(mainMod .. " + ALT + left", hl.dsp.window.move({ direction = "l" }))
+-- @bind Windows :: SUPER + ALT + right :: hl.dsp.window.move({ direction = [[r]] }) :: Move Active Window Right
+bind(mainMod .. " + ALT + right", hl.dsp.window.move({ direction = "r" }))
+-- @bind Windows :: SUPER + ALT + up :: hl.dsp.window.move({ direction = [[u]] }) :: Move Active Window Up
+bind(mainMod .. " + ALT + up", hl.dsp.window.move({ direction = "u" }))
+-- @bind Windows :: SUPER + ALT + down :: hl.dsp.window.move({ direction = [[d]] }) :: Move Active Window Down
+bind(mainMod .. " + ALT + down", hl.dsp.window.move({ direction = "d" }))
 -- @bind Windows :: SUPER + mouse:272 :: hl.dsp.window.drag() :: Move Window with Mouse
 bind(mainMod .. " + mouse:272", hl.dsp.window.drag(), { mouse = true })
 -- @bind Windows :: SUPER + mouse:273 :: hl.dsp.window.resize() :: Resize Window with Mouse

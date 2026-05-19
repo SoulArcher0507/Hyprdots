@@ -41,8 +41,8 @@ start_once({
     "easyeffects --hide-window &",
     "localsend --hidden &",
     "sunshine &",
-    "sh -c 'sleep 6 && ~/.config/hypr/scripts/quickshell/tray/trayctl.sh launch 30 vesktop' &",
-    "~/.config/hypr/scripts/quickshell/tray/trayctl.sh launch 30 element-desktop &",
+    "sh -c 'sleep 6 && ~/.config/hypr/scripts/quickshell/tray/trayctl.sh launch 30 discord' &",
+    -- "~/.config/hypr/scripts/quickshell/tray/trayctl.sh launch 30 element-desktop &",
 })
 
 hl.on("hyprland.start", function()
