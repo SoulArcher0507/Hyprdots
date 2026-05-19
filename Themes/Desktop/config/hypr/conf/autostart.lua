@@ -46,7 +46,7 @@ start_once({
 })
 
 hl.on("hyprland.start", function()
-    hl.exec_cmd("sh -c 'command -v vivaldi >/dev/null 2>&1 && sleep 2 && exec vivaldi'", { workspace = "2 silent" })
+    hl.exec_cmd("sh -c 'command -v vivaldi >/dev/null 2>&1 && sleep 2 && exec vivaldi'", {workspace = "2 silent"})
 end)
 
 -- Legacy `exec` behavior: run on config load/reload, not only at startup.
