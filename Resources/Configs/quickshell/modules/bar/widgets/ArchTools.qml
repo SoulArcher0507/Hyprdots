@@ -76,6 +76,7 @@ Item {
     readonly property string weatherEnvScript: scriptsDir + "/weather-env.sh"
 
     readonly property string cacheFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_cache.json"
+    readonly property int updatesListCacheTtlMs: 60 * 1000
     readonly property string progressFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_update.jsonl"
     readonly property string updateLogFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_update.log"
     readonly property string updateCancelFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_update.cancel"
@@ -98,6 +99,7 @@ Item {
     property int updAur: 0
     property int updFlatpak: 0
     property int updTotal: 0
+    property var updatesListCache: ({})
 
     property real statCpuTotal: 0
     property var statCpuCores: []
@@ -1368,6 +1370,7 @@ Item {
     function startBackgroundUpdate(provider) {
         if (root.updateRunning)
             return;
+        root.updatesListCache = ({});
         root.updateRunning = true;
         root.updateProvider = provider;
         root.updateStage = "";
@@ -1514,6 +1517,7 @@ Item {
             }
 
             if (stage === "complete") {
+                root.updatesListCache = ({});
                 root.updateCountPacman = Number(obj.pacman || 0);
                 root.updateCountAur = Number(obj.aur || 0);
                 root.updateCountFlatpak = Number(obj.flatpak || 0);
@@ -1730,15 +1734,27 @@ Item {
     }
 
     function openUpdatesList(title, manager, listPath) {
+        var cacheKey = manager + "|" + listPath;
+        var cached = root.updatesListCache[cacheKey];
+
         archPanel.visible = false;
         updatesListPopup.titleStr = title;
         updatesListPopup.managerType = manager;
+        updatesListPopup.currentCacheKey = cacheKey;
         updatesListPopup.currentViewIndex = 0;
         updatesListPopup.currentPackageName = "";
         updatesListPopup.packageDetailsText = "";
+        updatesListPopup.fetchError = "";
         updatesListPopup.allPackages = [];
         updatesListPopup.listModel.clear();
         updatesListPopup.showPopup();
+
+        if (cached && Date.now() - cached.ts <= root.updatesListCacheTtlMs) {
+            updatesListPopup.fetchError = cached.error || "";
+            updatesListPopup.allPackages = cached.packages || [];
+            updatesListPopup.applyFilter("");
+            return;
+        }
 
         updatesFetcher.command = ["bash", "-c", listPath];
         updatesFetcher.running = true;
@@ -3743,6 +3759,8 @@ Item {
         property int currentViewIndex: 0
         property string currentPackageName: ""
         property string packageDetailsText: ""
+        property string fetchError: ""
+        property string currentCacheKey: ""
 
         function showPopup() {
             popupMounted = true;
@@ -3843,6 +3861,25 @@ Item {
                     updatesListPopup.allPackages = pkgs;
                     updatesListPopup.applyFilter("");
                 }
+            }
+            onExited: function (exitCode, exitStatus) {
+                if (exitCode === 0) {
+                    updatesListPopup.fetchError = "";
+                    if (updatesListPopup.currentCacheKey !== "") {
+                        var cache = root.updatesListCache;
+                        cache[updatesListPopup.currentCacheKey] = {
+                            ts: Date.now(),
+                            packages: updatesListPopup.allPackages,
+                            error: ""
+                        };
+                        root.updatesListCache = cache;
+                    }
+                    return;
+                }
+
+                updatesListPopup.fetchError = updatesListPopup.allPackages.length > 0
+                    ? "Package list may be incomplete."
+                    : "Package database is busy. Try again in a moment.";
             }
         }
 
@@ -4078,15 +4115,15 @@ Item {
 
                             Text {
                                 anchors.horizontalCenter: parent.horizontalCenter
-                                text: updatesSearch.text !== "" ? "󰈉" : "󰄵"
+                                text: updatesSearch.text !== "" ? "󰈉" : (updatesListPopup.fetchError !== "" ? "󰅙" : "󰄵")
                                 font.family: "Iosevka Nerd Font"
                                 font.pixelSize: 52
-                                color: root.accent
+                                color: updatesListPopup.fetchError !== "" ? root.red : root.accent
                             }
 
                             Text {
                                 anchors.horizontalCenter: parent.horizontalCenter
-                                text: updatesSearch.text !== "" ? "No packages match your search." : "System is up to date."
+                                text: updatesSearch.text !== "" ? "No packages match your search." : (updatesListPopup.fetchError !== "" ? updatesListPopup.fetchError : "System is up to date.")
                                 color: root.subtext0
                                 font.family: root.textFont
                                 font.pixelSize: 14
