@@ -7,7 +7,9 @@ LOCK_FILE="$RUNTIME_DIR/laptop_charge_boost.lock"
 
 POLL_SECONDS="${LAPTOP_CHARGE_BOOST_POLL_SECONDS:-2}"
 LOW_BATTERY_THRESHOLD="${LAPTOP_CHARGE_BOOST_LOW_THRESHOLD:-30}"
-LOW_BRIGHTNESS="${LAPTOP_CHARGE_BOOST_LOW_BRIGHTNESS:-35}"
+LOW_BRIGHTNESS="${LAPTOP_CHARGE_BOOST_LOW_BRIGHTNESS:-30}"
+LOW_NOTIFY_THRESHOLD="${LAPTOP_CHARGE_BOOST_NOTIFY_LOW_THRESHOLD:-15}"
+CRITICAL_NOTIFY_THRESHOLD="${LAPTOP_CHARGE_BOOST_NOTIFY_CRITICAL_THRESHOLD:-5}"
 CHARGE_BRIGHTNESS="${LAPTOP_CHARGE_BOOST_BRIGHTNESS:-100}"
 TARGET_PROFILE="${LAPTOP_CHARGE_BOOST_PROFILE:-performance}"
 
@@ -138,8 +140,40 @@ clear_low_battery_state() {
     rm -f "$STATE_DIR/low_battery.active" "$STATE_DIR/low_battery.brightness"
 }
 
+clear_battery_notification_state() {
+    rm -f "$STATE_DIR/notify.low" "$STATE_DIR/notify.critical"
+}
+
+send_battery_notification() {
+    local urgency="$1"
+    local title="$2"
+    local body="$3"
+
+    command -v notify-send >/dev/null 2>&1 || return 0
+    notify-send -a "Battery" -i battery-caution -u "$urgency" "$title" "$body" >/dev/null 2>&1 || true
+}
+
+notify_low_battery_levels() {
+    local capacity="$1"
+
+    mkdir -p "$STATE_DIR"
+
+    if (( capacity <= CRITICAL_NOTIFY_THRESHOLD )); then
+        if [[ ! -f "$STATE_DIR/notify.critical" ]]; then
+            send_battery_notification critical "Batteria critica" "La batteria e al ${capacity}%."
+            date +%s > "$STATE_DIR/notify.critical"
+        fi
+    elif (( capacity <= LOW_NOTIFY_THRESHOLD )); then
+        if [[ ! -f "$STATE_DIR/notify.low" ]]; then
+            send_battery_notification normal "Batteria scarica" "La batteria e al ${capacity}%."
+            date +%s > "$STATE_DIR/notify.low"
+        fi
+    fi
+}
+
 activate_charge_boost() {
     mkdir -p "$STATE_DIR"
+    clear_battery_notification_state
 
     if ! charge_active; then
         if low_battery_active && [[ -s "$STATE_DIR/low_battery.brightness" ]]; then
@@ -197,7 +231,10 @@ main_loop() {
                 activate_low_battery_mode
             else
                 deactivate_low_battery_mode
+                clear_battery_notification_state
             fi
+
+            notify_low_battery_levels "$capacity"
         fi
 
         sleep "$POLL_SECONDS"
