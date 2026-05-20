@@ -13,6 +13,7 @@ local modules = {
     "conf.keybindings",
     "conf.windowrules",
     "conf.animation",
+    "conf.custom",
 }
 
 for _, module in ipairs(modules) do

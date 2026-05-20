@@ -1,0 +1,2 @@
+-- Local Hyprland customizations.
+-- This file is loaded last and is never overwritten by Hyprdots update scripts.

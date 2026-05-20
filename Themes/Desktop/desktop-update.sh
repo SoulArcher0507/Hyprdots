@@ -27,21 +27,34 @@ cleanup_deprecated_hypr_configs() {
     fi
 }
 
+ensure_custom_hypr_config() {
+    local custom_file="$CONFIG_DIR/hypr/conf/custom.lua"
+
+    mkdir -p "$(dirname "$custom_file")"
+    if [[ ! -e "$custom_file" ]]; then
+        printf '%s\n' \
+            "-- Local Hyprland customizations." \
+            "-- This file is loaded last and is never overwritten by Hyprdots update scripts." \
+            > "$custom_file"
+    fi
+}
+
 echo "=== Updating Desktop theme ==="
 echo ""
-echo "Choosing no keeps your current files, but keeping old Hypr config files can break something important."
-read -r -p "Do you want to update ~/.config/hypr/hyprland.lua and ~/.config/hypr/conf/* from this theme? [Y/n] " UPDATE_HYPR_CONF || UPDATE_HYPR_CONF=""
+echo "Choosing no keeps your current files. Pressing Enter chooses no."
+read -r -p "Do you want to update ~/.config/hypr/hyprland.lua and ~/.config/hypr/conf/* from this theme? [y/N] " UPDATE_HYPR_CONF || UPDATE_HYPR_CONF=""
 
-RSYNC_EXCLUDES=()
+ensure_custom_hypr_config
+RSYNC_EXCLUDES=(--exclude "hypr/conf/custom.lua")
 case "${UPDATE_HYPR_CONF,,}" in
-    n|no)
+    y|yes)
+        echo "Updating ~/.config/hypr/hyprland.lua and ~/.config/hypr/conf/* files, leaving custom.lua untouched."
+        ;;
+    *)
         RSYNC_EXCLUDES+=(--exclude "hypr/hyprland.lua")
         RSYNC_EXCLUDES+=(--exclude "hypr/conf/***")
         echo "Keeping current ~/.config/hypr/hyprland.lua and ~/.config/hypr/conf/* files."
         notify_skipped_hypr_conf_changes "$REPO_ROOT" "$THEME_DIR" "$CONFIG_DIR"
-        ;;
-    *)
-        echo "Updating ~/.config/hypr/hyprland.lua and ~/.config/hypr/conf/* files."
         ;;
 esac
 

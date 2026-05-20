@@ -43,6 +43,7 @@ hypr_conf_collect_sources() {
 
     while IFS= read -r -d '' source_file; do
         rel_path="${source_file#"$base_dir/"}"
+        [[ "$rel_path" == "hypr/conf/custom.lua" ]] && continue
         HYPR_CONF_SOURCES["$rel_path"]="$source_file"
     done < <(find "$source_root" -type f -print0 | sort -z)
 }
@@ -74,6 +75,7 @@ hypr_conf_collect_changed_rels() {
                 ;;
         esac
 
+        [[ "$rel_path" == "hypr/conf/custom.lua" ]] && continue
         [[ -n "${HYPR_CONF_SOURCES[$rel_path]-}" ]] || continue
         HYPR_CONF_CHANGED_RELS["$rel_path"]=1
     done < <(
