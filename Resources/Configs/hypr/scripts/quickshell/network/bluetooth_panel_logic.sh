@@ -88,15 +88,11 @@ is_bluetooth_identifier() {
             ;;
     esac
 
-    if [[ "$value" =~ ^([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}$ ]]; then
+    if [[ "$value" =~ (^|[^[:alnum:]])([[:xdigit:]]{2}[-_:]){2,}[[:xdigit:]]{2}([^[:alnum:]]|$) ]]; then
         return 0
     fi
-    if [[ "$value" =~ ^([[:xdigit:]]{2}[-_]){5}[[:xdigit:]]{2}$ ]]; then
-        return 0
-    fi
-
     compact=$(echo "$value" | tr -d ':_[:space:]-')
-    if [[ "$compact" =~ ^[[:xdigit:]]{12}$ ]]; then
+    if [[ "$value" == *":"* || "$value" == *"-"* || "$value" == *"_"* ]] && [[ "$compact" =~ ^[[:xdigit:]]+$ ]] && (( ${#compact} >= 6 && ${#compact} % 2 == 0 )); then
         return 0
     fi
 

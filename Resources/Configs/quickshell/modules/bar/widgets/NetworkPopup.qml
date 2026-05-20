@@ -1056,11 +1056,13 @@ Item {
             let newBtConnected = data.connected || [];
             if (!Array.isArray(newBtConnected))
                 newBtConnected = [newBtConnected];
+            newBtConnected = newBtConnected.filter(device => !window.isBluetoothIdentifier(device.name || ""));
             if (JSON.stringify(window.btConnected) !== JSON.stringify(newBtConnected)) {
                 window.btConnected = newBtConnected;
             }
 
             let newDevices = data.devices ? data.devices : [];
+            newDevices = newDevices.filter(device => !window.isBluetoothIdentifier(device.name || ""));
             newDevices.sort((a, b) => a.id.localeCompare(b.id));
             if (window.activeMode === "bt") {
                 newDevices.push({
@@ -1229,6 +1231,19 @@ Item {
         window.markRecentAction();
         if (!btPoller.running)
             btPoller.running = true;
+    }
+
+    function isBluetoothIdentifier(value) {
+        let text = (value || "").trim();
+        if (text === "")
+            return true;
+        let lower = text.toLowerCase();
+        if (lower === "unknown" || lower === "(unknown)" || lower === "n/a" || lower === "null")
+            return true;
+        if (/(^|[^0-9a-z])([0-9a-f]{2}[-_:]){2,}[0-9a-f]{2}([^0-9a-z]|$)/i.test(text))
+            return true;
+        let compact = text.replace(/[-_:\s]/g, "");
+        return /[-_:]/.test(text) && compact.length >= 6 && compact.length % 2 === 0 && /^[0-9a-f]+$/i.test(compact);
     }
     Timer {
         interval: window.recentAction ? 500 : ((Object.keys(window.busyTasks).length > 0 || Object.keys(window.disconnectingDevices).length > 0) ? 1000 : 3000)
