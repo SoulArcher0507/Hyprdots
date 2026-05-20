@@ -33,6 +33,9 @@ Item {
     property var groupedNotifications: []
     property var expandedGroups: ({})
     property var expandedBodies: ({})
+    property var notificationReceivedTimes: ({})
+    property var groupModifiedTimes: ({})
+    property var groupSnapshots: ({})
     property var iconLookupCache: ({})
     property int iconLookupCacheSize: 0
     property string notificationSnapshot: ""
@@ -204,6 +207,34 @@ Item {
             String(notification.summary || ""),
             String(notification.body || "")
         ].join("\u001e");
+    }
+
+    function _formatNotificationTime(timestamp) {
+        const value = Number(timestamp || 0);
+        if (value <= 0)
+            return "";
+        const date = new Date(value);
+        const hours = date.getHours();
+        const minutes = date.getMinutes();
+        return (hours < 10 ? "0" : "") + hours + ":" + (minutes < 10 ? "0" : "") + minutes;
+    }
+
+    function _groupSnapshotFor(group) {
+        const entries = (group && group.notifications) ? group.notifications : [];
+        const tokens = [String(entries.length)];
+
+        for (let i = 0; i < entries.length; ++i) {
+            const entry = entries[i] || ({});
+            const notif = entry.notification || null;
+            tokens.push([
+                root._notificationId(notif),
+                String(entry.summary || ""),
+                String(entry.body || ""),
+                (entry.actions || []).map(action => root._actionText(action)).join("\u001d")
+            ].join("\u001e"));
+        }
+
+        return tokens.join("\u001f");
     }
 
     function _pendingNotificationCountFor(values) {
@@ -430,10 +461,24 @@ Item {
         const groups = [];
         const byKey = {};
         const nextExpanded = {};
+        const now = Date.now();
+        const previousReceivedTimes = root.notificationReceivedTimes || ({});
+        const nextReceivedTimes = {};
+        const previousGroupModifiedTimes = root.groupModifiedTimes || ({});
+        const previousGroupSnapshots = root.groupSnapshots || ({});
+        const nextGroupModifiedTimes = {};
+        const nextGroupSnapshots = {};
 
         for (let i = 0; i < items.length; ++i) {
             const notif = items[i];
             const key = root._sourceKeyFor(notif);
+            const id = root._notificationId(notif);
+            const receivedAt = id !== ""
+                ? (previousReceivedTimes[id] || now)
+                : now;
+            if (id !== "")
+                nextReceivedTimes[id] = receivedAt;
+
             if (!byKey[key]) {
                 byKey[key] = {
                     groupKey: key,
@@ -449,7 +494,9 @@ Item {
                 summary: notif.summary || "Notification",
                 body: notif.body || "",
                 iconSource: root._iconSourceFor(notif),
-                actions: root._notificationActions(notif)
+                actions: root._notificationActions(notif),
+                receivedAt: receivedAt,
+                receivedLabel: root._formatNotificationTime(receivedAt)
             });
         }
 
@@ -466,8 +513,27 @@ Item {
             group.latestNotification = latest.notification || null;
             group.latestActions = latest.actions || [];
             group.latestIconSource = latest.iconSource || group.iconSource || "";
+            group.latestReceivedAt = latest.receivedAt || 0;
+            group.latestReceivedLabel = root._formatNotificationTime(group.latestReceivedAt);
+
+            const groupSnapshot = root._groupSnapshotFor(group);
+            const previousGroupSnapshot = previousGroupSnapshots[group.groupKey] || "";
+            const previousGroupModifiedAt = previousGroupModifiedTimes[group.groupKey] || 0;
+            const groupChanged = previousGroupSnapshot !== "" && previousGroupSnapshot !== groupSnapshot;
+            const groupModifiedAt = groupChanged
+                ? now
+                : (previousGroupModifiedAt || group.latestReceivedAt || now);
+
+            nextGroupSnapshots[group.groupKey] = groupSnapshot;
+            nextGroupModifiedTimes[group.groupKey] = groupModifiedAt;
+            group.modifiedAt = groupModifiedAt;
+            group.modifiedLabel = root._formatNotificationTime(groupModifiedAt);
+            group.displayTimeLabel = group.count > 1 ? group.modifiedLabel : group.latestReceivedLabel;
         }
 
+        root.notificationReceivedTimes = nextReceivedTimes;
+        root.groupSnapshots = nextGroupSnapshots;
+        root.groupModifiedTimes = nextGroupModifiedTimes;
         root.expandedGroups = nextExpanded;
         root.groupedNotifications = groups;
     }
@@ -1728,27 +1794,28 @@ Item {
                                     }
 
                                     Column {
-                                        width: parent.width - appIcon.width - 12
+                                        width: Math.max(0, parent.width - appIcon.width - 40)
                                         spacing: 2
 
-                                        Row {
+                                        RowLayout {
                                             width: parent.width
                                             spacing: 4
 
                                             Text {
+                                                id: groupSourceText
                                                 text: groupData.sourceLabel || "Notification"
                                                 color: root.text
                                                 font.pixelSize: 13
                                                 font.family: "Fira Sans Semibold"
                                                 wrapMode: Text.NoWrap
                                                 elide: Text.ElideRight
-                                                width: Math.min(implicitWidth, parent.width - (groupCount > 1 ? 32 : 0))
+                                                Layout.fillWidth: true
                                             }
 
                                             Rectangle {
                                                 visible: groupCount > 1
-                                                width: 24
-                                                height: 18
+                                                Layout.preferredWidth: visible ? 24 : 0
+                                                Layout.preferredHeight: visible ? 18 : 0
                                                 radius: 8
                                                 color: "#12ffffff"
                                                 border.color: "#1affffff"
@@ -1762,6 +1829,18 @@ Item {
                                                     font.family: "JetBrains Mono"
                                                     font.weight: Font.Black
                                                 }
+                                            }
+
+                                            Text {
+                                                visible: (groupData.displayTimeLabel || "").length > 0
+                                                text: groupData.displayTimeLabel || ""
+                                                color: ThemePkg.Theme.withAlpha(root.text, 0.55)
+                                                font.pixelSize: 11
+                                                font.family: "JetBrains Mono"
+                                                textFormat: Text.PlainText
+                                                wrapMode: Text.NoWrap
+                                                horizontalAlignment: Text.AlignRight
+                                                Layout.preferredWidth: implicitWidth
                                             }
                                         }
 
@@ -1894,15 +1973,32 @@ Item {
                                                 anchors.margins: 9
                                                 spacing: 6
 
-                                                Text {
+                                                RowLayout {
                                                     width: parent.width - 24
-                                                    text: notifEntry.summary || "Notification"
-                                                    color: root.text
-                                                    font.pixelSize: 13
-                                                    font.bold: true
-                                                    textFormat: Text.PlainText
-                                                    wrapMode: Text.NoWrap
-                                                    elide: Text.ElideRight
+                                                    spacing: 8
+
+                                                    Text {
+                                                        text: notifEntry.summary || "Notification"
+                                                        color: root.text
+                                                        font.pixelSize: 13
+                                                        font.bold: true
+                                                        textFormat: Text.PlainText
+                                                        wrapMode: Text.NoWrap
+                                                        elide: Text.ElideRight
+                                                        Layout.fillWidth: true
+                                                    }
+
+                                                    Text {
+                                                        visible: (notifEntry.receivedLabel || "").length > 0
+                                                        text: notifEntry.receivedLabel || ""
+                                                        color: ThemePkg.Theme.withAlpha(root.text, 0.55)
+                                                        font.pixelSize: 11
+                                                        font.family: "JetBrains Mono"
+                                                        textFormat: Text.PlainText
+                                                        wrapMode: Text.NoWrap
+                                                        horizontalAlignment: Text.AlignRight
+                                                        Layout.preferredWidth: implicitWidth
+                                                    }
                                                 }
 
                                                 Text {
