@@ -1,5 +1,4 @@
 import QtQuick
-import "../../theme" as ThemePkg
 
 Item {
     id: root
@@ -9,7 +8,7 @@ Item {
     property real borderWidth: 1
     property real pixelsPerSecond: 120
     property bool active: true
-    property bool animationsEnabled: ThemePkg.Theme.edgeAnimationsEnabled
+    property bool animationsEnabled: true
     property int visualZ: 1000
     readonly property bool effectEnabled: active && animationsEnabled && borderWidth > 0 && width > 8 && height > 8
     readonly property real inset: Math.max(1, (borderWidth * 0.5) + 0.5)
@@ -60,6 +59,10 @@ Item {
     function pulse(salt, speed, sharpness) {
         var wave = (Math.sin(((timeElapsed / 1000) * speed) + salt) + 1) * 0.5;
         return Math.pow(wave, sharpness);
+    }
+
+    function withAlpha(colorValue, alphaValue) {
+        return Qt.rgba(colorValue.r || 0, colorValue.g || 0, colorValue.b || 0, clamp(alphaValue, 0, 1));
     }
 
     function advanceFrame() {
@@ -237,8 +240,8 @@ Item {
         };
         var branchPoints = [origin, mid, tip];
         var branchIntensity = intensity * branchPulse;
-        strokeTrace(ctx, branchPoints, Math.max(1.4, segmentThickness * 1.25), ThemePkg.Theme.withAlpha(accentColor, 0.12 * branchIntensity));
-        strokeTrace(ctx, branchPoints, Math.max(0.75, borderWidth * 0.82), ThemePkg.Theme.withAlpha(Qt.lighter(accentColor, 1.62), 0.72 * branchIntensity));
+        strokeTrace(ctx, branchPoints, Math.max(1.4, segmentThickness * 1.25), withAlpha(accentColor, 0.12 * branchIntensity));
+        strokeTrace(ctx, branchPoints, Math.max(0.75, borderWidth * 0.82), withAlpha(Qt.lighter(accentColor, 1.62), 0.72 * branchIntensity));
     }
 
     function drawSpark(ctx, point, salt, intensity) {
@@ -252,20 +255,20 @@ Item {
         var radiusValue = Math.max(1.1, segmentThickness * (0.42 + sparkPulse * 0.28));
         ctx.beginPath();
         ctx.arc(point.x, point.y, radiusValue * 2.5, 0, Math.PI * 2);
-        ctx.fillStyle = ThemePkg.Theme.withAlpha(accentColor, 0.055 * intensity * sparkPulse);
+        ctx.fillStyle = withAlpha(accentColor, 0.055 * intensity * sparkPulse);
         ctx.fill();
         ctx.beginPath();
         ctx.arc(point.x, point.y, radiusValue, 0, Math.PI * 2);
-        ctx.fillStyle = ThemePkg.Theme.withAlpha(Qt.lighter(accentColor, 1.7), 0.72 * intensity * sparkPulse);
+        ctx.fillStyle = withAlpha(Qt.lighter(accentColor, 1.7), 0.72 * intensity * sparkPulse);
         ctx.fill();
     }
 
     function drawBolt(ctx, headDistance, lengthValue, salt, intensity) {
         var points = buildBoltPoints(headDistance, lengthValue, salt);
         if (!compactMode)
-            strokeTrace(ctx, points, glowThickness * (0.62 + intensity * 0.2), ThemePkg.Theme.withAlpha(accentColor, 0.045 + intensity * 0.055));
-        strokeTrace(ctx, points, Math.max(1.4, segmentThickness * (compactMode ? 1.45 : 1.7)), ThemePkg.Theme.withAlpha(accentColor, compactMode ? 0.3 : 0.18 + intensity * 0.2));
-        strokeTrace(ctx, points, Math.max(0.8, borderWidth), ThemePkg.Theme.withAlpha(Qt.lighter(accentColor, 1.72), compactMode ? 0.78 : 0.68 + intensity * 0.18));
+            strokeTrace(ctx, points, glowThickness * (0.62 + intensity * 0.2), withAlpha(accentColor, 0.045 + intensity * 0.055));
+        strokeTrace(ctx, points, Math.max(1.4, segmentThickness * (compactMode ? 1.45 : 1.7)), withAlpha(accentColor, compactMode ? 0.3 : 0.18 + intensity * 0.2));
+        strokeTrace(ctx, points, Math.max(0.8, borderWidth), withAlpha(Qt.lighter(accentColor, 1.72), compactMode ? 0.78 : 0.68 + intensity * 0.18));
         var head = points[points.length - 1];
         var tailForkDistance = headDistance - (lengthValue * 0.68);
         var midForkDistance = headDistance - (lengthValue * 0.34);
@@ -322,14 +325,6 @@ Item {
                 var lengthValue = root.lightningBoltLength * (0.86 + (root.pulse(salt + 2.2, 1.35, 3) * 0.24));
                 root.drawBolt(ctx, headDistance, lengthValue, salt, intensity);
             }
-        }
-
-        Connections {
-            function onEdgeAnimationsEnabledChanged() {
-                boltCanvas.requestPaint();
-            }
-
-            target: ThemePkg.Theme
         }
 
     }

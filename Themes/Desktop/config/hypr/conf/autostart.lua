@@ -12,9 +12,9 @@ start_once({
 
     -- Setup Quickshell
     "QT_NO_XDG_DESKTOP_PORTAL=1 qs -d &",
-    "QT_NO_XDG_DESKTOP_PORTAL=1 qs -c ~/.config/quickshell/overview -d &",
-    "QT_NO_XDG_DESKTOP_PORTAL=1 qs -c ~/.config/quickshell/launcher -d &",
-    "QT_NO_XDG_DESKTOP_PORTAL=1 qs -c ~/.config/quickshell/gamelauncher -d &",
+    "QT_NO_XDG_DESKTOP_PORTAL=1 qs -p ~/.config/quickshell/overview -d &",
+    "QT_NO_XDG_DESKTOP_PORTAL=1 qs -p ~/.config/quickshell/launcher -d &",
+    "QT_NO_XDG_DESKTOP_PORTAL=1 qs -p ~/.config/quickshell/gamelauncher -d &",
     "~/.config/hypr/scripts/quickshell/tray/trayctl.sh watch &",
     "python3 ~/.config/hypr/scripts/quickshell/archtools/focus_daemon.py",
     "python3 ~/.config/hypr/scripts/quickshell/archtools/arch-news.py --fetch",

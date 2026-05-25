@@ -218,70 +218,20 @@ ShellRoot {
                     id: card; anchors.fill: parent
                     radius: root.popupCardRadius; color: root.base; border.color: root.moduleBorderColor; border.width: 1; clip: true
 
-                Item {
-                    id: electricBorder; anchors.fill: parent; z: 1000; clip: true
-                    property color ebAccentColor: root.accent
-                    property real ebRadius: card.radius; property real ebBorderWidth: card.border.width; property real ebPixelsPerSecond: 120
-                    readonly property bool ebEffectEnabled: root.edgeAnimationsEnabled && ebBorderWidth > 0 && width > 8 && height > 8
-                    readonly property real ebInset: Math.max(1.0,(ebBorderWidth*0.5)+0.5)
-                    readonly property real ebFrameWidth: Math.max(1,width-(ebInset*2))
-                    readonly property real ebFrameHeight: Math.max(1,height-(ebInset*2))
-                    readonly property real ebCornerRadius: Math.max(0,Math.min(ebRadius-ebInset,ebFrameWidth/2,ebFrameHeight/2))
-                    readonly property real ebTopLength: Math.max(0,ebFrameWidth-(ebCornerRadius*2))
-                    readonly property real ebSideLength: Math.max(0,ebFrameHeight-(ebCornerRadius*2))
-                    readonly property real ebArcLength: ebCornerRadius > 0 ? ((Math.PI*ebCornerRadius)/2) : 0
-                    readonly property real ebPerimeter: Math.max(4,(ebTopLength*2)+(ebSideLength*2)+(ebArcLength*4))
-                    readonly property real ebSegmentLength: Math.max(10,Math.min(22,ebPerimeter*0.032))
-                    readonly property real ebSegmentThickness: Math.max(2.0,ebBorderWidth*1.7)
-                    readonly property real ebGlowThickness: Math.max(6.0,ebSegmentThickness*2.2)
-                    property real ebTravel: 0; property real ebTimeElapsed: 0; property real _ebLastTimeElapsed: 0; property real _ebLastPerimeter: ebPerimeter
-                    visible: ebEffectEnabled
-                    readonly property real ebEffectiveSpeed: { if(electricBorder.ebPerimeter<=0)return electricBorder.ebPixelsPerSecond; var td=(electricBorder.ebPerimeter/Math.max(70,electricBorder.ebPixelsPerSecond))*1000; return(electricBorder.ebPerimeter/Math.max(2000,td))*1000; }
-                    onEbPerimeterChanged: { if(_ebLastPerimeter>0&&ebPerimeter>0) ebTravel=ebTravel*(ebPerimeter/_ebLastPerimeter); _ebLastPerimeter=ebPerimeter; }
-                    NumberAnimation on ebTimeElapsed { from:0;to:100000000;duration:100000000;loops:Animation.Infinite;running:electricBorder.ebEffectEnabled&&electricBorder.ebPerimeter>0 }
-                    onEbTimeElapsedChanged: { var dt=(ebTimeElapsed-_ebLastTimeElapsed)/1000.0; if(dt<0)dt=0; ebTravel=(ebTravel+(ebEffectiveSpeed*dt))%Math.max(1,ebPerimeter); _ebLastTimeElapsed=ebTimeElapsed; }
-                    function ebWithAlpha(c,a){var rgb=root._toRgb(c);return Qt.rgba(rgb.r||0,rgb.g||0,rgb.b||0,a);}
-                    function ebWrapDistance(distance){if(ebPerimeter<=0)return 0;var w=distance%ebPerimeter;return w<0?w+ebPerimeter:w;}
-                    function ebPointAt(distance) {
-                        var d=ebWrapDistance(distance),r=ebCornerRadius,w=ebFrameWidth,h=ebFrameHeight,px=0,py=0;
-                        if(d<=ebTopLength){px=r+d;py=0;}
-                        else{d-=ebTopLength;if(d<=ebArcLength&&r>0){var a1=(-Math.PI/2)+((d/ebArcLength)*(Math.PI/2));px=(w-r)+Math.cos(a1)*r;py=r+Math.sin(a1)*r;}
-                        else{d-=ebArcLength;if(d<=ebSideLength){px=w;py=r+d;}
-                        else{d-=ebSideLength;if(d<=ebArcLength&&r>0){var a2=(d/ebArcLength)*(Math.PI/2);px=(w-r)+Math.cos(a2)*r;py=(h-r)+Math.sin(a2)*r;}
-                        else{d-=ebArcLength;if(d<=ebTopLength){px=(w-r)-d;py=h;}
-                        else{d-=ebTopLength;if(d<=ebArcLength&&r>0){var a3=(Math.PI/2)+((d/ebArcLength)*(Math.PI/2));px=r+Math.cos(a3)*r;py=(h-r)+Math.sin(a3)*r;}
-                        else{d-=ebArcLength;if(d<=ebSideLength){px=0;py=(h-r)-d;}
-                        else if(ebArcLength>0&&r>0){d-=ebSideLength;var a4=Math.PI+((d/ebArcLength)*(Math.PI/2));px=r+Math.cos(a4)*r;py=r+Math.sin(a4)*r;}}}}}}}
-                        return{x:ebInset+px,y:ebInset+py};
+                    ElectricBorder {
+                        anchors.fill: parent
+                        radius: card.radius
+                        borderWidth: card.border.width
+                        accentColor: root.accent
+                        animationsEnabled: root.edgeAnimationsEnabled
                     }
-                    function ebStateAt(distance){var p0=ebPointAt(distance),p1=ebPointAt(distance+2);var dx=p1.x-p0.x,dy=p1.y-p0.y,len=Math.hypot(dx,dy);return{x:p0.x,y:p0.y,rotation:(len<=0.0001)?0:Math.atan2(dy,dx)*180/Math.PI};}
-                    Repeater {
-                        model: electricBorder.ebEffectEnabled ? 6 : 0
-                        delegate: Item {
-                            required property int index
-                            readonly property real tailT: index/Math.max(1,5)
-                            readonly property real offset: index*electricBorder.ebSegmentLength*0.44
-                            readonly property real alphaScale: 1.0-(tailT*0.82)
-                            readonly property real shrinkScale: 1.0-(tailT*0.42)
-                            readonly property var sparkState: electricBorder.ebStateAt(electricBorder.ebTravel-offset)
-                            width: electricBorder.ebSegmentLength*(0.62+(0.38*shrinkScale)); height: electricBorder.ebGlowThickness*shrinkScale
-                            x: Math.round(sparkState.x-(width/2)); y: Math.round(sparkState.y-(height/2))
-                            rotation: sparkState.rotation; transformOrigin: Item.Center; opacity: alphaScale
-                            Rectangle { anchors.centerIn:parent;width:parent.width;height:parent.height;radius:height/2;color:electricBorder.ebWithAlpha(electricBorder.ebAccentColor,0.10*parent.opacity) }
-                            Rectangle { anchors.centerIn:parent;width:parent.width*0.82;height:electricBorder.ebSegmentThickness*shrinkScale;radius:height/2;color:electricBorder.ebWithAlpha(electricBorder.ebAccentColor,index===0?0.86:(0.28*alphaScale)) }
-                            Rectangle { visible:index===0;anchors.right:parent.right;anchors.verticalCenter:parent.verticalCenter;width:Math.max(4,electricBorder.ebSegmentThickness*1.8);height:width;radius:width/2;color:electricBorder.ebAccentColor }
-                            Rectangle { visible:index===0;anchors.verticalCenter:parent.verticalCenter;anchors.right:parent.right;anchors.rightMargin:Math.max(2,electricBorder.ebSegmentThickness);width:parent.width*0.34;height:Math.max(1.0,electricBorder.ebBorderWidth);radius:height/2;rotation:32;color:electricBorder.ebWithAlpha(electricBorder.ebAccentColor,0.65) }
-                            Rectangle { visible:index===0;anchors.verticalCenter:parent.verticalCenter;anchors.right:parent.right;anchors.rightMargin:Math.max(2,electricBorder.ebSegmentThickness*1.1);width:parent.width*0.24;height:Math.max(1.0,electricBorder.ebBorderWidth);radius:height/2;rotation:-27;color:electricBorder.ebWithAlpha(electricBorder.ebAccentColor,0.48) }
-                        }
-                    }
-                }
 
-                MouseArea { anchors.fill:parent; acceptedButtons:Qt.AllButtons; onClicked:{} }
+                    MouseArea { anchors.fill:parent; acceptedButtons:Qt.AllButtons; onClicked:{} }
 
-                property real globalOrbitAngle: 0
-                NumberAnimation on globalOrbitAngle { from:0;to:Math.PI*2;duration:90000;loops:Animation.Infinite;running:root.popupMounted&&root.edgeAnimationsEnabled }
-                Rectangle { width:parent.width*0.8;height:width;radius:width/2;x:(parent.width*0.5-width/2)+Math.cos(card.globalOrbitAngle*1.5)*80;y:(parent.height*0.1-height/2)+Math.sin(card.globalOrbitAngle*1.5)*100;opacity:0.04;color:root.accent;z:0 }
-                Rectangle { width:parent.width*0.6;height:width;radius:width/2;x:(parent.width*0.2-width/2)+Math.sin(card.globalOrbitAngle*1.2)*-60;y:(parent.height*0.8-height/2)+Math.cos(card.globalOrbitAngle*1.2)*-80;opacity:0.03;color:root.c5;z:0 }
+                    property real globalOrbitAngle: 0
+                    NumberAnimation on globalOrbitAngle { from:0;to:Math.PI*2;duration:90000;loops:Animation.Infinite;running:root.popupMounted&&root.edgeAnimationsEnabled }
+                    Rectangle { width:parent.width*0.8;height:width;radius:width/2;x:(parent.width*0.5-width/2)+Math.cos(card.globalOrbitAngle*1.5)*80;y:(parent.height*0.1-height/2)+Math.sin(card.globalOrbitAngle*1.5)*100;opacity:0.04;color:root.accent;z:0 }
+                    Rectangle { width:parent.width*0.6;height:width;radius:width/2;x:(parent.width*0.2-width/2)+Math.sin(card.globalOrbitAngle*1.2)*-60;y:(parent.height*0.8-height/2)+Math.cos(card.globalOrbitAngle*1.2)*-80;opacity:0.03;color:root.c5;z:0 }
 
                 Text {
                     id: bgIcon; anchors.centerIn: parent

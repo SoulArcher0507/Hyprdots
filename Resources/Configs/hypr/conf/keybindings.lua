@@ -10,8 +10,8 @@ end
 bind(mainMod .. " + CTRL + space", hl.dsp.exec_cmd("qs ipc -p ~/.config/quickshell/launcher call launcher toggle"))
 -- @bind Quickshell :: SUPER + CTRL + ALT + space :: hl.dsp.exec_cmd([[qs ipc -p ~/.config/quickshell/gamelauncher call gamelauncher toggle]]) :: Open Game Launcher
 bind(mainMod .. " + CTRL + ALT + space", hl.dsp.exec_cmd("qs ipc -p ~/.config/quickshell/gamelauncher call gamelauncher toggle"))
--- @bind Quickshell :: SUPER + A :: hl.dsp.exec_cmd([[qs ipc -c ~/.config/quickshell/overview call overview toggle]]) :: Open Workspaces Overview
-bind(mainMod .. " + A", hl.dsp.exec_cmd("qs ipc -c ~/.config/quickshell/overview call overview toggle"))
+-- @bind Quickshell :: SUPER + A :: hl.dsp.exec_cmd([[qs ipc -p ~/.config/quickshell/overview call overview toggle]]) :: Open Workspaces Overview
+bind(mainMod .. " + A", hl.dsp.exec_cmd("qs ipc -p ~/.config/quickshell/overview call overview toggle"))
 -- @bind Quickshell :: SUPER + W :: hl.dsp.exec_cmd([[qs ipc call wallpaper toggle]]) :: Open Wallpaper Picker
 bind(mainMod .. " + W", hl.dsp.exec_cmd("qs ipc call wallpaper toggle"))
 -- @bind Quickshell :: SUPER + C :: hl.dsp.exec_cmd([[qs ipc call calendar toggle]]) :: Open Calendar Popup

@@ -8,6 +8,7 @@ import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Io
 import "." as Hyprshot
+import "../modules/bar/widgets" as BarWidgets
 
 Hyprshot.FreezeScreen {
     id: root
@@ -195,163 +196,12 @@ Hyprshot.FreezeScreen {
         }
     }
 
-    component InlineElectricBorder: Item {
-        id: eb
+    component InlineElectricBorder: BarWidgets.ElectricBorder {
         anchors.fill: parent
-        z: 1000
-        clip: true
-
-        property color ebAccentColor: root.accent
-        property real ebRadius: 12
-        property real ebBorderWidth: 1
-        property real ebPixelsPerSecond: 120
-
-        readonly property bool ebEffectEnabled: root.edgeAnimationsEnabled && ebBorderWidth > 0 && width > 8 && height > 8
-        readonly property real ebInset: Math.max(1.0, (ebBorderWidth * 0.5) + 0.5)
-        readonly property real ebFrameWidth: Math.max(1, width - (ebInset * 2))
-        readonly property real ebFrameHeight: Math.max(1, height - (ebInset * 2))
-        readonly property real ebCornerRadius: Math.max(0, Math.min(ebRadius - ebInset, ebFrameWidth / 2, ebFrameHeight / 2))
-        readonly property real ebTopLength: Math.max(0, ebFrameWidth - (ebCornerRadius * 2))
-        readonly property real ebSideLength: Math.max(0, ebFrameHeight - (ebCornerRadius * 2))
-        readonly property real ebArcLength: ebCornerRadius > 0 ? ((Math.PI * ebCornerRadius) / 2) : 0
-        readonly property real ebPerimeter: Math.max(4, (ebTopLength * 2) + (ebSideLength * 2) + (ebArcLength * 4))
-        readonly property real ebSegmentLength: Math.max(10, Math.min(22, ebPerimeter * 0.032))
-        readonly property real ebSegmentThickness: Math.max(2.0, ebBorderWidth * 1.7)
-        readonly property real ebGlowThickness: Math.max(6.0, ebSegmentThickness * 2.2)
-
-        property real ebTravel: 0
-        property real ebTimeElapsed: 0
-        property real _ebLastTimeElapsed: 0
-        property real _ebLastPerimeter: ebPerimeter
-
-        visible: ebEffectEnabled
-
-        readonly property real ebEffectiveSpeed: {
-            if (eb.ebPerimeter <= 0) return eb.ebPixelsPerSecond;
-            var targetDuration = (eb.ebPerimeter / Math.max(70, eb.ebPixelsPerSecond)) * 1000;
-            var actualDuration = Math.max(2000, targetDuration);
-            return (eb.ebPerimeter / actualDuration) * 1000;
-        }
-
-        onEbPerimeterChanged: {
-            if (_ebLastPerimeter > 0 && ebPerimeter > 0)
-                ebTravel = ebTravel * (ebPerimeter / _ebLastPerimeter);
-            _ebLastPerimeter = ebPerimeter;
-        }
-
-        NumberAnimation on ebTimeElapsed {
-            from: 0; to: 100000000; duration: 100000000
-            loops: Animation.Infinite
-            running: eb.ebEffectEnabled && eb.ebPerimeter > 0
-        }
-
-        onEbTimeElapsedChanged: {
-            var dt = (ebTimeElapsed - _ebLastTimeElapsed) / 1000.0;
-            if (dt < 0) dt = 0;
-            ebTravel = (ebTravel + (ebEffectiveSpeed * dt)) % Math.max(1, ebPerimeter);
-            _ebLastTimeElapsed = ebTimeElapsed;
-        }
-
-        function ebWithAlpha(c, a) {
-            var rgb = root._toRgb(c);
-            return Qt.rgba(rgb.r || 0, rgb.g || 0, rgb.b || 0, a);
-        }
-
-        function ebWrapDistance(distance) {
-            if (ebPerimeter <= 0) return 0;
-            var wrapped = distance % ebPerimeter;
-            return wrapped < 0 ? wrapped + ebPerimeter : wrapped;
-        }
-
-        function ebPointAt(distance) {
-            var d = ebWrapDistance(distance);
-            var r = ebCornerRadius, w = ebFrameWidth, h = ebFrameHeight;
-            var px = 0, py = 0;
-            if (d <= ebTopLength) { px = r + d; py = 0; }
-            else { d -= ebTopLength;
-                if (d <= ebArcLength && r > 0) { var a1 = (-Math.PI/2)+((d/ebArcLength)*(Math.PI/2)); px = (w-r)+Math.cos(a1)*r; py = r+Math.sin(a1)*r; }
-                else { d -= ebArcLength;
-                    if (d <= ebSideLength) { px = w; py = r + d; }
-                    else { d -= ebSideLength;
-                        if (d <= ebArcLength && r > 0) { var a2 = (d/ebArcLength)*(Math.PI/2); px = (w-r)+Math.cos(a2)*r; py = (h-r)+Math.sin(a2)*r; }
-                        else { d -= ebArcLength;
-                            if (d <= ebTopLength) { px = (w-r)-d; py = h; }
-                            else { d -= ebTopLength;
-                                if (d <= ebArcLength && r > 0) { var a3 = (Math.PI/2)+((d/ebArcLength)*(Math.PI/2)); px = r+Math.cos(a3)*r; py = (h-r)+Math.sin(a3)*r; }
-                                else { d -= ebArcLength;
-                                    if (d <= ebSideLength) { px = 0; py = (h-r)-d; }
-                                    else if (ebArcLength > 0 && r > 0) { d -= ebSideLength; var a4 = Math.PI+((d/ebArcLength)*(Math.PI/2)); px = r+Math.cos(a4)*r; py = r+Math.sin(a4)*r; }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            return { x: ebInset + px, y: ebInset + py };
-        }
-
-        function ebStateAt(distance) {
-            var p0 = ebPointAt(distance);
-            var p1 = ebPointAt(distance + 2);
-            var dx = p1.x - p0.x, dy = p1.y - p0.y;
-            var len = Math.hypot(dx, dy);
-            var rot = (len <= 0.0001) ? 0 : Math.atan2(dy, dx) * 180 / Math.PI;
-            return { x: p0.x, y: p0.y, rotation: rot };
-        }
-
-        Repeater {
-            model: eb.ebEffectEnabled ? 6 : 0
-            delegate: Item {
-                required property int index
-                readonly property real tailT: index / Math.max(1, 5)
-                readonly property real offset: index * eb.ebSegmentLength * 0.44
-                readonly property real alphaScale: 1.0 - (tailT * 0.82)
-                readonly property real shrinkScale: 1.0 - (tailT * 0.42)
-                readonly property var sparkState: eb.ebStateAt(eb.ebTravel - offset)
-
-                width: eb.ebSegmentLength * (0.62 + (0.38 * shrinkScale))
-                height: eb.ebGlowThickness * shrinkScale
-                x: Math.round(sparkState.x - (width / 2))
-                y: Math.round(sparkState.y - (height / 2))
-                rotation: sparkState.rotation
-                transformOrigin: Item.Center
-                opacity: alphaScale
-
-                Rectangle {
-                    anchors.centerIn: parent; width: parent.width; height: parent.height
-                    radius: height / 2
-                    color: eb.ebWithAlpha(eb.ebAccentColor, 0.10 * parent.opacity)
-                }
-                Rectangle {
-                    anchors.centerIn: parent; width: parent.width * 0.82
-                    height: eb.ebSegmentThickness * shrinkScale
-                    radius: height / 2
-                    color: eb.ebWithAlpha(eb.ebAccentColor, index === 0 ? 0.86 : (0.28 * alphaScale))
-                }
-                Rectangle {
-                    visible: index === 0
-                    anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
-                    width: Math.max(4, eb.ebSegmentThickness * 1.8); height: width; radius: width / 2
-                    color: eb.ebAccentColor
-                }
-                Rectangle {
-                    visible: index === 0
-                    anchors.verticalCenter: parent.verticalCenter; anchors.right: parent.right
-                    anchors.rightMargin: Math.max(2, eb.ebSegmentThickness)
-                    width: parent.width * 0.34; height: Math.max(1.0, eb.ebBorderWidth); radius: height / 2
-                    rotation: 32
-                    color: eb.ebWithAlpha(eb.ebAccentColor, 0.65)
-                }
-                Rectangle {
-                    visible: index === 0
-                    anchors.verticalCenter: parent.verticalCenter; anchors.right: parent.right
-                    anchors.rightMargin: Math.max(2, eb.ebSegmentThickness * 1.1)
-                    width: parent.width * 0.24; height: Math.max(1.0, eb.ebBorderWidth); radius: height / 2
-                    rotation: -27
-                    color: eb.ebWithAlpha(eb.ebAccentColor, 0.48)
-                }
-            }
-        }
+        accentColor: root.accent
+        radius: 12
+        borderWidth: 1
+        animationsEnabled: root.edgeAnimationsEnabled
     }
 
     function modeColor(modeName) {
@@ -1609,9 +1459,9 @@ Hyprshot.FreezeScreen {
         Behavior on scale { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
 
         InlineElectricBorder {
-            ebRadius: ocrResultPanel.radius
-            ebBorderWidth: ocrResultPanel.border.width
-            ebAccentColor: root.modeColor("ocr")
+            radius: ocrResultPanel.radius
+            borderWidth: ocrResultPanel.border.width
+            accentColor: root.modeColor("ocr")
         }
 
         Rectangle {
@@ -1850,9 +1700,9 @@ Hyprshot.FreezeScreen {
         clip: true
 
         InlineElectricBorder {
-            ebRadius: actionPanel.radius
-            ebBorderWidth: actionPanel.border.width
-            ebAccentColor: root.modeColor(root.mode)
+            radius: actionPanel.radius
+            borderWidth: actionPanel.border.width
+            accentColor: root.modeColor(root.mode)
         }
 
         Rectangle {
@@ -2330,9 +2180,9 @@ Hyprshot.FreezeScreen {
         Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
 
         InlineElectricBorder {
-            ebRadius: regionShapeMenu.radius
-            ebBorderWidth: regionShapeMenu.border.width
-            ebAccentColor: root.accent
+            radius: regionShapeMenu.radius
+            borderWidth: regionShapeMenu.border.width
+            accentColor: root.accent
         }
 
         Rectangle {
