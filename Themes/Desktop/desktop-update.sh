@@ -15,6 +15,7 @@ CONFIG_DIR="$TARGET_HOME/.config"
 mkdir -p "$CONFIG_DIR"
 
 source "$REPO_ROOT/Resources/Scripts/hypr_conf_update_notice.sh"
+source "$REPO_ROOT/Resources/Scripts/theme_update_scripts.sh"
 
 cleanup_deprecated_hypr_configs() {
     local hypr_dir="$CONFIG_DIR/hypr"
@@ -65,12 +66,7 @@ mkdir -p "$TARGET_HOME/Pictures/Wallpapers" "$TARGET_HOME/Pictures/Icons"
 rsync -av --progress "$REPO_ROOT/Resources/Wallpapers/" "$TARGET_HOME/Pictures/Wallpapers/"
 rsync -av --progress "$REPO_ROOT/Resources/Icons/" "$TARGET_HOME/Pictures/Icons/"
 
-if [[ -d "$THEME_DIR/Scripts" ]]; then
-    while IFS= read -r -d '' script; do
-        echo "Running theme patch: $(basename "$script")"
-        bash "$script"
-    done < <(find "$THEME_DIR/Scripts" -maxdepth 1 -type f -name "*.sh" -print0 | sort -z)
-fi
+run_cached_theme_update_scripts "$REPO_ROOT" "$THEME_DIR" "$TARGET_HOME"
 
 echo ""
 echo "Desktop update complete."
