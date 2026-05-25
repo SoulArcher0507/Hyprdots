@@ -12,6 +12,8 @@ QS_JSON="$HOME/.config/quickshell/colors.json"
 KDE_COLORS="$HOME/.local/share/color-schemes/Dynamic.colors"
 KITTY_COLORS="$HOME/.config/kitty/colors.conf"
 WAL_CACHE_JSON="$HOME/.cache/wal/colors.json"
+MATUGEN_CONFIG="${MATUGEN_CONFIG:-$SCRIPT_DIR/matugen/config.toml}"
+MATUGEN_MODE="${MATUGEN_MODE:-dark}"
 QT6CT_CONF="$HOME/.config/qt6ct/qt6ct.conf"
 PLASMARC="$HOME/.config/plasmarc"
 KDEGLOBALS="$HOME/.config/kdeglobals"
@@ -30,7 +32,8 @@ need() {
     exit 1
   }
 }
-need wal
+need matugen
+need magick
 need jq
 need python3
 
@@ -90,7 +93,7 @@ frame_timestamps() {
   printf '%s\n' "00:00:00" "00:00:02" "00:00:05"
 }
 
-extract_frame_for_wal() {
+extract_frame_for_matugen() {
   local source="$1" target="$2" ext
   ext="$(lower_ext "$source" || true)"
   if [[ "$ext" =~ ^(gif|apng|webp)$ ]] && command -v magick >/dev/null 2>&1; then
@@ -102,7 +105,15 @@ extract_frame_for_wal() {
     || ffmpeg -y -v error -i "$source" -frames:v 1 "$target" 2>/dev/null
 }
 
-run_wal_for_dynamic_wallpaper() {
+run_matugen() {
+  local image="$1"
+  mkdir -p "$(dirname "$WAL_CACHE_JSON")"
+  rm -f -- "$WAL_CACHE_JSON"
+  matugen image "$image" -m "$MATUGEN_MODE" -b wal -c "$MATUGEN_CONFIG" --dry-run --continue-on-error >/dev/null 2>&1 || true
+  python3 "$SCRIPT_DIR/generate_pywal_palette.py" "$image" "$WAL_CACHE_JSON"
+}
+
+run_matugen_for_dynamic_wallpaper() {
   local source="$1" ts seen=""
   TEMP_FRAME="$(mktemp --suffix=.jpg)"
 
@@ -117,32 +128,32 @@ run_wal_for_dynamic_wallpaper() {
     if ffmpeg -y -v error -ss "$ts" -i "$source" -frames:v 1 "$TEMP_FRAME" 2>/dev/null \
       || ffmpeg -y -v error -i "$source" -frames:v 1 "$TEMP_FRAME" 2>/dev/null; then
       [[ -s "$TEMP_FRAME" ]] || continue
-      wal -i "$TEMP_FRAME" && return 0
+      run_matugen "$TEMP_FRAME" && return 0
     fi
   done < <(frame_timestamps "$source")
 
   return 1
 }
 
-run_wal_for_wallpaper() {
+run_matugen_for_wallpaper() {
   if is_dynamic_wallpaper "$WALLPAPER"; then
     local ext
     ext="$(lower_ext "$WALLPAPER" || true)"
     if [[ "$ext" =~ ^(gif|apng|webp)$ ]]; then
       TEMP_FRAME="$(mktemp --suffix=.jpg)"
-      extract_frame_for_wal "$WALLPAPER" "$TEMP_FRAME"
-      wal -i "$TEMP_FRAME"
+      extract_frame_for_matugen "$WALLPAPER" "$TEMP_FRAME"
+      run_matugen "$TEMP_FRAME"
     else
-      run_wal_for_dynamic_wallpaper "$WALLPAPER"
+      run_matugen_for_dynamic_wallpaper "$WALLPAPER"
     fi
   else
-    wal -i "$WALLPAPER"
+    run_matugen "$WALLPAPER"
   fi
 }
 
 for helper in \
-  "$SCRIPT_DIR/color_mix.py" \
-  "$SCRIPT_DIR/color_contrast.py" \
+  "$SCRIPT_DIR/generate_pywal_palette.py" \
+  "$SCRIPT_DIR/render_templates.py" \
   "$SCRIPT_DIR/set_generic_ini_key.py" \
   "$SCRIPT_DIR/update_index_theme.py" \
   "$SCRIPT_DIR/recolor_icon_theme.py"; do
@@ -157,45 +168,32 @@ if [[ -n "$WALLPAPER" ]]; then
     echo "Errore: wallpaper non trovato: $WALLPAPER" >&2
     exit 1
   fi
-  run_wal_for_wallpaper
+  [[ -f "$MATUGEN_CONFIG" ]] || {
+    echo "Errore: configurazione matugen non trovata: $MATUGEN_CONFIG" >&2
+    exit 1
+  }
+  run_matugen_for_wallpaper
 else
-  wal -R
+  [[ -f "$WAL_CACHE_JSON" ]] || {
+    echo "Errore: nessun wallpaper passato e cache colori non trovata: $WAL_CACHE_JSON" >&2
+    exit 1
+  }
 fi
 
 if [[ ! -f "$WAL_CACHE_JSON" ]]; then
-  echo "Errore: wal non ha generato $WAL_CACHE_JSON" >&2
+  echo "Errore: matugen non ha generato $WAL_CACHE_JSON" >&2
   exit 1
 fi
 
-hex_norm() {
-  local hex="${1#\#}"
-  printf '#%s' "${hex^^}"
-}
-
-hex_to_rgb_triplet() {
-  local HEX="${1#\#}"
-  local R="${HEX:0:2}" G="${HEX:2:2}" B="${HEX:4:2}"
-  printf "%d,%d,%d" "0x$R" "0x$G" "0x$B"
-}
-
-atomic_write() {
-  local dst="$1"
-  mkdir -p "$(dirname "$dst")"
-  local tmp
-  tmp="$(mktemp "${dst}.XXXXXX")"
-  cat >"$tmp"
-  mv -f "$tmp" "$dst"
-}
-
-mix_hex() {
-  python3 "$SCRIPT_DIR/color_mix.py" "$1" "$2" "$3"
-}
-
-lighten_hex() { mix_hex "$1" '#FFFFFF' "$2"; }
-darken_hex()  { mix_hex "$1" '#000000' "$2"; }
-
-contrast_hex() {
-  python3 "$SCRIPT_DIR/color_contrast.py" "$1"
+jq -e '
+  .special.background and .special.foreground and .special.cursor and
+  .colors.color0 and .colors.color1 and .colors.color2 and .colors.color3 and
+  .colors.color4 and .colors.color5 and .colors.color6 and .colors.color7 and
+  .colors.color8 and .colors.color9 and .colors.color10 and .colors.color11 and
+  .colors.color12 and .colors.color13 and .colors.color14 and .colors.color15
+' "$WAL_CACHE_JSON" >/dev/null || {
+  echo "Errore: cache matugen incompleta o non compatibile: $WAL_CACHE_JSON" >&2
+  exit 1
 }
 
 set_ini_key() {
@@ -394,206 +392,19 @@ reload_kitty_config() {
   fi
 }
 
-bg="$(hex_norm "$(jq -r '.special.background' "$WAL_CACHE_JSON")")"
-fg="$(hex_norm "$(jq -r '.special.foreground' "$WAL_CACHE_JSON")")"
-cursor="$(hex_norm "$(jq -r '.special.cursor' "$WAL_CACHE_JSON")")"
+python3 "$SCRIPT_DIR/render_templates.py" \
+  "$WAL_CACHE_JSON" \
+  "$SCRIPT_DIR/templates" \
+  "$HYPR_LUA" \
+  "$QS_JSON" \
+  "$KITTY_COLORS" \
+  "$KDE_COLORS"
 
-c0="$(hex_norm "$(jq -r '.colors.color0'  "$WAL_CACHE_JSON")")"
-c1="$(hex_norm "$(jq -r '.colors.color1'  "$WAL_CACHE_JSON")")"
-c2="$(hex_norm "$(jq -r '.colors.color2'  "$WAL_CACHE_JSON")")"
-c3="$(hex_norm "$(jq -r '.colors.color3'  "$WAL_CACHE_JSON")")"
-c4="$(hex_norm "$(jq -r '.colors.color4'  "$WAL_CACHE_JSON")")"
-c5="$(hex_norm "$(jq -r '.colors.color5'  "$WAL_CACHE_JSON")")"
-c6="$(hex_norm "$(jq -r '.colors.color6'  "$WAL_CACHE_JSON")")"
-c7="$(hex_norm "$(jq -r '.colors.color7'  "$WAL_CACHE_JSON")")"
-c8="$(hex_norm "$(jq -r '.colors.color8'  "$WAL_CACHE_JSON")")"
-c9="$(hex_norm "$(jq -r '.colors.color9'  "$WAL_CACHE_JSON")")"
-c10="$(hex_norm "$(jq -r '.colors.color10' "$WAL_CACHE_JSON")")"
-c11="$(hex_norm "$(jq -r '.colors.color11' "$WAL_CACHE_JSON")")"
-c12="$(hex_norm "$(jq -r '.colors.color12' "$WAL_CACHE_JSON")")"
-c13="$(hex_norm "$(jq -r '.colors.color13' "$WAL_CACHE_JSON")")"
-c14="$(hex_norm "$(jq -r '.colors.color14' "$WAL_CACHE_JSON")")"
-c15="$(hex_norm "$(jq -r '.colors.color15' "$WAL_CACHE_JSON")")"
-
-accent="$c4"
-accent2="$c6"
-success="$c2"
-warning="$c3"
-danger="$c1"
-muted="$c8"
-
-window_bg="$(mix_hex "$bg" "$fg" 0.06)"
-view_bg="$bg"
-alt_bg="$(mix_hex "$bg" "$c0" 0.55)"
-panel_bg="$(mix_hex "$bg" "$accent" 0.10)"
-header_bg="$(mix_hex "$bg" "$accent" 0.14)"
-button_bg="$(mix_hex "$bg" "$accent" 0.16)"
-button_alt_bg="$(mix_hex "$bg" "$accent2" 0.18)"
-tooltip_bg="$(mix_hex "$bg" "$fg" 0.12)"
-comp_bg="$(mix_hex "$bg" "$accent2" 0.12)"
-active_title_bg="$(mix_hex "$bg" "$accent" 0.22)"
-inactive_title_bg="$(mix_hex "$bg" "$fg" 0.09)"
-selection_bg="$accent"
-selection_alt_bg="$accent2"
-selection_fg="$(contrast_hex "$selection_bg")"
-button_fg="$(contrast_hex "$button_bg")"
-header_fg="$(contrast_hex "$header_bg")"
-active_title_fg="$(contrast_hex "$active_title_bg")"
-
-rgb_bg="$(hex_to_rgb_triplet "$bg")"
-rgb_fg="$(hex_to_rgb_triplet "$fg")"
-rgb_cursor="$(hex_to_rgb_triplet "$cursor")"
-
-rgb0="$(hex_to_rgb_triplet "$c0")"
-rgb1="$(hex_to_rgb_triplet "$c1")"
-rgb2="$(hex_to_rgb_triplet "$c2")"
-rgb3="$(hex_to_rgb_triplet "$c3")"
-rgb4="$(hex_to_rgb_triplet "$c4")"
-rgb5="$(hex_to_rgb_triplet "$c5")"
-rgb6="$(hex_to_rgb_triplet "$c6")"
-rgb7="$(hex_to_rgb_triplet "$c7")"
-rgb8="$(hex_to_rgb_triplet "$c8")"
-rgb9="$(hex_to_rgb_triplet "$c9")"
-rgb10="$(hex_to_rgb_triplet "$c10")"
-rgb11="$(hex_to_rgb_triplet "$c11")"
-rgb12="$(hex_to_rgb_triplet "$c12")"
-rgb13="$(hex_to_rgb_triplet "$c13")"
-rgb14="$(hex_to_rgb_triplet "$c14")"
-rgb15="$(hex_to_rgb_triplet "$c15")"
-
-rgb_window_bg="$(hex_to_rgb_triplet "$window_bg")"
-rgb_view_bg="$(hex_to_rgb_triplet "$view_bg")"
-rgb_alt_bg="$(hex_to_rgb_triplet "$alt_bg")"
-rgb_panel_bg="$(hex_to_rgb_triplet "$panel_bg")"
-rgb_header_bg="$(hex_to_rgb_triplet "$header_bg")"
-rgb_button_bg="$(hex_to_rgb_triplet "$button_bg")"
-rgb_button_alt_bg="$(hex_to_rgb_triplet "$button_alt_bg")"
-rgb_tooltip_bg="$(hex_to_rgb_triplet "$tooltip_bg")"
-rgb_comp_bg="$(hex_to_rgb_triplet "$comp_bg")"
-rgb_active_title_bg="$(hex_to_rgb_triplet "$active_title_bg")"
-rgb_inactive_title_bg="$(hex_to_rgb_triplet "$inactive_title_bg")"
-rgb_selection_bg="$(hex_to_rgb_triplet "$selection_bg")"
-rgb_selection_alt_bg="$(hex_to_rgb_triplet "$selection_alt_bg")"
-rgb_selection_fg="$(hex_to_rgb_triplet "$selection_fg")"
-rgb_button_fg="$(hex_to_rgb_triplet "$button_fg")"
-rgb_header_fg="$(hex_to_rgb_triplet "$header_fg")"
-rgb_active_title_fg="$(hex_to_rgb_triplet "$active_title_fg")"
-
-atomic_write "$HYPR_LUA" <<EOF_HYPR_LUA
--- Generated by colors.sh
-return {
-    bg = "rgb(${rgb_bg})",
-    fg = "rgb(${rgb_fg})",
-    cursor = "rgb(${rgb_cursor})",
-
-    color0 = "rgb(${rgb0})",
-    color1 = "rgb(${rgb1})",
-    color2 = "rgb(${rgb2})",
-    color3 = "rgb(${rgb3})",
-    color4 = "rgb(${rgb4})",
-    color5 = "rgb(${rgb5})",
-    color6 = "rgb(${rgb6})",
-    color7 = "rgb(${rgb7})",
-    color8 = "rgb(${rgb8})",
-    color9 = "rgb(${rgb9})",
-    color10 = "rgb(${rgb10})",
-    color11 = "rgb(${rgb11})",
-    color12 = "rgb(${rgb12})",
-    color13 = "rgb(${rgb13})",
-    color14 = "rgb(${rgb14})",
-    color15 = "rgb(${rgb15})",
-
-    accent = "rgb(${rgb4})",
-    accent2 = "rgb(${rgb6})",
-    success = "rgb(${rgb2})",
-    warning = "rgb(${rgb3})",
-    danger = "rgb(${rgb1})",
-    muted = "rgb(${rgb8})",
-}
-EOF_HYPR_LUA
-
-echo "[OK] Hyprland Lua palette scritta in: $HYPR_LUA"
 rm -f -- "$DEPRECATED_HYPR_COLORS"
-
-mkdir -p "$(dirname "$QS_JSON")"
-jq -n --argjson src "$(cat "$WAL_CACHE_JSON")" \
-  '{
-  special: {
-    background: $src.special.background,
-    foreground: $src.special.foreground,
-    cursor:     $src.special.cursor
-  },
-  colors: {
-    color0:  $src.colors.color0,  color1:  $src.colors.color1,
-    color2:  $src.colors.color2,  color3:  $src.colors.color3,
-    color4:  $src.colors.color4,  color5:  $src.colors.color5,
-    color6:  $src.colors.color6,  color7:  $src.colors.color7,
-    color8:  $src.colors.color8,  color9:  $src.colors.color9,
-    color10: $src.colors.color10, color11: $src.colors.color11,
-    color12: $src.colors.color12, color13: $src.colors.color13,
-    color14: $src.colors.color14, color15: $src.colors.color15
-  },
-  quickshell: {
-    bg:       $src.special.background,
-    fg:       $src.special.foreground,
-    accent:   $src.colors.color4,
-    accent2:  $src.colors.color6,
-    success:  $src.colors.color2,
-    warning:  $src.colors.color3,
-    danger:   $src.colors.color1,
-    muted:    $src.colors.color8
-  }
-}' > "$QS_JSON"
-
+echo "[OK] Hyprland Lua palette scritta in: $HYPR_LUA"
 echo "[OK] Quickshell palette scritta in: $QS_JSON"
-
-atomic_write "$KITTY_COLORS" <<EOF_KITTY
-# Generated by colors.sh
-foreground ${fg}
-background ${bg}
-selection_foreground ${selection_fg}
-selection_background ${accent}
-cursor ${accent}
-cursor_text_color ${selection_fg}
-url_color ${accent2}
-
-active_tab_foreground ${header_fg}
-active_tab_background ${header_bg}
-inactive_tab_foreground ${fg}
-inactive_tab_background ${panel_bg}
-tab_bar_background ${window_bg}
-
-active_border_color ${accent}
-inactive_border_color ${muted}
-bell_border_color ${warning}
-visual_bell_color ${danger}
-
-mark1_foreground ${selection_fg}
-mark1_background ${accent}
-mark2_foreground ${selection_fg}
-mark2_background ${accent2}
-
-wayland_titlebar_color background
-
-color0 ${c0}
-color1 ${c1}
-color2 ${c2}
-color3 ${c3}
-color4 ${c4}
-color5 ${c5}
-color6 ${c6}
-color7 ${c7}
-color8 ${c8}
-color9 ${c9}
-color10 ${c10}
-color11 ${c11}
-color12 ${c12}
-color13 ${c13}
-color14 ${c14}
-color15 ${c15}
-EOF_KITTY
-
 echo "[OK] Kitty palette scritta in: $KITTY_COLORS"
+echo "[OK] KDE color scheme scritto in: $KDE_COLORS"
 
 notify_zsh_prompt_refresh() {
   local pid="$PPID"
@@ -628,162 +439,13 @@ notify_zsh_prompt_refresh() {
 
 notify_zsh_prompt_refresh
 
-$HOME/.config/fastfetch/fastfetch-colors.sh
+if [[ -x "$HOME/.config/fastfetch/fastfetch-colors.sh" ]]; then
+  "$HOME/.config/fastfetch/fastfetch-colors.sh"
+fi
 
-$HOME/.config/btop/btop-colors.sh
-
-atomic_write "$KDE_COLORS" <<EOF_KDE
-[ColorEffects:Disabled]
-Color=${rgb8}
-ColorAmount=0.55
-ColorEffect=3
-ContrastAmount=0.65
-ContrastEffect=1
-Enable=true
-IntensityAmount=0
-IntensityEffect=0
-
-[ColorEffects:Inactive]
-ChangeSelectionColor=true
-Color=${rgb8}
-ColorAmount=0.08
-ColorEffect=2
-ContrastAmount=0.08
-ContrastEffect=2
-Enable=true
-IntensityAmount=0
-IntensityEffect=0
-
-[Colors:Button]
-BackgroundAlternate=${rgb_button_alt_bg}
-BackgroundNormal=${rgb_button_bg}
-DecorationFocus=${rgb4}
-DecorationHover=${rgb6}
-ForegroundActive=${rgb4}
-ForegroundInactive=${rgb8}
-ForegroundLink=${rgb6}
-ForegroundNegative=${rgb1}
-ForegroundNeutral=${rgb3}
-ForegroundNormal=${rgb_button_fg}
-ForegroundPositive=${rgb2}
-ForegroundVisited=${rgb5}
-
-[Colors:Header]
-BackgroundAlternate=${rgb_panel_bg}
-BackgroundNormal=${rgb_header_bg}
-DecorationFocus=${rgb4}
-DecorationHover=${rgb6}
-ForegroundActive=${rgb4}
-ForegroundInactive=${rgb8}
-ForegroundLink=${rgb6}
-ForegroundNegative=${rgb1}
-ForegroundNeutral=${rgb3}
-ForegroundNormal=${rgb_header_fg}
-ForegroundPositive=${rgb2}
-ForegroundVisited=${rgb5}
-
-[Colors:Header][Inactive]
-BackgroundAlternate=${rgb_alt_bg}
-BackgroundNormal=${rgb_inactive_title_bg}
-DecorationFocus=${rgb4}
-DecorationHover=${rgb6}
-ForegroundActive=${rgb4}
-ForegroundInactive=${rgb8}
-ForegroundLink=${rgb6}
-ForegroundNegative=${rgb1}
-ForegroundNeutral=${rgb3}
-ForegroundNormal=${rgb8}
-ForegroundPositive=${rgb2}
-ForegroundVisited=${rgb5}
-
-[Colors:Selection]
-BackgroundAlternate=${rgb_selection_alt_bg}
-BackgroundNormal=${rgb_selection_bg}
-DecorationFocus=${rgb4}
-DecorationHover=${rgb6}
-ForegroundActive=${rgb_selection_fg}
-ForegroundInactive=${rgb_selection_fg}
-ForegroundLink=${rgb_selection_fg}
-ForegroundNegative=${rgb_selection_fg}
-ForegroundNeutral=${rgb_selection_fg}
-ForegroundNormal=${rgb_selection_fg}
-ForegroundPositive=${rgb_selection_fg}
-ForegroundVisited=${rgb_selection_fg}
-
-[Colors:Tooltip]
-BackgroundAlternate=${rgb_alt_bg}
-BackgroundNormal=${rgb_tooltip_bg}
-DecorationFocus=${rgb4}
-DecorationHover=${rgb6}
-ForegroundActive=${rgb4}
-ForegroundInactive=${rgb8}
-ForegroundLink=${rgb6}
-ForegroundNegative=${rgb1}
-ForegroundNeutral=${rgb3}
-ForegroundNormal=${rgb_fg}
-ForegroundPositive=${rgb2}
-ForegroundVisited=${rgb5}
-
-[Colors:View]
-BackgroundAlternate=${rgb_alt_bg}
-BackgroundNormal=${rgb_view_bg}
-DecorationFocus=${rgb4}
-DecorationHover=${rgb6}
-ForegroundActive=${rgb4}
-ForegroundInactive=${rgb8}
-ForegroundLink=${rgb6}
-ForegroundNegative=${rgb1}
-ForegroundNeutral=${rgb3}
-ForegroundNormal=${rgb_fg}
-ForegroundPositive=${rgb2}
-ForegroundVisited=${rgb5}
-
-[Colors:Window]
-BackgroundAlternate=${rgb_alt_bg}
-BackgroundNormal=${rgb_window_bg}
-DecorationFocus=${rgb4}
-DecorationHover=${rgb6}
-ForegroundActive=${rgb4}
-ForegroundInactive=${rgb8}
-ForegroundLink=${rgb6}
-ForegroundNegative=${rgb1}
-ForegroundNeutral=${rgb3}
-ForegroundNormal=${rgb_fg}
-ForegroundPositive=${rgb2}
-ForegroundVisited=${rgb5}
-
-[Colors:Complementary]
-BackgroundAlternate=${rgb_alt_bg}
-BackgroundNormal=${rgb_comp_bg}
-DecorationFocus=${rgb4}
-DecorationHover=${rgb6}
-ForegroundActive=${rgb4}
-ForegroundInactive=${rgb8}
-ForegroundLink=${rgb6}
-ForegroundNegative=${rgb1}
-ForegroundNeutral=${rgb3}
-ForegroundNormal=${rgb_fg}
-ForegroundPositive=${rgb2}
-ForegroundVisited=${rgb5}
-
-[General]
-ColorScheme=Dynamic
-Name=Dynamic
-shadeSortColumn=true
-
-[KDE]
-contrast=4
-
-[WM]
-activeBackground=${rgb_active_title_bg}
-activeBlend=${rgb4}
-activeForeground=${rgb_active_title_fg}
-inactiveBackground=${rgb_inactive_title_bg}
-inactiveBlend=${rgb8}
-inactiveForeground=${rgb8}
-EOF_KDE
-
-echo "[OK] KDE color scheme scritto in: $KDE_COLORS"
+if [[ -x "$HOME/.config/btop/btop-colors.sh" ]]; then
+  "$HOME/.config/btop/btop-colors.sh"
+fi
 
 set_generic_ini_key "$KDEGLOBALS" "General" "ColorScheme" "Dynamic"
 set_generic_ini_key "$KDEGLOBALS" "KDE" "colorScheme" "Dynamic"
@@ -807,9 +469,7 @@ if [[ -n "$KORA_SOURCE" ]]; then
 
   palette_hash="$({
     printf '%s\n' "$ICON_THEME_NAME"
-    printf '%s\n' "$bg" "$fg" "$cursor"
-    printf '%s\n' "$c0" "$c1" "$c2" "$c3" "$c4" "$c5" "$c6" "$c7"
-    printf '%s\n' "$c8" "$c9" "$c10" "$c11" "$c12" "$c13" "$c14" "$c15"
+    sha256sum "$QS_JSON"
     printf '%s\n' "$KORA_SOURCE"
   } | sha256sum | awk '{print $1}')"
 

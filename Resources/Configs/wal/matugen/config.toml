@@ -1,0 +1,15 @@
+[config]
+version_check = false
+fallback_color = "#61afef"
+prefer = "saturation"
+caching = true
+contrast = 0.0
+
+[config.wallpaper]
+set = false
+command = "true"
+
+[templates.legacy_palette]
+input_path = "./legacy-colors.json"
+output_path = "~/.cache/wal/colors.json"
+type = "SchemeContent"

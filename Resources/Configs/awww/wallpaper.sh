@@ -167,8 +167,8 @@ fi
 run_dynamic_colors() {
   if [[ -x "$HOME/.config/wal/colors.sh" ]]; then
     "$HOME/.config/wal/colors.sh" "$PAPER" || true
-  elif command -v wal >/dev/null 2>&1; then
-    wal -i "$COLOR_SOURCE" -n -q || true
+  elif command -v matugen >/dev/null 2>&1; then
+    matugen image "$COLOR_SOURCE" -m dark >/dev/null 2>&1 || true
   fi
 }
 

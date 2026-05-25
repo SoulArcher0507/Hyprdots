@@ -47,6 +47,7 @@ layer-shell-qt
 libnotify
 libplasma
 libpulse
+matugen
 neovim
 networkmanager
 noto-fonts
@@ -66,7 +67,6 @@ polkit-kde-agent
 polkit-qt6
 python
 python-pillow
-python-pywal
 qqc2-breeze-style
 qt6-base
 qt6-declarative
