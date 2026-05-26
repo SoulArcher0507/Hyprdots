@@ -396,6 +396,8 @@ Hyprshot.FreezeScreen {
             screenshotProcess.running = false
         if (colorPreviewProcess.running)
             colorPreviewProcess.running = false
+        if (hyprpickerProcess.running)
+            hyprpickerProcess.running = false
         if (ocrProcess.running)
             ocrProcess.running = false
         if (ocrCopyProcess.running)
@@ -428,7 +430,7 @@ Hyprshot.FreezeScreen {
     }
 
     function open() {
-        if (root.sessionActive && (captureProcess.running || screenshotProcess.running || ocrProcess.running))
+        if (root.sessionActive && (captureProcess.running || screenshotProcess.running || hyprpickerProcess.running || ocrProcess.running))
             return
 
         root.resetSessionState()
@@ -568,6 +570,32 @@ Hyprshot.FreezeScreen {
         }
         stderr: StdioCollector {
             id: colorPreviewStderr
+        }
+    }
+
+    Process {
+        id: hyprpickerProcess
+        running: false
+
+        onExited: function(exitCode) {
+            const color = hyprpickerStdout.text.trim()
+            if (exitCode === 0 && color !== "") {
+                root.lastPickedColor = color
+            } else if (exitCode !== 0) {
+                console.warn("HyprQuickshot: hyprpicker failed with exit code", exitCode)
+                if (hyprpickerStderr.text && hyprpickerStderr.text.trim() !== "")
+                    console.warn("HyprQuickshot hyprpicker stderr:", hyprpickerStderr.text.trim())
+            }
+
+            if (root.sessionActive)
+                root.finish()
+        }
+
+        stdout: StdioCollector {
+            id: hyprpickerStdout
+        }
+        stderr: StdioCollector {
+            id: hyprpickerStderr
         }
     }
 
@@ -806,15 +834,22 @@ Hyprshot.FreezeScreen {
         root.visible = false
 
         const pickerScript =
-            `sleep 0.55; ` +
+            `sleep 0.25; ` +
             `if ! command -v hyprpicker >/dev/null 2>&1; then ` +
             `notify-send --app-name=HyprQuickshot "Color picker unavailable" "hyprpicker is not installed"; ` +
             `exit 127; fi; ` +
-            `NO_COLOR=1 hyprpicker -a -f hex`
-        const command = `sh -lc ${root.shellQuote(pickerScript)}`
+            `if ! command -v wl-copy >/dev/null 2>&1; then ` +
+            `notify-send --app-name=HyprQuickshot "Color picker unavailable" "wl-copy is not installed"; ` +
+            `exit 127; fi; ` +
+            `COLOR=$(hyprpicker -f hex -b -q); STATUS=$?; ` +
+            `[ "$STATUS" -eq 0 ] || exit "$STATUS"; ` +
+            `[ -n "$COLOR" ] || exit 1; ` +
+            `printf %s "$COLOR" | wl-copy; ` +
+            `notify-send --app-name=HyprQuickshot "Color copied" "$COLOR"; ` +
+            `printf %s "$COLOR"`
 
-        Quickshell.execDetached(["hyprctl", "dispatch", "exec", command])
-        root.finish()
+        hyprpickerProcess.command = ["sh", "-lc", pickerScript]
+        hyprpickerProcess.running = true
     }
 
     function refreshPickerPreviewColor(mouseX, mouseY) {
