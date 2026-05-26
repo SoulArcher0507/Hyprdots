@@ -108,7 +108,7 @@ Item {
             Quickshell.execDetached(["bash", root.lockScript]);
             break;
         case "logout":
-            Quickshell.execDetached(["hyprctl", "dispatch", "exit"]);
+            Quickshell.execDetached(["hyprctl", "dispatch", "hl.dsp.exit()"]);
             break;
         case "suspend":
             Quickshell.execDetached(["systemctl", "suspend"]);
