@@ -112,6 +112,9 @@ Item {
     property real statMemPercent: 0
     property int statDiskRoot: 0
     property int statDiskHome: 0
+    property real statDiskHomeFree: 0
+    property string statDiskOsName: ""
+    property real statDiskOsPercent: 0
     property string statNetIface: ""
     property real statNetDown: 0
     property real statNetUp: 0
@@ -1026,6 +1029,12 @@ Item {
                         root.statDiskRoot = obj.diskRoot;
                     if (obj.diskHome !== undefined)
                         root.statDiskHome = obj.diskHome;
+                    if (obj.diskHomeFree !== undefined)
+                        root.statDiskHomeFree = obj.diskHomeFree;
+                    if (obj.diskOsName !== undefined)
+                        root.statDiskOsName = obj.diskOsName;
+                    if (obj.diskOsPercent !== undefined)
+                        root.statDiskOsPercent = obj.diskOsPercent;
                     if (obj.netIface !== undefined)
                         root.statNetIface = obj.netIface;
                     if (obj.netDown !== undefined)
@@ -1063,6 +1072,9 @@ Item {
             memPercent: root.statMemPercent,
             diskRoot: root.statDiskRoot,
             diskHome: root.statDiskHome,
+            diskHomeFree: root.statDiskHomeFree,
+            diskOsName: root.statDiskOsName,
+            diskOsPercent: root.statDiskOsPercent,
             netIface: root.statNetIface,
             netDown: root.statNetDown,
             netUp: root.statNetUp,
@@ -1272,11 +1284,14 @@ Item {
                         root.statMemPercent = obj.mem.percent || 0;
                         root.statDiskRoot = obj.disk.root_percent || 0;
                         root.statDiskHome = obj.disk.home_percent || 0;
+                        root.statDiskHomeFree = obj.disk.home_free_bytes || 0;
+                        root.statDiskOsName = obj.disk.os_disk_name || "";
+                        root.statDiskOsPercent = obj.disk.os_disk_percent || 0;
                         root.statNetIface = (obj.net && obj.net.iface) ? obj.net.iface : "";
                         root.statNetDown = (obj.net && obj.net.down_bps) ? obj.net.down_bps : 0;
                         root.statNetUp = (obj.net && obj.net.up_bps) ? obj.net.up_bps : 0;
                         root.statNetTotal = (obj.net && obj.net.total_bps) ? obj.net.total_bps : 0;
-                        root.updateUsageHistory(root.statCpuTotal, root.statMemPercent, root.statDiskRoot, root.statGpuTotal, root.statNetTotal);
+                        root.updateUsageHistory(root.statCpuTotal, root.statMemPercent, root.statDiskOsPercent, root.statGpuTotal, root.statNetTotal);
                         root.saveCache();
                     }
                 } catch (e) {
@@ -2793,8 +2808,8 @@ Item {
                 ResCard {
                     resourceKey: "disk"
                     title: "DISK"
-                    value: root.statDiskRoot + "%"
-                    tip: "/: " + root.statDiskRoot + "%\n/home: " + root.statDiskHome + "%"
+                    value: root.statDiskOsPercent.toFixed(1) + "%"
+                    tip: (root.statDiskOsName || "OS disk") + ": " + root.statDiskOsPercent.toFixed(1) + "% used\n/: " + root.statDiskRoot + "% used\n/home: " + root.statDiskHome + "% used\n/home free: " + root.formatBytes(root.statDiskHomeFree)
                     selected: root.expandedResourceKey === resourceKey
                     accentColor: root.resourceAccent(resourceKey)
                     onCardTriggered: root.openResourceDetails(resourceKey)
@@ -6364,6 +6379,8 @@ Item {
             id: diskDetailRoot
             width: parent ? parent.width : 0
             property var diskData: root.detailObject("disk") || ({})
+            property var osFilesystem: diskData.os_filesystem || ({})
+            property var osDisk: diskData.os_disk || ({})
             implicitHeight: diskDetailColumn.implicitHeight
 
             Column {
@@ -6374,7 +6391,7 @@ Item {
                 DetailSection {
                     width: parent.width
                     title: "Storage Overview"
-                    subtitle: "Aggregate mounted usage plus current throughput across detected disks."
+                    subtitle: "OS filesystem usage plus aggregate capacity and current throughput across detected disks."
                     accentColor: root.resourceAccent("disk")
 
                     Flow {
@@ -6383,9 +6400,23 @@ Item {
 
                         DetailMetric {
                             width: Math.floor((parent.width - 20) / 3)
-                            label: "Used Capacity"
+                            label: "OS Disk"
+                            value: root.formatPercent(osDisk.percent, 1)
+                            secondary: osDisk.name || "Physical system disk"
+                            accentColor: root.resourceAccent("disk")
+                        }
+                        DetailMetric {
+                            width: Math.floor((parent.width - 20) / 3)
+                            label: "OS Filesystem"
+                            value: root.formatPercent(osFilesystem.percent, 1)
+                            secondary: (osFilesystem.mountpoint || "/") + " on " + (osFilesystem.device || "system disk")
+                            accentColor: root.resourceAccent("disk")
+                        }
+                        DetailMetric {
+                            width: Math.floor((parent.width - 20) / 3)
+                            label: "All Disks"
                             value: root.formatPercent(diskData.total_percent, 1)
-                            secondary: (diskData.devices ? diskData.devices.length : 0) + " disks tracked"
+                            secondary: "Aggregate physical capacity"
                             accentColor: root.resourceAccent("disk")
                         }
                         DetailMetric {

@@ -144,8 +144,50 @@ read -r mem_used_gb mem_total_gb mem_pct < <(
 
 disk_root_pct=$(df -P / 2>/dev/null | awk 'NR==2{gsub("%","",$5); print $5}')
 disk_home_pct=$(df -P /home 2>/dev/null | awk 'NR==2{gsub("%","",$5); print $5}')
+disk_home_free_bytes=$(df -B1 -P /home 2>/dev/null | awk 'NR==2{print $4}')
+read -r disk_os_name disk_os_pct < <(
+  lsblk -P -b -o NAME,PKNAME,TYPE,SIZE,MOUNTPOINT,FSUSED 2>/dev/null | awk '
+    function field(key, line, match_data) {
+      return match(line, key "=\"([^\"]*)\"", match_data) ? match_data[1] : ""
+    }
+    function belongs_to_disk(name, disk, current) {
+      current=name
+      while (current != "") {
+        if (current == disk)
+          return 1
+        current=parent[current]
+      }
+      return 0
+    }
+    {
+      name=field("NAME", $0)
+      parent[name]=field("PKNAME", $0)
+      type[name]=field("TYPE", $0)
+      size[name]=field("SIZE", $0) + 0
+      mountpoint[name]=field("MOUNTPOINT", $0)
+      used[name]=field("FSUSED", $0) + 0
+      names[++count]=name
+      if (mountpoint[name] == "/")
+        root_name=name
+    }
+    END {
+      disk=root_name
+      while (parent[disk] != "")
+        disk=parent[disk]
+      total=size[disk] + 0
+      total_used=0
+      for (i=1; i<=count; ++i)
+        if (mountpoint[names[i]] != "" && mountpoint[names[i]] != "[SWAP]" && belongs_to_disk(names[i], disk))
+          total_used += used[names[i]]
+      printf "%s %.2f\n", disk, (total > 0 ? total_used / total * 100 : 0)
+    }
+  '
+)
 [[ -z "${disk_root_pct:-}" ]] && disk_root_pct=0
 [[ -z "${disk_home_pct:-}" ]] && disk_home_pct=$disk_root_pct
+[[ -z "${disk_home_free_bytes:-}" ]] && disk_home_free_bytes=0
+[[ -z "${disk_os_name:-}" ]] && disk_os_name="disk"
+[[ -z "${disk_os_pct:-}" ]] && disk_os_pct=0
 
 gpu_name=""
 gpu_total=0
@@ -197,11 +239,12 @@ fi
 
 gpu_name_esc=$(json_escape "$gpu_name")
 net_iface_esc=$(json_escape "$net_iface")
+disk_os_name_esc=$(json_escape "$disk_os_name")
 
 printf '{'
 printf '"cpu":{"total":%.2f,"per_core":[%s]},' "$(num_ok "$cpu_total")" "$per_core_csv"
 printf '"gpu":{"name":"%s","total":%.2f%s},' "$gpu_name_esc" "$(num_ok "$gpu_total")" "${gpu_detail_json:+,$gpu_detail_json}"
 printf '"mem":{"used_gb":%.2f,"total_gb":%.2f,"percent":%.2f},' "$(num_ok "$mem_used_gb")" "$(num_ok "$mem_total_gb")" "$(num_ok "$mem_pct")"
-printf '"disk":{"root_percent":%s,"home_percent":%s},' "$(num_ok "$disk_root_pct")" "$(num_ok "$disk_home_pct")"
+printf '"disk":{"root_percent":%s,"home_percent":%s,"home_free_bytes":%s,"os_disk_name":"%s","os_disk_percent":%.2f},' "$(num_ok "$disk_root_pct")" "$(num_ok "$disk_home_pct")" "$(num_ok "$disk_home_free_bytes")" "$disk_os_name_esc" "$(num_ok "$disk_os_pct")"
 printf '"net":{"iface":"%s","down_bps":%.2f,"up_bps":%.2f,"total_bps":%.2f}' "$net_iface_esc" "$(num_ok "$net_down_bps")" "$(num_ok "$net_up_bps")" "$(num_ok "$net_total_bps")"
 printf '}\n'

@@ -406,6 +406,26 @@ def top_processes_ram(limit=5):
     return rows
 
 
+def mounted_filesystem_usage(path):
+    stdout, _, code = run_capture(["df", "-P", "-B1", path], timeout=1.5)
+    if code != 0 or not stdout:
+        return {}
+    lines = stdout.splitlines()
+    if len(lines) < 2:
+        return {}
+    parts = lines[-1].split()
+    if len(parts) < 6:
+        return {}
+    return {
+        "device": parts[0],
+        "total_bytes": safe_int(parts[1]) or 0,
+        "used_bytes": safe_int(parts[2]) or 0,
+        "free_bytes": safe_int(parts[3]) or 0,
+        "percent": rounded(safe_float(parts[4].replace("%", "")) or 0.0),
+        "mountpoint": parts[5],
+    }
+
+
 def parse_lsblk():
     stdout, _, code = run_capture(
         [
@@ -819,6 +839,8 @@ def ram_payload():
 
 def disk_payload():
     blockdevices = parse_lsblk()
+    os_filesystem = mounted_filesystem_usage("/")
+    os_disk = {}
     disks = []
     disk_names = []
     skip_prefixes = ("loop", "ram", "sr", "zram")
@@ -857,13 +879,20 @@ def disk_payload():
             part_size = safe_int(child.get("size")) or 0
             part_used = safe_int(child.get("fsused"))
             part_free = safe_int(child.get("fsavail"))
+            mounted_usage = mounted_filesystem_usage(child.get("mountpoint")) if child.get("mountpoint") else {}
+            if mounted_usage:
+                part_size = mounted_usage["total_bytes"]
+                part_used = mounted_usage["used_bytes"]
+                part_free = mounted_usage["free_bytes"]
             if part_used is None and part_free is not None and part_size:
                 part_used = max(0, part_size - part_free)
             if part_free is None and part_used is not None and part_size:
                 part_free = max(0, part_size - part_used)
             part_percent = None
             raw_percent = child.get("fsuse%")
-            if isinstance(raw_percent, str):
+            if mounted_usage:
+                part_percent = mounted_usage["percent"]
+            elif isinstance(raw_percent, str):
                 part_percent = safe_float(raw_percent.replace("%", ""))
             elif raw_percent is not None:
                 part_percent = safe_float(raw_percent)
@@ -917,7 +946,21 @@ def disk_payload():
             "partitions": partitions,
         })
 
+    for disk in disks:
+        if any(partition.get("path") == os_filesystem.get("device") for partition in disk["partitions"]):
+            os_disk = {
+                "name": disk["name"],
+                "path": disk["path"],
+                "total_bytes": disk["total_bytes"],
+                "used_bytes": disk["used_bytes"],
+                "free_bytes": disk["free_bytes"],
+                "percent": disk["percent"],
+            }
+            break
+
     return {
+        "os_filesystem": os_filesystem,
+        "os_disk": os_disk,
         "total_percent": rounded((total_used / total_capacity * 100.0) if total_capacity else 0.0),
         "devices": disks,
         "top_processes": io_processes,
