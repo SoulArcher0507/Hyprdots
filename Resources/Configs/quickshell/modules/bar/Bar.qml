@@ -802,6 +802,207 @@ Variants {
                     }
 
                     Rectangle {
+                        id: mediaPanel
+                        readonly property string scriptsDir: Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/music"
+                        property var mediaData: ({
+                            active: false,
+                            title: "",
+                            artist: "",
+                            status: "Stopped",
+                            source: "",
+                            playerName: ""
+                        })
+                        readonly property bool hasMedia: !!mediaData.active || mediaData.status === "Playing" || mediaData.status === "Paused"
+                        readonly property bool showOnMonitor: panel.screen && panel.screen.width >= panel.screen.height
+                        property real hpad: 12 * panel.scaleFactor
+
+                        visible: showOnMonitor
+                        width: mediaContent.implicitWidth + hpad * 2
+                        height: 30 * panel.scaleFactor
+                        radius: 10 * panel.scaleFactor
+                        color: moduleColor
+                        border.color: moduleBorderColor
+                        border.width: 1 * panel.scaleFactor
+                        anchors.centerIn: parent
+
+                        function refresh() {
+                            if (!mediaPoller.running)
+                                mediaPoller.running = true;
+                        }
+
+                        function playerCommand(action) {
+                            if (!mediaPanel.mediaData.playerName)
+                                return;
+
+                            Quickshell.execDetached([
+                                "bash",
+                                mediaPanel.scriptsDir + "/player_control.sh",
+                                action,
+                                mediaPanel.mediaData.playerName
+                            ]);
+                            mediaRefreshTimer.restart();
+                        }
+
+                        function togglePlayback() {
+                            var nextData = Object.assign({}, mediaPanel.mediaData);
+                            nextData.status = nextData.status === "Playing" ? "Paused" : "Playing";
+                            mediaPanel.mediaData = nextData;
+                            mediaPanel.playerCommand("play-pause");
+                        }
+
+                        function toggleMusicPopup() {
+                            Quickshell.execDetached(["qs", "ipc", "call", "music", "toggle"]);
+                        }
+
+                        AnimatedBorder {
+                            anchors.fill: parent
+                            radius: parent.radius
+                            borderWidth: parent.border.width
+                            accentColor: moduleFontColor
+                        }
+
+                        Process {
+                            id: mediaPoller
+                            command: [
+                                "bash",
+                                "-c",
+                                "if [ -x \"$1/bar_media_info.sh\" ]; then exec \"$1/bar_media_info.sh\"; else exec \"$1/music_info.sh\"; fi",
+                                "bar-media-poller",
+                                mediaPanel.scriptsDir
+                            ]
+                            running: true
+                            stdout: StdioCollector {
+                                onStreamFinished: {
+                                    try {
+                                        mediaPanel.mediaData = JSON.parse(this.text.trim());
+                                    } catch (e) {}
+                                }
+                            }
+                        }
+
+                        Timer {
+                            interval: 1000
+                            running: true
+                            repeat: true
+                            onTriggered: mediaPanel.refresh()
+                        }
+
+                        Timer {
+                            id: mediaRefreshTimer
+                            interval: 150
+                            repeat: false
+                            onTriggered: mediaPanel.refresh()
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: mediaPanel.toggleMusicPopup()
+                        }
+
+                        Row {
+                            id: mediaContent
+                            z: 1
+                            anchors.centerIn: parent
+                            spacing: 8 * panel.scaleFactor
+
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: "󰎆"
+                                color: moduleFontColor
+                                font.pixelSize: 15 * panel.scaleFactor
+                                font.family: "CaskaydiaMono Nerd Font"
+                            }
+
+                            Item {
+                                width: Math.min(250 * panel.scaleFactor, Math.max(100 * panel.scaleFactor, mediaLabel.implicitWidth))
+                                height: mediaPanel.height
+
+                                Text {
+                                    id: mediaLabel
+                                    anchors.fill: parent
+                                    verticalAlignment: Text.AlignVCenter
+                                    text: mediaPanel.hasMedia
+                                        ? mediaPanel.mediaData.title + (mediaPanel.mediaData.artist ? " - " + mediaPanel.mediaData.artist : "")
+                                        : "Nessun media"
+                                    color: moduleFontColor
+                                    elide: Text.ElideRight
+                                    font.pixelSize: 13 * panel.scaleFactor
+                                    font.family: "Fira Sans Semibold"
+                                }
+                            }
+
+                            Rectangle {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 1 * panel.scaleFactor
+                                height: 16 * panel.scaleFactor
+                                color: moduleBorderColor
+                            }
+
+                            MouseArea {
+                                id: mediaPrevious
+                                width: 18 * panel.scaleFactor
+                                height: mediaPanel.height
+                                enabled: mediaPanel.hasMedia
+                                hoverEnabled: true
+                                cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                onClicked: mediaPanel.playerCommand("prev")
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "󰒮"
+                                    color: mediaPrevious.containsMouse ? ThemePkg.Theme.foreground : moduleFontColor
+                                    font.pixelSize: 16 * panel.scaleFactor
+                                    font.family: "CaskaydiaMono Nerd Font"
+                                    scale: mediaPrevious.pressed ? 0.85 : 1.0
+                                    Behavior on scale { NumberAnimation { duration: 120 } }
+                                }
+                            }
+
+                            MouseArea {
+                                id: mediaPlayPause
+                                width: 18 * panel.scaleFactor
+                                height: mediaPanel.height
+                                enabled: mediaPanel.hasMedia
+                                hoverEnabled: true
+                                cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                onClicked: mediaPanel.togglePlayback()
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: mediaPanel.mediaData.status === "Playing" ? "󰏤" : "󰐊"
+                                    color: mediaPlayPause.containsMouse ? ThemePkg.Theme.foreground : moduleFontColor
+                                    font.pixelSize: 16 * panel.scaleFactor
+                                    font.family: "CaskaydiaMono Nerd Font"
+                                    scale: mediaPlayPause.pressed ? 0.85 : 1.0
+                                    Behavior on scale { NumberAnimation { duration: 120 } }
+                                }
+                            }
+
+                            MouseArea {
+                                id: mediaNext
+                                width: 18 * panel.scaleFactor
+                                height: mediaPanel.height
+                                enabled: mediaPanel.hasMedia
+                                hoverEnabled: true
+                                cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                onClicked: mediaPanel.playerCommand("next")
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "󰒭"
+                                    color: mediaNext.containsMouse ? ThemePkg.Theme.foreground : moduleFontColor
+                                    font.pixelSize: 16 * panel.scaleFactor
+                                    font.family: "CaskaydiaMono Nerd Font"
+                                    scale: mediaNext.pressed ? 0.85 : 1.0
+                                    Behavior on scale { NumberAnimation { duration: 120 } }
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle {
                         id: trayButton
                         width: systemTrayWidget.width
                         height: 30 * panel.scaleFactor
