@@ -81,20 +81,26 @@ ShellRoot {
 
     readonly property real popupOpenWidth: 960
     readonly property real popupOpenHeight: 460
-    readonly property real popupClosedWidth: 840
-    readonly property real popupClosedHeight: 386
+    readonly property real popupClosedWidth: 280
+    readonly property real popupClosedHeight: 30
     readonly property real popupOpenRadius: 20
-    readonly property real popupClosedRadius: 36
+    readonly property real popupClosedRadius: 10
+    readonly property real barPanelHeight: 47
+    readonly property real barPanelCenterY: barPanelHeight / 2
 
     property bool popupMounted: false
     property bool popupTargetVisible: false
     property real popupCardOpacity: 0.0
-    property real popupCardScaleX: 0.91
-    property real popupCardScaleY: 0.79
+    property real popupCardScaleX: 0.42
+    property real popupCardScaleY: 0.24
     property real popupCardWidth: popupClosedWidth
     property real popupCardHeight: popupClosedHeight
     property real popupCardRadius: popupClosedRadius
-    property real popupCardLift: 18
+    property real popupCardLift: popupOriginLift()
+
+    function popupOriginLift() {
+        return root.barPanelCenterY - (root.popupClosedHeight / 2);
+    }
 
     function closeOtherPanels() {
         Quickshell.execDetached(["qs","ipc","-p",Quickshell.env("HOME")+"/.config/quickshell","call","global","closeShellPopups"]);
@@ -133,13 +139,13 @@ ShellRoot {
         }
 
         ParallelAnimation {
-            NumberAnimation { target: root; property: "popupCardOpacity"; to: 0.78; duration: 145; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardScaleX"; to: 0.985; duration: 175; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.94; duration: 190; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardWidth"; to: root.popupOpenWidth - 38; duration: 190; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardHeight"; to: root.popupOpenHeight - 26; duration: 200; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardRadius"; to: 28; duration: 190; easing.type: Easing.OutQuad }
-            NumberAnimation { target: root; property: "popupCardLift"; to: 8; duration: 190; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "popupCardOpacity"; to: 0.82; duration: 210; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "popupCardScaleX"; to: 0.985; duration: 280; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.94; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "popupCardWidth"; to: root.popupOpenWidth - 18; duration: 285; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "popupCardHeight"; to: root.popupOpenHeight - 18; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "popupCardRadius"; to: 28; duration: 270; easing.type: Easing.OutQuad }
+            NumberAnimation { target: root; property: "popupCardLift"; to: 8; duration: 300; easing.type: Easing.OutCubic }
         }
 
         ParallelAnimation {
@@ -164,21 +170,21 @@ ShellRoot {
         ParallelAnimation {
             NumberAnimation { target: root; property: "popupCardScaleX"; to: 1.04; duration: 85; easing.type: Easing.OutQuad }
             NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.95; duration: 85; easing.type: Easing.OutQuad }
-            NumberAnimation { target: root; property: "popupCardWidth"; to: root.popupOpenWidth + 26; duration: 95; easing.type: Easing.OutQuad }
+            NumberAnimation { target: root; property: "popupCardWidth"; to: root.popupOpenWidth + 14; duration: 95; easing.type: Easing.OutQuad }
             NumberAnimation { target: root; property: "popupCardHeight"; to: root.popupOpenHeight - 16; duration: 95; easing.type: Easing.OutQuad }
-            NumberAnimation { target: root; property: "popupCardRadius"; to: 30; duration: 95; easing.type: Easing.OutQuad }
+            NumberAnimation { target: root; property: "popupCardRadius"; to: 28; duration: 95; easing.type: Easing.OutQuad }
             NumberAnimation { target: root; property: "popupCardLift"; to: 5; duration: 95; easing.type: Easing.OutQuad }
             NumberAnimation { target: root; property: "popupCardOpacity"; to: 0.88; duration: 80; easing.type: Easing.OutQuad }
         }
 
         ParallelAnimation {
             NumberAnimation { target: root; property: "popupCardOpacity"; to: 0.0; duration: 180; easing.type: Easing.InCubic }
-            NumberAnimation { target: root; property: "popupCardScaleX"; to: 0.84; duration: 205; easing.type: Easing.InCubic }
-            NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.68; duration: 220; easing.type: Easing.InCubic }
+            NumberAnimation { target: root; property: "popupCardScaleX"; to: 0.42; duration: 260; easing.type: Easing.InCubic }
+            NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.24; duration: 280; easing.type: Easing.InCubic }
             NumberAnimation { target: root; property: "popupCardWidth"; to: root.popupClosedWidth; duration: 200; easing.type: Easing.InCubic }
             NumberAnimation { target: root; property: "popupCardHeight"; to: root.popupClosedHeight; duration: 210; easing.type: Easing.InCubic }
             NumberAnimation { target: root; property: "popupCardRadius"; to: root.popupClosedRadius; duration: 200; easing.type: Easing.InQuad }
-            NumberAnimation { target: root; property: "popupCardLift"; to: 24; duration: 200; easing.type: Easing.InCubic }
+            NumberAnimation { target: root; property: "popupCardLift"; to: root.popupOriginLift(); duration: 280; easing.type: Easing.InCubic }
         }
     }
     IpcHandler {

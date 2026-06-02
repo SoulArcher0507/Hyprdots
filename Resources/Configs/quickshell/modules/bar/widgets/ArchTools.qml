@@ -29,12 +29,14 @@ Item {
     readonly property real maxExpandedDetailsHeight: Math.max(0, maxPopupHeight - archPanelHeight - detailsPanelSpacing)
     readonly property real popupOpenWidth: root.archPanelWidth
     readonly property real popupOpenHeight: root.archPanelHeight
-    readonly property real popupClosedWidth: root.archPanelWidth - 44
-    readonly property real popupClosedHeight: root.archPanelHeight - 28
+    readonly property real popupClosedWidth: 280
+    readonly property real popupClosedHeight: 30
     readonly property real popupOpenRadius: 20
-    readonly property real popupClosedRadius: 34
-    readonly property int overlayEnterDuration: 405
-    readonly property int overlayExitDuration: 305
+    readonly property real popupClosedRadius: 10
+    readonly property real barPanelHeight: 47
+    readonly property real barPanelCenterY: barPanelHeight / 2
+    readonly property int overlayEnterDuration: 515
+    readonly property int overlayExitDuration: 375
     readonly property bool overlayOwnsCloseAnimation: true
     readonly property int detailsExpandDuration: 360
     readonly property int detailsCollapseDuration: 240
@@ -168,15 +170,15 @@ Item {
     property bool sddmPickerMounted: false
     property bool sddmPickerTargetVisible: false
     property real sddmPickerCardOpacity: 0.0
-    property real sddmPickerCardScaleX: 0.91
-    property real sddmPickerCardScaleY: 0.79
+    property real sddmPickerCardScaleX: 0.42
+    property real sddmPickerCardScaleY: 0.24
     readonly property real sddmPickerDefaultWidth: 1180
     readonly property real sddmPickerDefaultHeight: 450
     readonly property real sddmPreviewAspectRatio: 16 / 9
     property real sddmPickerCardWidth: sddmPickerDefaultWidth
     property real sddmPickerCardHeight: sddmPickerDefaultHeight
     property real sddmPickerCardRadius: 34
-    property real sddmPickerCardLift: 18
+    property real sddmPickerCardLift: 8.5
     property url sddmPickerFolderUrl: "file://" + Quickshell.env("HOME")
     property string sddmPickerSelectedPath: ""
     property string sddmPickerSelectedName: ""
@@ -194,12 +196,12 @@ Item {
         root.sddmPickerVisible = true;
         sddmPickerExitAnim.stop();
         root.sddmPickerCardOpacity = 0.0;
-        root.sddmPickerCardScaleX = 0.91;
-        root.sddmPickerCardScaleY = 0.79;
+        root.sddmPickerCardScaleX = 0.42;
+        root.sddmPickerCardScaleY = 0.24;
         root.sddmPickerCardWidth = root.sddmPickerDefaultWidth;
         root.sddmPickerCardHeight = root.sddmPickerDefaultHeight;
         root.sddmPickerCardRadius = 34;
-        root.sddmPickerCardLift = 18;
+        root.sddmPickerCardLift = 8.5;
         sddmPickerEnterAnim.stop();
         sddmPickerEnterAnim.start();
         sddmPickerFolderModel.reload();
@@ -316,12 +318,12 @@ Item {
     property real introState: 0.0
     property bool popupTargetVisible: false
     property real popupCardOpacity: 0.0
-    property real popupCardScaleX: 0.91
-    property real popupCardScaleY: 0.79
+    property real popupCardScaleX: 0.42
+    property real popupCardScaleY: 0.24
     property real popupCardWidth: popupClosedWidth
     property real popupCardHeight: popupClosedHeight
     property real popupCardRadius: popupClosedRadius
-    property real popupCardLift: 18
+    property real popupCardLift: root.popupOriginLift()
     property real hostLoaderOpacity: (parent && parent.opacity !== undefined) ? parent.opacity : 1.0
     property real lastHostLoaderOpacity: hostLoaderOpacity
 
@@ -384,6 +386,10 @@ Item {
         }
     }
 
+    function popupOriginLift() {
+        return root.barPanelCenterY - (root.popupClosedHeight / 2);
+    }
+
     SequentialAnimation {
         id: popupEnterAnim
         running: false
@@ -392,50 +398,50 @@ Item {
             NumberAnimation {
                 target: root
                 property: "popupCardOpacity"
-                to: 0.78
-                duration: 145
+                to: 0.82
+                duration: 210
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: root
                 property: "popupCardScaleX"
                 to: 0.985
-                duration: 175
+                duration: 280
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: root
                 property: "popupCardScaleY"
                 to: 0.94
-                duration: 190
+                duration: 300
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: root
                 property: "popupCardWidth"
-                to: root.popupOpenWidth - 26
-                duration: 190
+                to: root.popupOpenWidth - 18
+                duration: 285
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: root
                 property: "popupCardHeight"
-                to: root.popupOpenHeight - 34
-                duration: 200
+                to: root.popupOpenHeight - 18
+                duration: 300
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: root
                 property: "popupCardRadius"
                 to: 28
-                duration: 190
+                duration: 270
                 easing.type: Easing.OutQuad
             }
             NumberAnimation {
                 target: root
                 property: "popupCardLift"
                 to: 8
-                duration: 190
+                duration: 300
                 easing.type: Easing.OutCubic
             }
         }
@@ -515,21 +521,21 @@ Item {
             NumberAnimation {
                 target: root
                 property: "popupCardWidth"
-                to: root.popupOpenWidth + 18
+                to: root.popupOpenWidth + 14
                 duration: 95
                 easing.type: Easing.OutQuad
             }
             NumberAnimation {
                 target: root
                 property: "popupCardHeight"
-                to: root.popupOpenHeight - 20
+                to: root.popupOpenHeight - 16
                 duration: 95
                 easing.type: Easing.OutQuad
             }
             NumberAnimation {
                 target: root
                 property: "popupCardRadius"
-                to: 30
+                to: 28
                 duration: 95
                 easing.type: Easing.OutQuad
             }
@@ -560,15 +566,15 @@ Item {
             NumberAnimation {
                 target: root
                 property: "popupCardScaleX"
-                to: 0.84
-                duration: 205
+                to: 0.42
+                duration: 260
                 easing.type: Easing.InCubic
             }
             NumberAnimation {
                 target: root
                 property: "popupCardScaleY"
-                to: 0.68
-                duration: 220
+                to: 0.24
+                duration: 280
                 easing.type: Easing.InCubic
             }
             NumberAnimation {
@@ -595,8 +601,8 @@ Item {
             NumberAnimation {
                 target: root
                 property: "popupCardLift"
-                to: 24
-                duration: 200
+                to: root.popupOriginLift()
+                duration: 280
                 easing.type: Easing.InCubic
             }
         }
@@ -3049,24 +3055,24 @@ Item {
         property bool popupMounted: false
         property bool popupTargetVisible: false
         property real popupCardOpacity: 0.0
-        property real popupCardScaleX: 0.91
-        property real popupCardScaleY: 0.79
+        property real popupCardScaleX: 0.42
+        property real popupCardScaleY: 0.24
         property real popupCardWidth: 406
         property real popupCardHeight: 142
         property real popupCardRadius: 34
-        property real popupCardLift: 18
+        property real popupCardLift: 8.5
 
         function showPopup() {
             popupMounted = true;
             popupTargetVisible = true;
             authPopupExitAnim.stop();
             popupCardOpacity = 0.0;
-            popupCardScaleX = 0.91;
-            popupCardScaleY = 0.79;
+            popupCardScaleX = 0.42;
+            popupCardScaleY = 0.24;
             popupCardWidth = 406;
             popupCardHeight = 142;
             popupCardRadius = 34;
-            popupCardLift = 18;
+            popupCardLift = 8.5;
             authPasswordField.text = "";
             root.authUnlockFillLevel = 0.0;
             root.authUnlockFlashOpacity = 0.0;
@@ -3394,12 +3400,12 @@ Item {
         property bool popupMounted: false
         property bool popupTargetVisible: false
         property real popupCardOpacity: 0.0
-        property real popupCardScaleX: 0.91
-        property real popupCardScaleY: 0.79
+        property real popupCardScaleX: 0.42
+        property real popupCardScaleY: 0.24
         property real popupCardWidth: 460
         property real popupCardHeight: 253
         property real popupCardRadius: 34
-        property real popupCardLift: 18
+        property real popupCardLift: 8.5
         readonly property real contentMargin: 25
         readonly property real borderedSpacing: 15
 
@@ -3408,12 +3414,12 @@ Item {
             popupTargetVisible = true;
             weatherSettingsPopupExitAnim.stop();
             popupCardOpacity = 0.0;
-            popupCardScaleX = 0.91;
-            popupCardScaleY = 0.79;
+            popupCardScaleX = 0.42;
+            popupCardScaleY = 0.24;
             popupCardWidth = 460;
             popupCardHeight = 253;
             popupCardRadius = 34;
-            popupCardLift = 18;
+            popupCardLift = 8.5;
             weatherSettingsPopupEnterAnim.stop();
             weatherSettingsPopupEnterAnim.start();
             Qt.callLater(function () {
@@ -3788,12 +3794,12 @@ Item {
         property bool popupMounted: false
         property bool popupTargetVisible: false
         property real popupCardOpacity: 0.0
-        property real popupCardScaleX: 0.91
-        property real popupCardScaleY: 0.79
+        property real popupCardScaleX: 0.42
+        property real popupCardScaleY: 0.24
         property real popupCardWidth: 436
         property real popupCardHeight: 572
         property real popupCardRadius: 34
-        property real popupCardLift: 18
+        property real popupCardLift: 8.5
 
         property string titleStr: ""
         property string managerType: ""
@@ -3810,12 +3816,12 @@ Item {
             popupTargetVisible = true;
             updatesListPopupExitAnim.stop();
             popupCardOpacity = 0.0;
-            popupCardScaleX = 0.91;
-            popupCardScaleY = 0.79;
+            popupCardScaleX = 0.42;
+            popupCardScaleY = 0.24;
             popupCardWidth = 436;
             popupCardHeight = 572;
             popupCardRadius = 34;
-            popupCardLift = 18;
+            popupCardLift = 8.5;
             updatesListPopupEnterAnim.stop();
             updatesListPopupEnterAnim.start();
             if (typeof updatesSearch !== "undefined") {
@@ -4514,50 +4520,50 @@ Item {
             NumberAnimation {
                 target: authPopup
                 property: "popupCardOpacity"
-                to: 0.78
-                duration: 145
+                to: 0.82
+                duration: 210
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: authPopup
                 property: "popupCardScaleX"
                 to: 0.985
-                duration: 175
+                duration: 280
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: authPopup
                 property: "popupCardScaleY"
                 to: 0.94
-                duration: 190
+                duration: 300
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: authPopup
                 property: "popupCardWidth"
                 to: 434
-                duration: 190
+                duration: 285
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: authPopup
                 property: "popupCardHeight"
                 to: 150
-                duration: 200
+                duration: 300
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: authPopup
                 property: "popupCardRadius"
                 to: 28
-                duration: 190
+                duration: 270
                 easing.type: Easing.OutQuad
             }
             NumberAnimation {
                 target: authPopup
                 property: "popupCardLift"
                 to: 8
-                duration: 190
+                duration: 300
                 easing.type: Easing.OutCubic
             }
         }
@@ -4689,15 +4695,15 @@ Item {
             NumberAnimation {
                 target: authPopup
                 property: "popupCardScaleX"
-                to: 0.84
-                duration: 205
+                to: 0.42
+                duration: 260
                 easing.type: Easing.InCubic
             }
             NumberAnimation {
                 target: authPopup
                 property: "popupCardScaleY"
-                to: 0.68
-                duration: 220
+                to: 0.24
+                duration: 280
                 easing.type: Easing.InCubic
             }
             NumberAnimation {
@@ -4724,8 +4730,8 @@ Item {
             NumberAnimation {
                 target: authPopup
                 property: "popupCardLift"
-                to: 24
-                duration: 200
+                to: 8.5
+                duration: 280
                 easing.type: Easing.InCubic
             }
         }
@@ -4746,50 +4752,50 @@ Item {
             NumberAnimation {
                 target: weatherSettingsPopup
                 property: "popupCardOpacity"
-                to: 0.78
-                duration: 145
+                to: 0.82
+                duration: 210
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: weatherSettingsPopup
                 property: "popupCardScaleX"
                 to: 0.985
-                duration: 175
+                duration: 280
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: weatherSettingsPopup
                 property: "popupCardScaleY"
                 to: 0.94
-                duration: 190
+                duration: 300
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: weatherSettingsPopup
                 property: "popupCardWidth"
                 to: 434
-                duration: 190
+                duration: 285
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: weatherSettingsPopup
                 property: "popupCardHeight"
                 to: 238
-                duration: 200
+                duration: 300
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: weatherSettingsPopup
                 property: "popupCardRadius"
                 to: 28
-                duration: 190
+                duration: 270
                 easing.type: Easing.OutQuad
             }
             NumberAnimation {
                 target: weatherSettingsPopup
                 property: "popupCardLift"
                 to: 8
-                duration: 190
+                duration: 300
                 easing.type: Easing.OutCubic
             }
         }
@@ -4921,15 +4927,15 @@ Item {
             NumberAnimation {
                 target: weatherSettingsPopup
                 property: "popupCardScaleX"
-                to: 0.84
-                duration: 205
+                to: 0.42
+                duration: 260
                 easing.type: Easing.InCubic
             }
             NumberAnimation {
                 target: weatherSettingsPopup
                 property: "popupCardScaleY"
-                to: 0.68
-                duration: 220
+                to: 0.24
+                duration: 280
                 easing.type: Easing.InCubic
             }
             NumberAnimation {
@@ -4956,8 +4962,8 @@ Item {
             NumberAnimation {
                 target: weatherSettingsPopup
                 property: "popupCardLift"
-                to: 24
-                duration: 200
+                to: 8.5
+                duration: 280
                 easing.type: Easing.InCubic
             }
         }
@@ -4973,12 +4979,12 @@ Item {
         property bool popupMounted: false
         property bool popupTargetVisible: false
         property real popupCardOpacity: 0.0
-        property real popupCardScaleX: 0.91
-        property real popupCardScaleY: 0.79
+        property real popupCardScaleX: 0.42
+        property real popupCardScaleY: 0.24
         property real popupCardWidth: 460
         property real popupCardHeight: 165
         property real popupCardRadius: 34
-        property real popupCardLift: 18
+        property real popupCardLift: 8.5
 
         property int activePickerMode: 0 // 0 = SDDM, 1 = Avatar, 2 = GRUB
 
@@ -4987,12 +4993,12 @@ Item {
             popupTargetVisible = true;
             profileSettingsPopupExitAnim.stop();
             popupCardOpacity = 0.0;
-            popupCardScaleX = 0.91;
-            popupCardScaleY = 0.79;
+            popupCardScaleX = 0.42;
+            popupCardScaleY = 0.24;
             popupCardWidth = 460;
             popupCardHeight = 165;
             popupCardRadius = 34;
-            popupCardLift = 18;
+            popupCardLift = 8.5;
             profileSettingsPopupEnterAnim.stop();
             profileSettingsPopupEnterAnim.start();
         }
@@ -5207,50 +5213,50 @@ Item {
             NumberAnimation {
                 target: profileSettingsPopup
                 property: "popupCardOpacity"
-                to: 0.78
-                duration: 145
+                to: 0.82
+                duration: 210
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: profileSettingsPopup
                 property: "popupCardScaleX"
                 to: 0.985
-                duration: 175
+                duration: 280
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: profileSettingsPopup
                 property: "popupCardScaleY"
                 to: 0.94
-                duration: 190
+                duration: 300
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: profileSettingsPopup
                 property: "popupCardWidth"
                 to: 434
-                duration: 190
+                duration: 285
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: profileSettingsPopup
                 property: "popupCardHeight"
                 to: 150
-                duration: 200
+                duration: 300
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: profileSettingsPopup
                 property: "popupCardRadius"
                 to: 28
-                duration: 190
+                duration: 270
                 easing.type: Easing.OutQuad
             }
             NumberAnimation {
                 target: profileSettingsPopup
                 property: "popupCardLift"
                 to: 8
-                duration: 190
+                duration: 300
                 easing.type: Easing.OutCubic
             }
         }
@@ -5382,15 +5388,15 @@ Item {
             NumberAnimation {
                 target: profileSettingsPopup
                 property: "popupCardScaleX"
-                to: 0.84
-                duration: 205
+                to: 0.42
+                duration: 260
                 easing.type: Easing.InCubic
             }
             NumberAnimation {
                 target: profileSettingsPopup
                 property: "popupCardScaleY"
-                to: 0.68
-                duration: 220
+                to: 0.24
+                duration: 280
                 easing.type: Easing.InCubic
             }
             NumberAnimation {
@@ -5417,8 +5423,8 @@ Item {
             NumberAnimation {
                 target: profileSettingsPopup
                 property: "popupCardLift"
-                to: 24
-                duration: 200
+                to: 8.5
+                duration: 280
                 easing.type: Easing.InCubic
             }
         }
@@ -5440,50 +5446,50 @@ Item {
             NumberAnimation {
                 target: updatesListPopup
                 property: "popupCardOpacity"
-                to: 0.78
-                duration: 145
+                to: 0.82
+                duration: 210
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: updatesListPopup
                 property: "popupCardScaleX"
                 to: 0.985
-                duration: 175
+                duration: 280
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: updatesListPopup
                 property: "popupCardScaleY"
                 to: 0.94
-                duration: 190
+                duration: 300
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: updatesListPopup
                 property: "popupCardWidth"
                 to: 454
-                duration: 190
+                duration: 285
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: updatesListPopup
                 property: "popupCardHeight"
                 to: 566
-                duration: 200
+                duration: 300
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: updatesListPopup
                 property: "popupCardRadius"
                 to: 28
-                duration: 190
+                duration: 270
                 easing.type: Easing.OutQuad
             }
             NumberAnimation {
                 target: updatesListPopup
                 property: "popupCardLift"
                 to: 8
-                duration: 190
+                duration: 300
                 easing.type: Easing.OutCubic
             }
         }
@@ -5616,15 +5622,15 @@ Item {
             NumberAnimation {
                 target: updatesListPopup
                 property: "popupCardScaleX"
-                to: 0.84
-                duration: 205
+                to: 0.42
+                duration: 260
                 easing.type: Easing.InCubic
             }
             NumberAnimation {
                 target: updatesListPopup
                 property: "popupCardScaleY"
-                to: 0.68
-                duration: 220
+                to: 0.24
+                duration: 280
                 easing.type: Easing.InCubic
             }
             NumberAnimation {
@@ -5651,8 +5657,8 @@ Item {
             NumberAnimation {
                 target: updatesListPopup
                 property: "popupCardLift"
-                to: 24
-                duration: 200
+                to: 8.5
+                duration: 280
                 easing.type: Easing.InCubic
             }
         }
@@ -8391,29 +8397,29 @@ Item {
             NumberAnimation {
                 target: root
                 property: "sddmPickerCardOpacity"
-                to: 0.78
-                duration: 145
+                to: 0.82
+                duration: 210
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: root
                 property: "sddmPickerCardScaleX"
                 to: 0.985
-                duration: 175
+                duration: 280
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: root
                 property: "sddmPickerCardScaleY"
                 to: 0.94
-                duration: 190
+                duration: 300
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
                 target: root
                 property: "sddmPickerCardLift"
                 to: 8
-                duration: 190
+                duration: 300
                 easing.type: Easing.OutCubic
             }
         }
@@ -8498,22 +8504,22 @@ Item {
             NumberAnimation {
                 target: root
                 property: "sddmPickerCardScaleX"
-                to: 0.84
-                duration: 205
+                to: 0.42
+                duration: 260
                 easing.type: Easing.InCubic
             }
             NumberAnimation {
                 target: root
                 property: "sddmPickerCardScaleY"
-                to: 0.68
-                duration: 220
+                to: 0.24
+                duration: 280
                 easing.type: Easing.InCubic
             }
             NumberAnimation {
                 target: root
                 property: "sddmPickerCardLift"
-                to: 24
-                duration: 200
+                to: 8.5
+                duration: 280
                 easing.type: Easing.InCubic
             }
         }

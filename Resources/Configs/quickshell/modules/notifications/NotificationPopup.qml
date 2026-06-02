@@ -17,16 +17,20 @@ import "../bar/widgets" as BarWidgets
 Item {
     id: root
     readonly property real popupOpenRadius: 20
-    readonly property real popupClosedRadius: 34
+    readonly property real popupClosedWidth: 280
+    readonly property real popupClosedHeight: 30
+    readonly property real popupClosedRadius: 10
+    readonly property real barPanelHeight: 47
+    readonly property real barPanelCenterY: barPanelHeight / 2
     property bool popupMounted: false
     property bool popupTargetVisible: false
     property real popupCardOpacity: 0.0
-    property real popupCardScaleX: 0.91
-    property real popupCardScaleY: 0.79
-    property real popupCardWidth: Math.max(minCardWidth, Math.min(maxCardWidth, content.implicitWidth + 50))
-    property real popupCardHeight: Math.min(maxCardHeight, content.implicitHeight + 50)
+    property real popupCardScaleX: 0.42
+    property real popupCardScaleY: 0.24
+    property real popupCardWidth: popupClosedWidth
+    property real popupCardHeight: popupClosedHeight
     property real popupCardRadius: popupClosedRadius
-    property real popupCardLift: 18
+    property real popupCardLift: popupOriginLift()
     readonly property bool soundEnabled: DndMod.DndState.soundEnabled && !root.doNotDisturb
     readonly property url defaultNotificationSound: Qt.resolvedUrl("default-notification.wav")
     readonly property url currentNotificationSound: root._currentNotificationSound()
@@ -40,6 +44,10 @@ Item {
     property int iconLookupCacheSize: 0
     property string notificationSnapshot: ""
     property int dismissAnimationDuration: 220
+
+    function popupOriginLift() {
+        return root.barPanelCenterY - (root.popupClosedHeight / 2);
+    }
     property int popupResizeDuration: 170
     property var pendingNotificationDismissals: ({})
     property var pendingGroupDismissals: ({})
@@ -2168,13 +2176,13 @@ Item {
         }
 
         ParallelAnimation {
-            NumberAnimation { target: root; property: "popupCardOpacity"; to: 0.78; duration: 145; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardScaleX"; to: 0.985; duration: 175; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.94; duration: 190; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardWidth"; to: Math.max(root.minCardWidth, Math.min(root.maxCardWidth, content.implicitWidth + 32)); duration: 190; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardHeight"; to: Math.min(root.maxCardHeight, content.implicitHeight + 32); duration: 200; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardRadius"; to: 28; duration: 190; easing.type: Easing.OutQuad }
-            NumberAnimation { target: root; property: "popupCardLift"; to: 8; duration: 190; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "popupCardOpacity"; to: 0.82; duration: 210; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "popupCardScaleX"; to: 0.985; duration: 280; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.94; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "popupCardWidth"; to: Math.max(root.minCardWidth, Math.min(root.maxCardWidth, content.implicitWidth + 32)); duration: 285; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "popupCardHeight"; to: Math.min(root.maxCardHeight, content.implicitHeight + 32); duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "popupCardRadius"; to: 28; duration: 270; easing.type: Easing.OutQuad }
+            NumberAnimation { target: root; property: "popupCardLift"; to: 8; duration: 300; easing.type: Easing.OutCubic }
         }
 
         ParallelAnimation {
@@ -2209,12 +2217,12 @@ Item {
 
         ParallelAnimation {
             NumberAnimation { target: root; property: "popupCardOpacity"; to: 0.0; duration: 180; easing.type: Easing.InCubic }
-            NumberAnimation { target: root; property: "popupCardScaleX"; to: 0.84; duration: 205; easing.type: Easing.InCubic }
-            NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.68; duration: 220; easing.type: Easing.InCubic }
-            NumberAnimation { target: root; property: "popupCardWidth"; to: Math.max(root.minCardWidth - 44, Math.min(root.maxCardWidth - 20, content.implicitWidth + 6)); duration: 200; easing.type: Easing.InCubic }
-            NumberAnimation { target: root; property: "popupCardHeight"; to: Math.max(160, Math.min(root.maxCardHeight - 28, content.implicitHeight + 22)); duration: 210; easing.type: Easing.InCubic }
+            NumberAnimation { target: root; property: "popupCardScaleX"; to: 0.42; duration: 260; easing.type: Easing.InCubic }
+            NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.24; duration: 280; easing.type: Easing.InCubic }
+            NumberAnimation { target: root; property: "popupCardWidth"; to: root.popupClosedWidth; duration: 200; easing.type: Easing.InCubic }
+            NumberAnimation { target: root; property: "popupCardHeight"; to: root.popupClosedHeight; duration: 210; easing.type: Easing.InCubic }
             NumberAnimation { target: root; property: "popupCardRadius"; to: root.popupClosedRadius; duration: 200; easing.type: Easing.InQuad }
-            NumberAnimation { target: root; property: "popupCardLift"; to: 24; duration: 200; easing.type: Easing.InCubic }
+            NumberAnimation { target: root; property: "popupCardLift"; to: root.popupOriginLift(); duration: 280; easing.type: Easing.InCubic }
         }
     }
 }

@@ -42,12 +42,14 @@ Item {
     readonly property color panelBorderColor: ThemePkg.Theme.mix(ThemePkg.Theme.background, ThemePkg.Theme.foreground, 0.35)
     readonly property real popupOpenWidth: root.panelWidth
     readonly property real popupOpenHeight: root.panelHeight
-    readonly property real popupClosedWidth: root.panelWidth - 44
-    readonly property real popupClosedHeight: root.panelHeight - 28
+    readonly property real popupClosedWidth: 280
+    readonly property real popupClosedHeight: 30
     readonly property real popupOpenRadius: 20
-    readonly property real popupClosedRadius: 34
-    readonly property int overlayEnterDuration: 405
-    readonly property int overlayExitDuration: 305
+    readonly property real popupClosedRadius: 10
+    readonly property real barPanelHeight: 47
+    readonly property real barPanelCenterY: barPanelHeight / 2
+    readonly property int overlayEnterDuration: 515
+    readonly property int overlayExitDuration: 375
     readonly property bool overlayOwnsCloseAnimation: true
 
     readonly property url activeSoundsFolderUrl: Qt.resolvedUrl("../../notifications/sounds")
@@ -67,23 +69,23 @@ Item {
     property bool pickerMounted: false
     property bool pickerTargetVisible: false
     property real pickerCardOpacity: 0.0
-    property real pickerCardScaleX: 0.91
-    property real pickerCardScaleY: 0.79
+    property real pickerCardScaleX: 0.42
+    property real pickerCardScaleY: 0.24
     property real pickerCardWidth: 596
     property real pickerCardHeight: 532
     property real pickerCardRadius: 34
-    property real pickerCardLift: 18
+    property real pickerCardLift: 8.5
     property url pickerFolderUrl: "file://" + Quickshell.env("HOME")
     property string pickerSelectedPath: ""
     property string pickerSelectedName: ""
     property bool popupTargetVisible: false
     property real popupCardOpacity: 0.0
-    property real popupCardScaleX: 0.91
-    property real popupCardScaleY: 0.79
+    property real popupCardScaleX: 0.42
+    property real popupCardScaleY: 0.24
     property real popupCardWidth: popupClosedWidth
     property real popupCardHeight: popupClosedHeight
     property real popupCardRadius: popupClosedRadius
-    property real popupCardLift: 18
+    property real popupCardLift: popupOriginLift()
     property real hostLoaderOpacity: (parent && parent.opacity !== undefined) ? parent.opacity : 1.0
     property real lastHostLoaderOpacity: hostLoaderOpacity
 
@@ -126,18 +128,22 @@ Item {
         }
     }
 
+    function popupOriginLift() {
+        return root.barPanelCenterY - (root.popupClosedHeight / 2);
+    }
+
     SequentialAnimation {
         id: popupEnterAnim
         running: false
 
         ParallelAnimation {
-            NumberAnimation { target: root; property: "popupCardOpacity"; to: 0.78; duration: 145; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardScaleX"; to: 0.985; duration: 175; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.94; duration: 190; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardWidth"; to: root.popupOpenWidth - 18; duration: 190; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardHeight"; to: root.popupOpenHeight - 18; duration: 200; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardRadius"; to: 28; duration: 190; easing.type: Easing.OutQuad }
-            NumberAnimation { target: root; property: "popupCardLift"; to: 8; duration: 190; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "popupCardOpacity"; to: 0.82; duration: 210; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "popupCardScaleX"; to: 0.985; duration: 280; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.94; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "popupCardWidth"; to: root.popupOpenWidth - 18; duration: 285; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "popupCardHeight"; to: root.popupOpenHeight - 18; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "popupCardRadius"; to: 28; duration: 270; easing.type: Easing.OutQuad }
+            NumberAnimation { target: root; property: "popupCardLift"; to: 8; duration: 300; easing.type: Easing.OutCubic }
         }
 
         ParallelAnimation {
@@ -167,12 +173,12 @@ Item {
 
         ParallelAnimation {
             NumberAnimation { target: root; property: "popupCardOpacity"; to: 0.0; duration: 180; easing.type: Easing.InCubic }
-            NumberAnimation { target: root; property: "popupCardScaleX"; to: 0.84; duration: 205; easing.type: Easing.InCubic }
-            NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.68; duration: 220; easing.type: Easing.InCubic }
+            NumberAnimation { target: root; property: "popupCardScaleX"; to: 0.42; duration: 260; easing.type: Easing.InCubic }
+            NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.24; duration: 280; easing.type: Easing.InCubic }
             NumberAnimation { target: root; property: "popupCardWidth"; to: root.popupClosedWidth; duration: 200; easing.type: Easing.InCubic }
             NumberAnimation { target: root; property: "popupCardHeight"; to: root.popupClosedHeight; duration: 210; easing.type: Easing.InCubic }
             NumberAnimation { target: root; property: "popupCardRadius"; to: root.popupClosedRadius; duration: 200; easing.type: Easing.InQuad }
-            NumberAnimation { target: root; property: "popupCardLift"; to: 24; duration: 200; easing.type: Easing.InCubic }
+            NumberAnimation { target: root; property: "popupCardLift"; to: root.popupOriginLift(); duration: 280; easing.type: Easing.InCubic }
         }
     }
 
@@ -270,12 +276,12 @@ Item {
         root.pickerVisible = true;
         pickerExitAnim.stop();
         root.pickerCardOpacity = 0.0;
-        root.pickerCardScaleX = 0.91;
-        root.pickerCardScaleY = 0.79;
+        root.pickerCardScaleX = 0.42;
+        root.pickerCardScaleY = 0.24;
         root.pickerCardWidth = 596;
         root.pickerCardHeight = 532;
         root.pickerCardRadius = 34;
-        root.pickerCardLift = 18;
+        root.pickerCardLift = 8.5;
         pickerEnterAnim.stop();
         pickerEnterAnim.start();
         pickerFolderModel.reload();
@@ -873,13 +879,13 @@ Item {
         }
 
         ParallelAnimation {
-            NumberAnimation { target: root; property: "pickerCardOpacity"; to: 0.78; duration: 145; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "pickerCardScaleX"; to: 0.985; duration: 175; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "pickerCardScaleY"; to: 0.94; duration: 190; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "pickerCardWidth"; to: 614; duration: 190; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "pickerCardHeight"; to: 526; duration: 200; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "pickerCardRadius"; to: 28; duration: 190; easing.type: Easing.OutQuad }
-            NumberAnimation { target: root; property: "pickerCardLift"; to: 8; duration: 190; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "pickerCardOpacity"; to: 0.82; duration: 210; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "pickerCardScaleX"; to: 0.985; duration: 280; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "pickerCardScaleY"; to: 0.94; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "pickerCardWidth"; to: 614; duration: 285; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "pickerCardHeight"; to: 526; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "pickerCardRadius"; to: 28; duration: 270; easing.type: Easing.OutQuad }
+            NumberAnimation { target: root; property: "pickerCardLift"; to: 8; duration: 300; easing.type: Easing.OutCubic }
         }
 
         ParallelAnimation {
@@ -909,19 +915,19 @@ Item {
             NumberAnimation { target: root; property: "pickerCardScaleY"; to: 0.95; duration: 85; easing.type: Easing.OutQuad }
             NumberAnimation { target: root; property: "pickerCardWidth"; to: 658; duration: 95; easing.type: Easing.OutQuad }
             NumberAnimation { target: root; property: "pickerCardHeight"; to: 540; duration: 95; easing.type: Easing.OutQuad }
-            NumberAnimation { target: root; property: "pickerCardRadius"; to: 30; duration: 95; easing.type: Easing.OutQuad }
+            NumberAnimation { target: root; property: "pickerCardRadius"; to: 28; duration: 95; easing.type: Easing.OutQuad }
             NumberAnimation { target: root; property: "pickerCardLift"; to: 5; duration: 95; easing.type: Easing.OutQuad }
             NumberAnimation { target: root; property: "pickerCardOpacity"; to: 0.88; duration: 80; easing.type: Easing.OutQuad }
         }
 
         ParallelAnimation {
             NumberAnimation { target: root; property: "pickerCardOpacity"; to: 0.0; duration: 180; easing.type: Easing.InCubic }
-            NumberAnimation { target: root; property: "pickerCardScaleX"; to: 0.84; duration: 205; easing.type: Easing.InCubic }
-            NumberAnimation { target: root; property: "pickerCardScaleY"; to: 0.68; duration: 220; easing.type: Easing.InCubic }
+            NumberAnimation { target: root; property: "pickerCardScaleX"; to: 0.42; duration: 260; easing.type: Easing.InCubic }
+            NumberAnimation { target: root; property: "pickerCardScaleY"; to: 0.24; duration: 280; easing.type: Easing.InCubic }
             NumberAnimation { target: root; property: "pickerCardWidth"; to: 596; duration: 200; easing.type: Easing.InCubic }
             NumberAnimation { target: root; property: "pickerCardHeight"; to: 532; duration: 210; easing.type: Easing.InCubic }
             NumberAnimation { target: root; property: "pickerCardRadius"; to: 34; duration: 200; easing.type: Easing.InQuad }
-            NumberAnimation { target: root; property: "pickerCardLift"; to: 24; duration: 200; easing.type: Easing.InCubic }
+            NumberAnimation { target: root; property: "pickerCardLift"; to: 8.5; duration: 280; easing.type: Easing.InCubic }
         }
     }
 

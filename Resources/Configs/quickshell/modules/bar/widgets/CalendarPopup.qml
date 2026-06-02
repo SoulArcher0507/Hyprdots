@@ -17,21 +17,23 @@ Item {
     readonly property int panelHeight: 570
     readonly property real popupOpenWidth: panelWidth
     readonly property real popupOpenHeight: panelHeight
-    readonly property real popupClosedWidth: panelWidth - 44
-    readonly property real popupClosedHeight: panelHeight - 28
+    readonly property real popupClosedWidth: 280
+    readonly property real popupClosedHeight: 30
     readonly property real popupOpenRadius: 20
-    readonly property real popupClosedRadius: 34
-    readonly property int overlayEnterDuration: 405
-    readonly property int overlayExitDuration: 305
+    readonly property real popupClosedRadius: 10
+    readonly property real barPanelHeight: 47
+    readonly property real barPanelCenterY: barPanelHeight / 2
+    readonly property int overlayEnterDuration: 515
+    readonly property int overlayExitDuration: 375
     readonly property bool overlayOwnsCloseAnimation: true
     property bool popupTargetVisible: false
     property real popupCardOpacity: 0.0
-    property real popupCardScaleX: 0.91
-    property real popupCardScaleY: 0.79
+    property real popupCardScaleX: 0.42
+    property real popupCardScaleY: 0.24
     property real popupCardWidth: popupClosedWidth
     property real popupCardHeight: popupClosedHeight
     property real popupCardRadius: popupClosedRadius
-    property real popupCardLift: 18
+    property real popupCardLift: popupOriginLift()
     property real hostLoaderOpacity: (parent && parent.opacity !== undefined) ? parent.opacity : 1.0
     property real lastHostLoaderOpacity: hostLoaderOpacity
 
@@ -420,18 +422,22 @@ Item {
         popupEnterAnim.start();
     }
 
+    function popupOriginLift() {
+        return window.barPanelCenterY - (window.popupClosedHeight / 2);
+    }
+
     SequentialAnimation {
         id: popupEnterAnim
         running: false
 
         ParallelAnimation {
-            NumberAnimation { target: window; property: "popupCardOpacity"; to: 0.78; duration: 145; easing.type: Easing.OutCubic }
-            NumberAnimation { target: window; property: "popupCardScaleX"; to: 0.985; duration: 175; easing.type: Easing.OutCubic }
-            NumberAnimation { target: window; property: "popupCardScaleY"; to: 0.94; duration: 190; easing.type: Easing.OutCubic }
-            NumberAnimation { target: window; property: "popupCardWidth"; to: window.popupOpenWidth - 18; duration: 190; easing.type: Easing.OutCubic }
-            NumberAnimation { target: window; property: "popupCardHeight"; to: window.popupOpenHeight - 18; duration: 200; easing.type: Easing.OutCubic }
-            NumberAnimation { target: window; property: "popupCardRadius"; to: 28; duration: 190; easing.type: Easing.OutQuad }
-            NumberAnimation { target: window; property: "popupCardLift"; to: 8; duration: 190; easing.type: Easing.OutCubic }
+            NumberAnimation { target: window; property: "popupCardOpacity"; to: 0.82; duration: 210; easing.type: Easing.OutCubic }
+            NumberAnimation { target: window; property: "popupCardScaleX"; to: 0.985; duration: 280; easing.type: Easing.OutCubic }
+            NumberAnimation { target: window; property: "popupCardScaleY"; to: 0.94; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: window; property: "popupCardWidth"; to: window.popupOpenWidth - 18; duration: 285; easing.type: Easing.OutCubic }
+            NumberAnimation { target: window; property: "popupCardHeight"; to: window.popupOpenHeight - 18; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: window; property: "popupCardRadius"; to: 28; duration: 270; easing.type: Easing.OutQuad }
+            NumberAnimation { target: window; property: "popupCardLift"; to: 8; duration: 300; easing.type: Easing.OutCubic }
         }
 
         ParallelAnimation {
@@ -461,12 +467,12 @@ Item {
 
         ParallelAnimation {
             NumberAnimation { target: window; property: "popupCardOpacity"; to: 0.0; duration: 180; easing.type: Easing.InCubic }
-            NumberAnimation { target: window; property: "popupCardScaleX"; to: 0.84; duration: 205; easing.type: Easing.InCubic }
-            NumberAnimation { target: window; property: "popupCardScaleY"; to: 0.68; duration: 220; easing.type: Easing.InCubic }
+            NumberAnimation { target: window; property: "popupCardScaleX"; to: 0.42; duration: 260; easing.type: Easing.InCubic }
+            NumberAnimation { target: window; property: "popupCardScaleY"; to: 0.24; duration: 280; easing.type: Easing.InCubic }
             NumberAnimation { target: window; property: "popupCardWidth"; to: window.popupClosedWidth; duration: 200; easing.type: Easing.InCubic }
             NumberAnimation { target: window; property: "popupCardHeight"; to: window.popupClosedHeight; duration: 210; easing.type: Easing.InCubic }
             NumberAnimation { target: window; property: "popupCardRadius"; to: window.popupClosedRadius; duration: 200; easing.type: Easing.InQuad }
-            NumberAnimation { target: window; property: "popupCardLift"; to: 24; duration: 200; easing.type: Easing.InCubic }
+            NumberAnimation { target: window; property: "popupCardLift"; to: window.popupOriginLift(); duration: 280; easing.type: Easing.InCubic }
         }
     }
 

@@ -25,14 +25,15 @@ Item {
 
     property string currentFilter: "All"
     property string searchQuery: ""
-    readonly property int overlayEnterDuration: 215
-    readonly property int overlayExitDuration: 220
+    readonly property int overlayEnterDuration: 515
+    readonly property int overlayExitDuration: 375
+    readonly property bool overlayOwnsCloseAnimation: true
     property bool popupTargetVisible: false
     property bool popupClosing: false
     property real popupContentOpacity: 0.0
-    property real popupContentScaleX: 0.84
-    property real popupContentScaleY: 0.70
-    property real popupContentLift: 18
+    property real popupContentScaleX: 0.42
+    property real popupContentScaleY: 0.24
+    property real popupContentLift: 8.5
     property real popupContentInsetX: 104
     property real popupContentInsetY: 68
     property real hostLoaderOpacity: (parent && parent.opacity !== undefined) ? parent.opacity : 1.0
@@ -158,6 +159,15 @@ Item {
     }
 
     function closePicker() {
+        if (window.switcher) {
+            window.switcher.close();
+            return;
+        }
+        window.beginOverlayClose();
+        popupCloseFinalize.restart();
+    }
+
+    function beginOverlayClose() {
         if (window.popupClosing)
             return;
         window.popupClosing = true;
@@ -165,7 +175,6 @@ Item {
         popupEnterAnim.stop();
         popupExitAnim.stop();
         popupExitAnim.start();
-        popupCloseFinalize.restart();
     }
 
     function _finalizeClosePicker() {
@@ -857,12 +866,12 @@ Item {
         running: false
 
         ParallelAnimation {
-            NumberAnimation { target: window; property: "popupContentOpacity"; to: 0.78; duration: 145; easing.type: Easing.OutCubic }
-            NumberAnimation { target: window; property: "popupContentScaleX"; to: 0.968; duration: 175; easing.type: Easing.OutCubic }
-            NumberAnimation { target: window; property: "popupContentScaleY"; to: 0.905; duration: 190; easing.type: Easing.OutCubic }
-            NumberAnimation { target: window; property: "popupContentInsetX"; to: 30; duration: 190; easing.type: Easing.OutCubic }
-            NumberAnimation { target: window; property: "popupContentInsetY"; to: 20; duration: 200; easing.type: Easing.OutCubic }
-            NumberAnimation { target: window; property: "popupContentLift"; to: 12; duration: 190; easing.type: Easing.OutCubic }
+            NumberAnimation { target: window; property: "popupContentOpacity"; to: 0.82; duration: 210; easing.type: Easing.OutCubic }
+            NumberAnimation { target: window; property: "popupContentScaleX"; to: 0.985; duration: 280; easing.type: Easing.OutCubic }
+            NumberAnimation { target: window; property: "popupContentScaleY"; to: 0.94; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: window; property: "popupContentInsetX"; to: 30; duration: 285; easing.type: Easing.OutCubic }
+            NumberAnimation { target: window; property: "popupContentInsetY"; to: 20; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: window; property: "popupContentLift"; to: 8; duration: 300; easing.type: Easing.OutCubic }
         }
 
         ParallelAnimation {
@@ -880,21 +889,21 @@ Item {
         running: false
 
         ParallelAnimation {
-            NumberAnimation { target: window; property: "popupContentScaleX"; to: 1.06; duration: 85; easing.type: Easing.OutQuad }
-            NumberAnimation { target: window; property: "popupContentScaleY"; to: 0.93; duration: 85; easing.type: Easing.OutQuad }
+            NumberAnimation { target: window; property: "popupContentScaleX"; to: 1.04; duration: 85; easing.type: Easing.OutQuad }
+            NumberAnimation { target: window; property: "popupContentScaleY"; to: 0.95; duration: 85; easing.type: Easing.OutQuad }
             NumberAnimation { target: window; property: "popupContentInsetX"; to: -22; duration: 95; easing.type: Easing.OutQuad }
             NumberAnimation { target: window; property: "popupContentInsetY"; to: -12; duration: 95; easing.type: Easing.OutQuad }
-            NumberAnimation { target: window; property: "popupContentLift"; to: 8; duration: 95; easing.type: Easing.OutQuad }
+            NumberAnimation { target: window; property: "popupContentLift"; to: 5; duration: 95; easing.type: Easing.OutQuad }
             NumberAnimation { target: window; property: "popupContentOpacity"; to: 0.88; duration: 80; easing.type: Easing.OutQuad }
         }
 
         ParallelAnimation {
             NumberAnimation { target: window; property: "popupContentOpacity"; to: 0.0; duration: 180; easing.type: Easing.InCubic }
-            NumberAnimation { target: window; property: "popupContentScaleX"; to: 0.76; duration: 205; easing.type: Easing.InCubic }
-            NumberAnimation { target: window; property: "popupContentScaleY"; to: 0.58; duration: 220; easing.type: Easing.InCubic }
+            NumberAnimation { target: window; property: "popupContentScaleX"; to: 0.42; duration: 260; easing.type: Easing.InCubic }
+            NumberAnimation { target: window; property: "popupContentScaleY"; to: 0.24; duration: 280; easing.type: Easing.InCubic }
             NumberAnimation { target: window; property: "popupContentInsetX"; to: 132; duration: 200; easing.type: Easing.InCubic }
             NumberAnimation { target: window; property: "popupContentInsetY"; to: 88; duration: 210; easing.type: Easing.InCubic }
-            NumberAnimation { target: window; property: "popupContentLift"; to: 30; duration: 200; easing.type: Easing.InCubic }
+            NumberAnimation { target: window; property: "popupContentLift"; to: 8.5; duration: 280; easing.type: Easing.InCubic }
         }
     }
 
