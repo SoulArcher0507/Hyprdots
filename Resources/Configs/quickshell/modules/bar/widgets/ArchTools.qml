@@ -22,7 +22,8 @@ Item {
     readonly property int panelScreenMargin: 16
     readonly property int panelContentMargin: 22
     readonly property int resourceCardSpacing: 8
-    readonly property real resourceCardWidth: (archPanelWidth - (panelContentMargin * 2) - (resourceCardSpacing * 3)) / 4
+    readonly property int resourceCardCount: 5
+    readonly property real resourceCardWidth: (archPanelWidth - (panelContentMargin * 2) - (resourceCardSpacing * (resourceCardCount - 1))) / resourceCardCount
     readonly property real detailsPanelSpacing: 18
     readonly property real maxPopupHeight: Math.max(0, root.height - (panelScreenMargin * 2))
     readonly property real maxExpandedDetailsHeight: Math.max(0, maxPopupHeight - archPanelHeight - detailsPanelSpacing)
@@ -111,10 +112,15 @@ Item {
     property real statMemPercent: 0
     property int statDiskRoot: 0
     property int statDiskHome: 0
+    property string statNetIface: ""
+    property real statNetDown: 0
+    property real statNetUp: 0
+    property real statNetTotal: 0
     property var cpuHistory: []
     property var ramHistory: []
     property var diskHistory: []
     property var gpuHistory: []
+    property var netHistory: []
     property string expandedResourceKey: ""
     property string detailsDisplayKey: ""
     property string pendingDetailKey: ""
@@ -698,11 +704,20 @@ Item {
         return next;
     }
 
-    function updateUsageHistory(cpuValue, memValue, diskValue, gpuValue) {
+    function updateUsageHistory(cpuValue, memValue, diskValue, gpuValue, netValue) {
         root.cpuHistory = root.pushHistory(root.cpuHistory, cpuValue);
         root.ramHistory = root.pushHistory(root.ramHistory, memValue);
         root.diskHistory = root.pushHistory(root.diskHistory, diskValue);
         root.gpuHistory = root.pushHistory(root.gpuHistory, gpuValue);
+        root.netHistory = root.pushHistory(root.netHistory, netValue);
+    }
+
+    function historyScaleMax(history, minimum) {
+        var maxValue = root.safeNumber(minimum, 1);
+        var values = history || [];
+        for (var i = 0; i < values.length; i++)
+            maxValue = Math.max(maxValue, root.safeNumber(values[i], 0));
+        return maxValue * 1.12;
     }
 
     function resourceTitle(key) {
@@ -715,6 +730,8 @@ Item {
             return "DISK";
         case "gpu":
             return "GPU";
+        case "net":
+            return "NET";
         default:
             return "";
         }
@@ -730,6 +747,8 @@ Item {
             return "󰋊";
         case "gpu":
             return "󰢮";
+        case "net":
+            return "󰖩";
         default:
             return "󰣇";
         }
@@ -920,6 +939,20 @@ Item {
         return (root.expandedResourceData && root.expandedResourceData[key]) ? root.expandedResourceData[key] : null;
     }
 
+    function displayedCpuTotal() {
+        var cpuData = root.detailObject("cpu");
+        if (root.expandedResourceKey === "cpu" && cpuData && cpuData.total_percent !== undefined && cpuData.total_percent !== null)
+            return root.safeNumber(cpuData.total_percent, root.statCpuTotal);
+        return root.statCpuTotal;
+    }
+
+    function displayedNetValue(field, fallback) {
+        var netData = root.detailObject("net");
+        if (root.expandedResourceKey === "net" && netData && netData[field] !== undefined && netData[field] !== null)
+            return root.safeNumber(netData[field], fallback);
+        return fallback;
+    }
+
     function detailComponentForKey(key) {
         switch (key) {
         case "cpu":
@@ -930,6 +963,8 @@ Item {
             return diskDetailComp;
         case "gpu":
             return gpuDetailComp;
+        case "net":
+            return netDetailComp;
         default:
             return null;
         }
@@ -991,6 +1026,14 @@ Item {
                         root.statDiskRoot = obj.diskRoot;
                     if (obj.diskHome !== undefined)
                         root.statDiskHome = obj.diskHome;
+                    if (obj.netIface !== undefined)
+                        root.statNetIface = obj.netIface;
+                    if (obj.netDown !== undefined)
+                        root.statNetDown = obj.netDown;
+                    if (obj.netUp !== undefined)
+                        root.statNetUp = obj.netUp;
+                    if (obj.netTotal !== undefined)
+                        root.statNetTotal = obj.netTotal;
                     if (obj.unreadNews !== undefined)
                         root.unreadNews = obj.unreadNews;
                     if (obj.unreadDotfiles !== undefined)
@@ -1020,6 +1063,10 @@ Item {
             memPercent: root.statMemPercent,
             diskRoot: root.statDiskRoot,
             diskHome: root.statDiskHome,
+            netIface: root.statNetIface,
+            netDown: root.statNetDown,
+            netUp: root.statNetUp,
+            netTotal: root.statNetTotal,
             unreadNews: root.unreadNews,
             unreadDotfiles: root.unreadDotfiles
         };
@@ -1225,7 +1272,11 @@ Item {
                         root.statMemPercent = obj.mem.percent || 0;
                         root.statDiskRoot = obj.disk.root_percent || 0;
                         root.statDiskHome = obj.disk.home_percent || 0;
-                        root.updateUsageHistory(root.statCpuTotal, root.statMemPercent, root.statDiskRoot, root.statGpuTotal);
+                        root.statNetIface = (obj.net && obj.net.iface) ? obj.net.iface : "";
+                        root.statNetDown = (obj.net && obj.net.down_bps) ? obj.net.down_bps : 0;
+                        root.statNetUp = (obj.net && obj.net.up_bps) ? obj.net.up_bps : 0;
+                        root.statNetTotal = (obj.net && obj.net.total_bps) ? obj.net.total_bps : 0;
+                        root.updateUsageHistory(root.statCpuTotal, root.statMemPercent, root.statDiskRoot, root.statGpuTotal, root.statNetTotal);
                         root.saveCache();
                     }
                 } catch (e) {
@@ -2722,7 +2773,7 @@ Item {
                 ResCard {
                     resourceKey: "cpu"
                     title: "CPU"
-                    value: Math.round(root.statCpuTotal) + "%"
+                    value: Math.round(root.displayedCpuTotal()) + "%"
                     tip: root.statCpuCores.length ? "Per-core:\n" + root.statCpuCores.map(function (v, i) {
                         return "C" + i + ": " + Math.round(v) + "%";
                     }).join("   ") : "Collecting..."
@@ -2755,6 +2806,15 @@ Item {
                     tip: (root.statGpuDetail && root.statGpuDetail.length) ? root.statGpuDetail.map(function (d) {
                         return d.name + ": " + Math.round(d.percent) + "%";
                     }).join("\n") : (root.statGpuName ? root.statGpuName + ": " + Math.round(root.statGpuTotal) + "%" : "No GPU data")
+                    selected: root.expandedResourceKey === resourceKey
+                    accentColor: root.resourceAccent(resourceKey)
+                    onCardTriggered: root.openResourceDetails(resourceKey)
+                }
+                ResCard {
+                    resourceKey: "net"
+                    title: "NET"
+                    value: root.formatRate(root.displayedNetValue("total_bps", root.statNetTotal))
+                    tip: (root.statNetIface ? root.statNetIface + "\n" : "") + "Down: " + root.formatRate(root.displayedNetValue("down_bps", root.statNetDown)) + "\nUp: " + root.formatRate(root.displayedNetValue("up_bps", root.statNetUp))
                     selected: root.expandedResourceKey === resourceKey
                     accentColor: root.resourceAccent(resourceKey)
                     onCardTriggered: root.openResourceDetails(resourceKey)
@@ -2809,6 +2869,7 @@ Item {
                 ]
 
                 Behavior on height {
+                    enabled: !root.detailsOpen || !root.detailObject(root.visibleDetailsKey)
                     NumberAnimation {
                         duration: root.detailsOpen ? root.detailsExpandDuration : root.detailsCollapseDuration
                         easing.type: root.detailsOpen ? Easing.OutCubic : Easing.InOutCubic
@@ -2938,7 +2999,8 @@ Item {
                             }
 
                             Column {
-                                width: parent.width - 116
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: parent.width - 58
                                 spacing: 2
 
                                 Text {
@@ -2947,40 +3009,6 @@ Item {
                                     font.pixelSize: 18
                                     font.family: root.textFont
                                     font.weight: Font.Black
-                                }
-
-                                Text {
-                                    width: parent.width
-                                    wrapMode: Text.Wrap
-                                    text: root.expandedResourceLoading ? "Refreshing live telemetry..." : "Hold another tile to switch section. Click the close button to collapse."
-                                    color: root.subtext0
-                                    font.pixelSize: 11
-                                    font.family: root.textFont
-                                }
-                            }
-
-                            Rectangle {
-                                width: 34
-                                height: 34
-                                radius: 10
-                                color: closeDetailsMa.containsMouse ? ThemePkg.Theme.withAlpha(root.resourceAccent(root.visibleDetailsKey), 0.14) : "transparent"
-                                border.width: 1
-                                border.color: closeDetailsMa.containsMouse ? ThemePkg.Theme.withAlpha(root.resourceAccent(root.visibleDetailsKey), 0.5) : "transparent"
-
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: ""
-                                    font.family: "CaskaydiaMono Nerd Font"
-                                    font.pixelSize: 15
-                                    color: root.text
-                                }
-
-                                MouseArea {
-                                    id: closeDetailsMa
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.closeResourceDetails()
                                 }
                             }
                         }
@@ -5826,14 +5854,47 @@ Item {
         property var points: []
         property color accentColor: root.accent
         property real maxValue: 100
+        property real labelWidth: 30
+        property var valueFormatter: null
+        readonly property real latestValue: {
+            if (!points || !points.length)
+                return 0;
+            return Math.max(0, Math.min(maxValue, Number(points[points.length - 1]) || 0));
+        }
 
-        implicitHeight: 124
+        function formatValue(value) {
+            return valueFormatter ? valueFormatter(value) : root.formatPercent(value);
+        }
+
+        implicitHeight: 138
+
+        Rectangle {
+            id: chartFrame
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            anchors.left: parent.left
+            anchors.leftMargin: chart.labelWidth + 4
+            anchors.right: parent.right
+            radius: 14
+            color: ThemePkg.Theme.withAlpha(root.surface2, 0.34)
+            border.width: 1
+            border.color: ThemePkg.Theme.withAlpha(chart.accentColor, 0.20)
+
+            Rectangle {
+                anchors.fill: parent
+                anchors.margins: 1
+                radius: parent.radius - 1
+                color: "transparent"
+                border.width: 1
+                border.color: ThemePkg.Theme.withAlpha("#ffffff", 0.04)
+            }
+        }
 
         Item {
             anchors.left: parent.left
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            width: 32
+            width: chart.labelWidth
 
             Repeater {
                 model: 5
@@ -5841,7 +5902,7 @@ Item {
                     anchors.right: parent.right
                     anchors.rightMargin: 4
                     y: (parent.height / 4) * (4 - index) - height / 2
-                    text: Math.round((chart.maxValue / 4) * index) + (chart.maxValue === 100 ? "%" : "")
+                    text: chart.formatValue((chart.maxValue / 4) * index)
                     color: ThemePkg.Theme.withAlpha(root.text, 0.40)
                     font.pixelSize: 8
                     font.family: root.textFont
@@ -5853,12 +5914,12 @@ Item {
 
         Canvas {
             id: chartCanvas
-            anchors.fill: parent
-            anchors.leftMargin: 32
+            anchors.fill: chartFrame
+            anchors.margins: 10
             renderTarget: Canvas.FramebufferObject
 
             function paintGrid(ctx) {
-                ctx.strokeStyle = ThemePkg.Theme.withAlpha(root.text, 0.08);
+                ctx.strokeStyle = ThemePkg.Theme.withAlpha(root.text, 0.07);
                 ctx.lineWidth = 1;
                 for (var i = 0; i < 5; i++) {
                     var y = height * (i / 4);
@@ -5867,6 +5928,34 @@ Item {
                     ctx.lineTo(width, y);
                     ctx.stroke();
                 }
+                ctx.strokeStyle = ThemePkg.Theme.withAlpha(root.text, 0.045);
+                for (var j = 0; j < 7; j++) {
+                    var x = width * (j / 6);
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, height);
+                    ctx.stroke();
+                }
+            }
+
+            function paintTrace(ctx, coords) {
+                if (!coords.length)
+                    return;
+                ctx.beginPath();
+                ctx.moveTo(coords[0].x, coords[0].y);
+                if (coords.length === 1) {
+                    ctx.lineTo(coords[0].x, coords[0].y);
+                    return;
+                }
+                for (var i = 1; i < coords.length; i++) {
+                    var previous = coords[i - 1];
+                    var current = coords[i];
+                    var midX = (previous.x + current.x) / 2;
+                    var midY = (previous.y + current.y) / 2;
+                    ctx.quadraticCurveTo(previous.x, previous.y, midX, midY);
+                }
+                var last = coords[coords.length - 1];
+                ctx.quadraticCurveTo(last.x, last.y, last.x, last.y);
             }
 
             onPaint: {
@@ -5882,45 +5971,98 @@ Item {
                     return;
 
                 var maxRef = Math.max(chart.maxValue, 1);
-                var stepX = values.length > 1 ? width / (values.length - 1) : width;
-                var firstY = height - (Math.max(0, Math.min(maxRef, Number(values[0]) || 0)) / maxRef) * height;
-
-                ctx.beginPath();
-                ctx.moveTo(0, firstY);
+                var inset = 6;
+                var plotWidth = Math.max(0, width - (inset * 2));
+                var plotHeight = Math.max(0, height - (inset * 2));
+                var stepX = values.length > 1 ? plotWidth / (values.length - 1) : 0;
+                var coords = [];
                 for (var i = 1; i < values.length; i++) {
-                    var x = stepX * i;
                     var clamped = Math.max(0, Math.min(maxRef, Number(values[i]) || 0));
-                    var y = height - (clamped / maxRef) * height;
-                    ctx.lineTo(x, y);
+                    coords.push({
+                        "x": inset + (stepX * i),
+                        "y": inset + plotHeight - (clamped / maxRef) * plotHeight
+                    });
                 }
+                var first = Math.max(0, Math.min(maxRef, Number(values[0]) || 0));
+                coords.unshift({
+                    "x": values.length > 1 ? inset : width - inset,
+                    "y": inset + plotHeight - (first / maxRef) * plotHeight
+                });
 
-                ctx.lineTo(width, height);
-                ctx.lineTo(0, height);
+                paintTrace(ctx, coords);
+                ctx.lineTo(coords[coords.length - 1].x, height - inset);
+                ctx.lineTo(coords[0].x, height - inset);
                 ctx.closePath();
 
                 var fillGrad = ctx.createLinearGradient(0, 0, 0, height);
-                fillGrad.addColorStop(0, ThemePkg.Theme.withAlpha(chart.accentColor, 0.42));
-                fillGrad.addColorStop(1, ThemePkg.Theme.withAlpha(chart.accentColor, 0.02));
+                fillGrad.addColorStop(0, ThemePkg.Theme.withAlpha(chart.accentColor, 0.48));
+                fillGrad.addColorStop(0.58, ThemePkg.Theme.withAlpha(chart.accentColor, 0.16));
+                fillGrad.addColorStop(1, ThemePkg.Theme.withAlpha(chart.accentColor, 0.015));
                 ctx.fillStyle = fillGrad;
                 ctx.fill();
 
-                ctx.beginPath();
-                ctx.moveTo(0, firstY);
-                for (var j = 1; j < values.length; j++) {
-                    var px = stepX * j;
-                    var point = Math.max(0, Math.min(maxRef, Number(values[j]) || 0));
-                    var py = height - (point / maxRef) * height;
-                    ctx.lineTo(px, py);
-                }
-                ctx.strokeStyle = chart.accentColor;
-                ctx.lineWidth = 2.4;
+                paintTrace(ctx, coords);
+                ctx.strokeStyle = ThemePkg.Theme.withAlpha(chart.accentColor, 0.24);
+                ctx.lineWidth = 6;
                 ctx.stroke();
+
+                paintTrace(ctx, coords);
+                ctx.strokeStyle = chart.accentColor;
+                ctx.lineWidth = 2.2;
+                ctx.stroke();
+
+                var latest = coords[coords.length - 1];
+                ctx.beginPath();
+                ctx.arc(latest.x, latest.y, 6, 0, Math.PI * 2);
+                ctx.fillStyle = ThemePkg.Theme.withAlpha(chart.accentColor, 0.22);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(latest.x, latest.y, 3, 0, Math.PI * 2);
+                ctx.fillStyle = chart.accentColor;
+                ctx.fill();
+            }
+        }
+
+        Rectangle {
+            anchors.top: chartFrame.top
+            anchors.right: chartFrame.right
+            anchors.topMargin: 10
+            anchors.rightMargin: 10
+            width: liveValueRow.implicitWidth + 16
+            height: 24
+            radius: 12
+            color: ThemePkg.Theme.withAlpha(root.crust, 0.74)
+            border.width: 1
+            border.color: ThemePkg.Theme.withAlpha(chart.accentColor, 0.30)
+
+            Row {
+                id: liveValueRow
+                anchors.centerIn: parent
+                spacing: 6
+
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 6
+                    height: 6
+                    radius: 3
+                    color: chart.accentColor
+                }
+
+                Text {
+                    text: chart.formatValue(chart.latestValue)
+                    color: root.text
+                    font.pixelSize: 10
+                    font.family: root.textFont
+                    font.weight: Font.Black
+                }
             }
         }
 
         onPointsChanged: chartCanvas.requestPaint()
         onWidthChanged: chartCanvas.requestPaint()
         onHeightChanged: chartCanvas.requestPaint()
+        onAccentColorChanged: chartCanvas.requestPaint()
+        onMaxValueChanged: chartCanvas.requestPaint()
     }
 
     Component {
@@ -6000,7 +6142,7 @@ Item {
                         DetailMetric {
                             width: Math.floor((parent.width - 20) / 3)
                             label: "Usage"
-                            value: root.formatPercent(cpuData.total_percent, 1)
+                            value: root.formatPercent(root.displayedCpuTotal())
                             secondary: "Current package load"
                             accentColor: root.resourceAccent("cpu")
                         }
@@ -6554,6 +6696,385 @@ Item {
                                 secondaryValue: (modelData.vram_mb !== null && modelData.vram_mb !== undefined) ? root.formatBytes(modelData.vram_mb * 1024 * 1024) : ((modelData.memory_percent !== null && modelData.memory_percent !== undefined) ? root.formatPercent(modelData.memory_percent, 1) : "")
                                 accentColor: root.resourceAccent("gpu")
                             }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Component {
+        id: netDetailComp
+
+        Item {
+            id: netDetailRoot
+            width: parent ? parent.width : 0
+            property var netData: root.detailObject("net") || ({})
+            property var socketData: netData.sockets || ({})
+            property string expandedInterface: ""
+            implicitHeight: netDetailColumn.implicitHeight
+
+            Column {
+                id: netDetailColumn
+                width: parent.width
+                spacing: 12
+
+                DetailSection {
+                    width: parent.width
+                    title: "Network Snapshot"
+                    subtitle: netData.primary_iface ? "Live traffic on " + netData.primary_iface : "No active network interface detected."
+                    accentColor: root.resourceAccent("net")
+
+                    Flow {
+                        width: parent.width
+                        spacing: 10
+
+                        DetailMetric {
+                            width: Math.floor((parent.width - 20) / 3)
+                            label: "Traffic"
+                            value: root.formatRate(netData.total_bps)
+                            secondary: "Combined throughput"
+                            accentColor: root.resourceAccent("net")
+                        }
+                        DetailMetric {
+                            width: Math.floor((parent.width - 20) / 3)
+                            label: "Download"
+                            value: root.formatRate(netData.down_bps)
+                            secondary: "Current receive rate"
+                            accentColor: root.resourceAccent("net")
+                        }
+                        DetailMetric {
+                            width: Math.floor((parent.width - 20) / 3)
+                            label: "Upload"
+                            value: root.formatRate(netData.up_bps)
+                            secondary: "Current transmit rate"
+                            accentColor: root.resourceAccent("net")
+                        }
+                        DetailMetric {
+                            width: Math.floor((parent.width - 20) / 3)
+                            label: "Received"
+                            value: root.formatBytes(netData.rx_bytes)
+                            secondary: "Transferred since boot"
+                            accentColor: root.resourceAccent("net")
+                        }
+                        DetailMetric {
+                            width: Math.floor((parent.width - 20) / 3)
+                            label: "Sent"
+                            value: root.formatBytes(netData.tx_bytes)
+                            secondary: "Transferred since boot"
+                            accentColor: root.resourceAccent("net")
+                        }
+                        DetailMetric {
+                            width: Math.floor((parent.width - 20) / 3)
+                            label: "Gateway"
+                            value: netData.gateway || "N/A"
+                            secondary: (netData.active_interfaces || 0) + " active interfaces"
+                            accentColor: root.resourceAccent("net")
+                        }
+                    }
+                }
+
+                DetailSection {
+                    width: parent.width
+                    title: "Traffic History"
+                    subtitle: "Recent combined download and upload throughput samples."
+                    accentColor: root.resourceAccent("net")
+
+                    UsageHistoryChart {
+                        width: parent.width
+                        points: root.netHistory
+                        maxValue: root.historyScaleMax(root.netHistory, 1024)
+                        labelWidth: 66
+                        valueFormatter: function(value) {
+                            return root.formatRate(value);
+                        }
+                        accentColor: root.resourceAccent("net")
+                    }
+                }
+
+                DetailSection {
+                    width: parent.width
+                    title: "Interfaces"
+                    subtitle: "Physical, wireless and virtual interfaces with their current activity."
+                    accentColor: root.resourceAccent("net")
+
+                    Column {
+                        width: parent.width
+                        spacing: 8
+
+                        Text {
+                            visible: !(netData.interfaces && netData.interfaces.length)
+                            text: "No network interfaces detected."
+                            color: root.subtext0
+                            font.pixelSize: 11
+                            font.family: root.textFont
+                        }
+
+                        Repeater {
+                            model: netData.interfaces || []
+                            delegate: Rectangle {
+                                id: interfaceCard
+                                width: parent.width
+                                property bool expanded: netDetailRoot.expandedInterface === String(modelData.name || "")
+                                implicitHeight: interfaceCardColumn.implicitHeight + 20
+                                radius: 14
+                                color: ThemePkg.Theme.withAlpha(root.surface2, expanded ? 0.72 : 0.50)
+                                border.width: 1
+                                border.color: ThemePkg.Theme.withAlpha(root.resourceAccent("net"), expanded ? 0.42 : 0.16)
+
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: 160
+                                    }
+                                }
+                                Behavior on border.color {
+                                    ColorAnimation {
+                                        duration: 160
+                                    }
+                                }
+
+                                Column {
+                                    id: interfaceCardColumn
+                                    anchors.fill: parent
+                                    anchors.margins: 12
+                                    spacing: 10
+
+                                    Item {
+                                        width: parent.width
+                                        height: Math.max(interfaceLeftInfo.implicitHeight, interfaceRightInfo.implicitHeight, 34)
+
+                                        Column {
+                                            id: interfaceLeftInfo
+                                            anchors.left: parent.left
+                                            anchors.right: interfaceRightInfo.left
+                                            anchors.rightMargin: 12
+                                            spacing: 3
+
+                                            Text {
+                                                width: parent.width
+                                                text: modelData.name + (modelData.connection ? "  " + modelData.connection : "") + (modelData.ssid ? "  " + modelData.ssid : "")
+                                                color: root.text
+                                                font.pixelSize: 12
+                                                font.family: root.textFont
+                                                font.weight: Font.Black
+                                                elide: Text.ElideRight
+                                            }
+
+                                            Text {
+                                                width: parent.width
+                                                text: String(modelData.kind || "interface").toUpperCase() + "  •  " + String(modelData.state || "unknown").toUpperCase() + (modelData.default_route ? "  •  DEFAULT ROUTE" : "") + (modelData.speed_mbps ? "  •  " + modelData.speed_mbps + " Mbps" : "")
+                                                color: root.subtext0
+                                                font.pixelSize: 10
+                                                font.family: root.textFont
+                                                elide: Text.ElideRight
+                                            }
+                                        }
+
+                                        Column {
+                                            id: interfaceRightInfo
+                                            anchors.right: interfaceArrow.left
+                                            anchors.rightMargin: 10
+                                            spacing: 3
+
+                                            Text {
+                                                anchors.right: parent.right
+                                                text: "Down " + root.formatRate(modelData.down_bps)
+                                                color: root.resourceAccent("net")
+                                                font.pixelSize: 11
+                                                font.family: root.textFont
+                                                font.weight: Font.Black
+                                            }
+
+                                            Text {
+                                                anchors.right: parent.right
+                                                text: "Up " + root.formatRate(modelData.up_bps)
+                                                color: root.subtext0
+                                                font.pixelSize: 10
+                                                font.family: root.textFont
+                                            }
+                                        }
+
+                                        Text {
+                                            id: interfaceArrow
+                                            anchors.right: parent.right
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: ""
+                                            color: root.resourceAccent("net")
+                                            font.pixelSize: 12
+                                            font.family: "CaskaydiaMono Nerd Font"
+                                            rotation: interfaceCard.expanded ? 90 : 0
+
+                                            Behavior on rotation {
+                                                NumberAnimation {
+                                                    duration: 180
+                                                    easing.type: Easing.OutCubic
+                                                }
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                netDetailRoot.expandedInterface = interfaceCard.expanded ? "" : String(modelData.name || "");
+                                            }
+                                        }
+                                    }
+
+                                    Column {
+                                        width: parent.width
+                                        spacing: 10
+                                        visible: interfaceCard.expanded
+
+                                        Rectangle {
+                                            width: parent.width
+                                            height: 1
+                                            color: ThemePkg.Theme.withAlpha(root.resourceAccent("net"), 0.18)
+                                        }
+
+                                        Column {
+                                            width: parent.width
+                                            spacing: 3
+
+                                            Text {
+                                                text: "Addresses"
+                                                color: root.resourceAccent("net")
+                                                font.pixelSize: 10
+                                                font.family: root.textFont
+                                                font.weight: Font.Bold
+                                            }
+
+                                            Text {
+                                                width: parent.width
+                                                wrapMode: Text.Wrap
+                                                text: (modelData.addresses && modelData.addresses.length) ? modelData.addresses.join(", ") : "N/A"
+                                                color: root.text
+                                                font.pixelSize: 11
+                                                font.family: root.textFont
+                                            }
+                                        }
+
+                                        Flow {
+                                            width: parent.width
+                                            spacing: 8
+
+                                            DetailMetric {
+                                                width: Math.floor((parent.width - 16) / 3)
+                                                label: "MAC Address"
+                                                value: modelData.mac || "N/A"
+                                                secondary: modelData.virtual ? "Virtual adapter" : "Hardware adapter"
+                                                accentColor: root.resourceAccent("net")
+                                            }
+                                            DetailMetric {
+                                                width: Math.floor((parent.width - 16) / 3)
+                                                label: "MTU / Carrier"
+                                                value: (modelData.mtu || "N/A") + " / " + (modelData.carrier === 1 ? "Link" : "No link")
+                                                secondary: "Maximum transmission unit"
+                                                accentColor: root.resourceAccent("net")
+                                            }
+                                            DetailMetric {
+                                                width: Math.floor((parent.width - 16) / 3)
+                                                label: "Packets"
+                                                value: "RX " + (modelData.rx_packets || 0) + " / TX " + (modelData.tx_packets || 0)
+                                                secondary: "Frames transferred"
+                                                accentColor: root.resourceAccent("net")
+                                            }
+                                            DetailMetric {
+                                                width: Math.floor((parent.width - 16) / 3)
+                                                label: "Errors"
+                                                value: "RX " + (modelData.rx_errors || 0) + " / TX " + (modelData.tx_errors || 0)
+                                                secondary: "Interface errors"
+                                                accentColor: root.resourceAccent("net")
+                                            }
+                                            DetailMetric {
+                                                width: Math.floor((parent.width - 16) / 3)
+                                                label: "Dropped"
+                                                value: "RX " + (modelData.rx_dropped || 0) + " / TX " + (modelData.tx_dropped || 0)
+                                                secondary: "Dropped packets"
+                                                accentColor: root.resourceAccent("net")
+                                            }
+                                        }
+
+                                        Text {
+                                            text: "Top Processes by Active Sockets"
+                                            color: root.text
+                                            font.pixelSize: 11
+                                            font.family: root.textFont
+                                            font.weight: Font.Black
+                                        }
+
+                                        Text {
+                                            width: parent.width
+                                            wrapMode: Text.Wrap
+                                            text: netData.process_telemetry_note || "Best effort attribution for visible sockets on this interface. Sorted by socket count."
+                                            color: root.subtext0
+                                            font.pixelSize: 10
+                                            font.family: root.textFont
+                                        }
+
+                                        Text {
+                                            visible: !(modelData.top_processes && modelData.top_processes.length)
+                                            text: "No attributable process sockets visible for this interface right now."
+                                            color: root.subtext0
+                                            font.pixelSize: 11
+                                            font.family: root.textFont
+                                        }
+
+                                        Repeater {
+                                            model: modelData.top_processes || []
+                                            delegate: DetailEntryRow {
+                                                width: parent.width
+                                                title: (index + 1) + ". " + modelData.name
+                                                subtitle: "PID " + modelData.pid + "  •  TCP " + modelData.tcp + "  •  UDP " + modelData.udp + "  •  Established " + modelData.established + (modelData.peers && modelData.peers.length ? "  •  " + modelData.peers.join(", ") : "")
+                                                primaryValue: modelData.sockets + (modelData.sockets === 1 ? " socket" : " sockets")
+                                                accentColor: root.resourceAccent("net")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                DetailSection {
+                    width: parent.width
+                    title: "Socket Summary"
+                    subtitle: "Current local TCP and UDP socket counts."
+                    accentColor: root.resourceAccent("net")
+
+                    Flow {
+                        width: parent.width
+                        spacing: 10
+
+                        DetailMetric {
+                            width: Math.floor((parent.width - 30) / 4)
+                            label: "Sockets"
+                            value: String(socketData.total || 0)
+                            secondary: "Tracked endpoints"
+                            accentColor: root.resourceAccent("net")
+                        }
+                        DetailMetric {
+                            width: Math.floor((parent.width - 30) / 4)
+                            label: "TCP"
+                            value: String(socketData.tcp || 0)
+                            secondary: "TCP sockets"
+                            accentColor: root.resourceAccent("net")
+                        }
+                        DetailMetric {
+                            width: Math.floor((parent.width - 30) / 4)
+                            label: "UDP"
+                            value: String(socketData.udp || 0)
+                            secondary: "UDP sockets"
+                            accentColor: root.resourceAccent("net")
+                        }
+                        DetailMetric {
+                            width: Math.floor((parent.width - 30) / 4)
+                            label: "Established"
+                            value: String(socketData.established || 0)
+                            secondary: "Active TCP links"
+                            accentColor: root.resourceAccent("net")
                         }
                     }
                 }
@@ -7356,7 +7877,7 @@ Item {
             Text {
                 text: resCardRoot.value
                 color: resCardRoot.selected ? resCardRoot.accentColor : root.text
-                font.pixelSize: 20
+                font.pixelSize: resCardRoot.value.length > 11 ? 16 : (resCardRoot.value.length > 8 ? 18 : 20)
                 font.family: root.textFont
                 font.weight: Font.Black
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -7387,7 +7908,7 @@ Item {
                 Text {
                     text: resCardRoot.value
                     color: root.crust
-                    font.pixelSize: 20
+                    font.pixelSize: resCardRoot.value.length > 11 ? 16 : (resCardRoot.value.length > 8 ? 18 : 20)
                     font.family: root.textFont
                     font.weight: Font.Black
                     anchors.horizontalCenter: parent.horizontalCenter

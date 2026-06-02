@@ -513,6 +513,260 @@ def top_processes_io(limit=5, interval=SAMPLE_INTERVAL):
     return rows[:limit]
 
 
+def network_snapshot():
+    snapshot = {}
+    for entry in Path("/sys/class/net").iterdir():
+        if entry.name == "lo":
+            continue
+        rx_bytes = read_int(entry / "statistics/rx_bytes")
+        tx_bytes = read_int(entry / "statistics/tx_bytes")
+        if rx_bytes is None or tx_bytes is None:
+            continue
+        snapshot[entry.name] = {
+            "rx_bytes": rx_bytes,
+            "tx_bytes": tx_bytes,
+            "rx_packets": read_int(entry / "statistics/rx_packets") or 0,
+            "tx_packets": read_int(entry / "statistics/tx_packets") or 0,
+            "rx_errors": read_int(entry / "statistics/rx_errors") or 0,
+            "tx_errors": read_int(entry / "statistics/tx_errors") or 0,
+            "rx_dropped": read_int(entry / "statistics/rx_dropped") or 0,
+            "tx_dropped": read_int(entry / "statistics/tx_dropped") or 0,
+        }
+    return snapshot
+
+
+def default_route():
+    stdout, _, code = run_capture(["ip", "-j", "route", "show", "default"], timeout=1.2)
+    if code == 0 and stdout:
+        try:
+            routes = json.loads(stdout)
+            if routes:
+                route = routes[0]
+                return {
+                    "iface": route.get("dev", ""),
+                    "gateway": route.get("gateway", ""),
+                }
+        except Exception:
+            pass
+    return {"iface": "", "gateway": ""}
+
+
+def network_connections():
+    stdout, _, code = run_capture(["nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device"], timeout=1.5)
+    if code != 0:
+        return {}
+    connections = {}
+    for line in stdout.splitlines():
+        parts = line.split(":", 3)
+        if len(parts) < 4:
+            continue
+        connections[parts[0]] = {
+            "kind": parts[1],
+            "connection": parts[3],
+            "connected": parts[2].startswith("connected"),
+        }
+    return connections
+
+
+def network_addresses():
+    stdout, _, code = run_capture(["ip", "-j", "addr", "show"], timeout=1.5)
+    if code != 0 or not stdout:
+        return {}
+    try:
+        rows = json.loads(stdout)
+    except Exception:
+        return {}
+    addresses = {}
+    for row in rows:
+        iface_addresses = []
+        for info in row.get("addr_info", []):
+            local = info.get("local")
+            if local:
+                iface_addresses.append(f"{local}/{info.get('prefixlen', '')}")
+        addresses[row.get("ifname", "")] = iface_addresses
+    return addresses
+
+
+def network_socket_rows():
+    stdout, _, code = run_capture(["ss", "-Htunap"], timeout=1.5)
+    if code != 0:
+        return []
+    rows = []
+    for line in stdout.splitlines():
+        parts = line.split(None, 6)
+        if len(parts) < 6:
+            continue
+        processes = []
+        for name, pid in re.findall(r'\("([^"]+)",pid=(\d+)', parts[6] if len(parts) > 6 else ""):
+            processes.append({"name": name, "pid": int(pid)})
+        rows.append({
+            "protocol": parts[0].lower(),
+            "state": parts[1].lower(),
+            "local": parts[4],
+            "peer": parts[5],
+            "processes": processes,
+        })
+    return rows
+
+
+def network_socket_summary(socket_rows):
+    summary = {"total": 0, "tcp": 0, "udp": 0, "established": 0}
+    for row in socket_rows:
+        protocol = row["protocol"]
+        state = row["state"]
+        summary["total"] += 1
+        if protocol.startswith("tcp"):
+            summary["tcp"] += 1
+        elif protocol.startswith("udp"):
+            summary["udp"] += 1
+        if state in {"estab", "established"}:
+            summary["established"] += 1
+    return summary
+
+
+def endpoint_host_and_scope(endpoint):
+    host = endpoint.rsplit(":", 1)[0].strip("[]")
+    if "%" not in host:
+        return host, ""
+    host, scope = host.rsplit("%", 1)
+    return host, scope
+
+
+def network_processes_by_iface(socket_rows, interfaces, primary_iface):
+    address_ifaces = {}
+    known_ifaces = {item["name"] for item in interfaces}
+    for item in interfaces:
+        for address in item.get("addresses", []):
+            address_ifaces[address.split("/", 1)[0]] = item["name"]
+
+    process_maps = {name: {} for name in known_ifaces}
+    for row in socket_rows:
+        host, scope = endpoint_host_and_scope(row["local"])
+        iface = scope if scope in known_ifaces else address_ifaces.get(host, "")
+        if not iface and host in {"*", "0.0.0.0", "::"}:
+            iface = primary_iface
+        if not iface or iface not in process_maps:
+            continue
+
+        for process in row["processes"]:
+            key = process["pid"]
+            item = process_maps[iface].setdefault(key, {
+                "pid": process["pid"],
+                "name": process["name"],
+                "sockets": 0,
+                "tcp": 0,
+                "udp": 0,
+                "established": 0,
+                "peers": [],
+            })
+            item["sockets"] += 1
+            if row["protocol"].startswith("tcp"):
+                item["tcp"] += 1
+            elif row["protocol"].startswith("udp"):
+                item["udp"] += 1
+            if row["state"] in {"estab", "established"}:
+                item["established"] += 1
+            if row["peer"] not in item["peers"] and len(item["peers"]) < 3:
+                item["peers"].append(row["peer"])
+
+    result = {}
+    for iface, process_map in process_maps.items():
+        result[iface] = sorted(
+            process_map.values(),
+            key=lambda item: (-item["sockets"], -item["established"], item["name"]),
+        )[:5]
+    return result
+
+
+def sample_network_rates(interval=SAMPLE_INTERVAL):
+    snap1 = network_snapshot()
+    time.sleep(interval)
+    snap2 = network_snapshot()
+    rates = {}
+    for name, values in snap1.items():
+        if name not in snap2:
+            continue
+        down_bps = max(0, snap2[name]["rx_bytes"] - values["rx_bytes"]) / interval
+        up_bps = max(0, snap2[name]["tx_bytes"] - values["tx_bytes"]) / interval
+        rates[name] = {
+            "down_bps": rounded(down_bps),
+            "up_bps": rounded(up_bps),
+            "total_bps": rounded(down_bps + up_bps),
+            **snap2[name],
+        }
+    return rates
+
+
+def net_payload():
+    rates = sample_network_rates()
+    route = default_route()
+    connections = network_connections()
+    addresses = network_addresses()
+    socket_rows = network_socket_rows()
+    interfaces = []
+
+    for name, values in rates.items():
+        entry = Path("/sys/class/net") / name
+        connection = connections.get(name, {})
+        is_wireless = (entry / "wireless").exists()
+        is_virtual = "/virtual/" in str(entry.resolve())
+        speed_mbps = read_int(entry / "speed")
+        if speed_mbps is not None and speed_mbps < 0:
+            speed_mbps = None
+        ssid = ""
+        if is_wireless:
+            ssid, _, _ = run_capture(["iwgetid", name, "--raw"], timeout=1.0)
+        kind = connection.get("kind") or ("wifi" if is_wireless else ("virtual" if is_virtual else "ethernet"))
+        interfaces.append({
+            "name": name,
+            "kind": kind,
+            "virtual": is_virtual,
+            "state": read_text(entry / "operstate") or "unknown",
+            "carrier": read_int(entry / "carrier"),
+            "connection": connection.get("connection", ""),
+            "ssid": ssid,
+            "mac": read_text(entry / "address"),
+            "mtu": read_int(entry / "mtu"),
+            "speed_mbps": speed_mbps,
+            "addresses": addresses.get(name, []),
+            **values,
+        })
+
+    interfaces.sort(
+        key=lambda item: (
+            item["name"] != route.get("iface"),
+            item["state"] != "up",
+            item["virtual"],
+            -item["total_bps"],
+            item["name"],
+        )
+    )
+    primary = next((item for item in interfaces if item["name"] == route.get("iface")), None)
+    if primary is None:
+        primary = next((item for item in interfaces if item["state"] == "up"), None)
+    if primary is None and interfaces:
+        primary = interfaces[0]
+    primary = primary or {}
+    processes_by_iface = network_processes_by_iface(socket_rows, interfaces, primary.get("name", ""))
+    for item in interfaces:
+        item["default_route"] = item["name"] == route.get("iface")
+        item["top_processes"] = processes_by_iface.get(item["name"], [])
+
+    return {
+        "primary_iface": primary.get("name", ""),
+        "gateway": route.get("gateway", ""),
+        "down_bps": primary.get("down_bps", 0.0),
+        "up_bps": primary.get("up_bps", 0.0),
+        "total_bps": primary.get("total_bps", 0.0),
+        "rx_bytes": primary.get("rx_bytes", 0),
+        "tx_bytes": primary.get("tx_bytes", 0),
+        "interfaces": interfaces,
+        "active_interfaces": sum(1 for item in interfaces if item["state"] == "up"),
+        "sockets": network_socket_summary(socket_rows),
+        "process_telemetry_note": "Processes are ranked by attributable active sockets; per-process byte counters per interface require eBPF or equivalent tracing.",
+    }
+
+
 def cpu_payload():
     sensor_data = sensors_json()
     total_usage, per_core_usage = sample_cpu_usage()
@@ -838,7 +1092,7 @@ def gpu_payload():
 
 def main():
     resource = (sys.argv[1] if len(sys.argv) > 1 else "").strip().lower()
-    if resource not in {"cpu", "ram", "disk", "gpu"}:
+    if resource not in {"cpu", "ram", "disk", "gpu", "net"}:
         json.dump({"error": "unknown resource", "resource": resource}, sys.stdout)
         sys.exit(1)
 
@@ -855,6 +1109,8 @@ def main():
         payload["disk"] = disk_payload()
     elif resource == "gpu":
         payload["gpu"] = gpu_payload()
+    elif resource == "net":
+        payload["net"] = net_payload()
 
     json.dump(payload, sys.stdout, separators=(",", ":"))
     sys.stdout.write("\n")

@@ -36,9 +36,79 @@ read_cpu_snap() {
   ' /proc/stat 2>/dev/null
 }
 
+pick_net_iface() {
+  local iface iface_path state
+
+  iface=$(ip route show default 2>/dev/null | awk '/ dev / {for (i=1; i<=NF; ++i) if ($i == "dev") {print $(i+1); exit}}')
+  if [[ -n "$iface" ]]; then
+    printf '%s' "$iface"
+    return
+  fi
+
+  if command -v nmcli >/dev/null 2>&1; then
+    iface=$(nmcli -t -f DEVICE,TYPE,STATE device 2>/dev/null | awk -F: '$2 ~ /^(ethernet|wifi)$/ && $3 ~ /^connected/ {print $1; exit}')
+    if [[ -n "$iface" ]]; then
+      printf '%s' "$iface"
+      return
+    fi
+  fi
+
+  for iface_path in /sys/class/net/*; do
+    iface=${iface_path##*/}
+    [[ "$iface" == "lo" ]] && continue
+    [[ "$(readlink -f "$iface_path")" == *"/virtual/"* ]] && continue
+    state=$(cat "$iface_path/operstate" 2>/dev/null || printf 'down')
+    if [[ "$state" == "up" ]]; then
+      printf '%s' "$iface"
+      return
+    fi
+  done
+
+  for iface_path in /sys/class/net/*; do
+    iface=${iface_path##*/}
+    [[ "$iface" == "lo" ]] && continue
+    state=$(cat "$iface_path/operstate" 2>/dev/null || printf 'down')
+    if [[ "$state" == "up" ]]; then
+      printf '%s' "$iface"
+      return
+    fi
+  done
+}
+
+read_net_counter() {
+  local iface="$1"
+  local counter="$2"
+  cat "/sys/class/net/$iface/statistics/$counter" 2>/dev/null || printf '0'
+}
+
 mapfile -t S1 < <(read_cpu_snap)
+net_iface=$(pick_net_iface)
+net_rx1=0
+net_tx1=0
+if [[ -n "$net_iface" ]]; then
+  net_rx1=$(read_net_counter "$net_iface" rx_bytes)
+  net_tx1=$(read_net_counter "$net_iface" tx_bytes)
+fi
 sleep 0.20
 mapfile -t S2 < <(read_cpu_snap)
+net_rx2=$net_rx1
+net_tx2=$net_tx1
+if [[ -n "$net_iface" ]]; then
+  net_rx2=$(read_net_counter "$net_iface" rx_bytes)
+  net_tx2=$(read_net_counter "$net_iface" tx_bytes)
+fi
+
+read -r net_down_bps net_up_bps net_total_bps < <(
+  awk -v rx1="$net_rx1" -v tx1="$net_tx1" -v rx2="$net_rx2" -v tx2="$net_tx2" 'BEGIN{
+    down=rx2-rx1;
+    up=tx2-tx1;
+    if (down < 0) down=0;
+    if (up < 0) up=0;
+    down=down/0.20;
+    up=up/0.20;
+    printf "%.2f %.2f %.2f\n", down, up, down+up;
+  }'
+)
 
 cpu_total=0
 per_core=()
@@ -126,10 +196,12 @@ if [[ -z "$gpu_detail_json" ]]; then
 fi
 
 gpu_name_esc=$(json_escape "$gpu_name")
+net_iface_esc=$(json_escape "$net_iface")
 
 printf '{'
 printf '"cpu":{"total":%.2f,"per_core":[%s]},' "$(num_ok "$cpu_total")" "$per_core_csv"
 printf '"gpu":{"name":"%s","total":%.2f%s},' "$gpu_name_esc" "$(num_ok "$gpu_total")" "${gpu_detail_json:+,$gpu_detail_json}"
 printf '"mem":{"used_gb":%.2f,"total_gb":%.2f,"percent":%.2f},' "$(num_ok "$mem_used_gb")" "$(num_ok "$mem_total_gb")" "$(num_ok "$mem_pct")"
-printf '"disk":{"root_percent":%s,"home_percent":%s}' "$(num_ok "$disk_root_pct")" "$(num_ok "$disk_home_pct")"
+printf '"disk":{"root_percent":%s,"home_percent":%s},' "$(num_ok "$disk_root_pct")" "$(num_ok "$disk_home_pct")"
+printf '"net":{"iface":"%s","down_bps":%.2f,"up_bps":%.2f,"total_bps":%.2f}' "$net_iface_esc" "$(num_ok "$net_down_bps")" "$(num_ok "$net_up_bps")" "$(num_ok "$net_total_bps")"
 printf '}\n'

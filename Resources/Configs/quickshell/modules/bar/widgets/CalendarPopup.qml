@@ -488,6 +488,12 @@ Item {
             yScale: window.popupCardScaleY
         }
 
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.AllButtons
+            onClicked: {}
+        }
+
         Rectangle {
             anchors.fill: parent
             radius: window.popupCardRadius
@@ -688,7 +694,7 @@ Item {
                 }
 
                 Item {
-                    parent: orbitScene
+                    parent: centralHub
                     anchors.fill: parent
                     opacity: window.weatherContentOpacity
                     
@@ -751,11 +757,7 @@ Item {
                         }
                         
                         delegate: Item {
-                            layer.enabled: true
-                            layer.smooth: true
-                            layer.mipmap: true
-                            layer.textureSize: Qt.size(width * 2, height * 2)
-                            
+                            id: hourCard
                             property int mCount: hourRepeater.count
                             property bool isToday: window.weatherView === 0
                             property bool isHighlighted: isToday && index === window.activeHourIndex
@@ -776,14 +778,21 @@ Item {
                             y: Math.round(Math.sin(rad) * ry - height/2)
                             z: Math.sin(rad) * 100 
                             
-                            scale: isHighlighted ? 1.4 : (isToday ? (0.95 + 0.20 * Math.sin(rad)) : (0.90 + 0.25 * Math.sin(rad)))
+                            scale: hrMa.containsMouse ? 1.08 : 1.0
                             opacity: isHighlighted ? 1.0 : (isToday ? (0.7 + 0.3 * ((Math.sin(rad) + 1) / 2)) : (0.65 + 0.35 * ((Math.sin(rad) + 1) / 2)))
+                            layer.enabled: Math.abs(window.transitionScale - 1.0) > 0.001 || hrMa.containsMouse
+                            layer.smooth: true
+                            Behavior on scale {
+                                enabled: window.animationsEnabled
+                                NumberAnimation { duration: 250; easing.type: Easing.OutBack }
+                            }
 
-                            width: 50; height: 82
+                            width: isHighlighted ? 70 : 50
+                            height: isHighlighted ? 115 : 82
                             
                             Rectangle {
                                 anchors.fill: parent
-                                radius: 25
+                                radius: width / 2
                                 color: isHighlighted ? window.textAccent : (hrMa.containsMouse ? window.surface2 : window.surface0)
                                 border.color: isHighlighted ? "transparent" : (hrMa.containsMouse ? window.textAccent : window.surface1)
                                 border.width: 1
@@ -797,14 +806,14 @@ Item {
                                     Text { 
                                         Layout.alignment: Qt.AlignHCenter
                                         text: modelData.time
-                                        font.family: window.textFont; font.weight: Font.Bold; font.pixelSize: 11
+                                        font.family: window.textFont; font.weight: Font.Bold; font.pixelSize: isHighlighted ? 15 : 11
                                         color: isHighlighted ? window.base : (hrMa.containsMouse ? window.text : window.overlay1)
                                     }
                                     
                                     Text { 
                                         Layout.alignment: Qt.AlignHCenter
                                         text: modelData.icon || (window.weatherData && window.weatherData.forecast[window.weatherView] ? window.weatherData.forecast[window.weatherView].icon : "")
-                                        font.family: "Iosevka Nerd Font"; font.pixelSize: 18
+                                        font.family: "Iosevka Nerd Font"; font.pixelSize: isHighlighted ? 25 : 18
                                         color: isHighlighted ? window.base : (modelData.hex || window.text)
                                         
                                         transform: Translate { y: hrMa.containsMouse ? -2 : 0 }
@@ -816,7 +825,7 @@ Item {
                                     
                                     Text { 
                                         Layout.alignment: Qt.AlignHCenter; text: modelData.temp + "°"
-                                        font.family: window.textFont; font.weight: Font.Black; font.pixelSize: 13
+                                        font.family: window.textFont; font.weight: Font.Black; font.pixelSize: isHighlighted ? 18 : 13
                                         color: isHighlighted ? window.base : window.text 
                                     }
                                 }
