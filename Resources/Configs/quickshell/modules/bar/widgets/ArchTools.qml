@@ -1952,7 +1952,7 @@ Item {
                 rightMargin: 0
             }
 
-            ElectricBorder {
+            AnimatedBorder {
                 anchors.fill: parent
                 radius: parent.radius
                 borderWidth: parent.border.width
@@ -3089,7 +3089,7 @@ Item {
                 border.width: 1
                 clip: true
 
-                ElectricBorder {
+                AnimatedBorder {
                     anchors.fill: parent
                     radius: parent.radius
                     borderWidth: parent.border.width
@@ -3429,7 +3429,7 @@ Item {
                 border.width: 1
                 clip: true
 
-                ElectricBorder {
+                AnimatedBorder {
                     anchors.fill: parent
                     radius: parent.radius
                     borderWidth: parent.border.width
@@ -5005,7 +5005,7 @@ Item {
                 border.width: 1
                 clip: true
 
-                ElectricBorder {
+                AnimatedBorder {
                     anchors.fill: parent
                     radius: parent.radius
                     borderWidth: parent.border.width
@@ -7519,7 +7519,7 @@ Item {
                 yScale: root.sddmPickerCardScaleY
             }
 
-            ElectricBorder {
+            AnimatedBorder {
                 anchors.fill: parent
                 radius: parent.radius
                 borderWidth: parent.border.width

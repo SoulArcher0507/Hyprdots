@@ -280,7 +280,7 @@ Item {
                     border.color: btnMa.containsMouse ? brandColor : root.moduleBorderColor
                     border.width: btnMa.containsMouse ? 2 : 1
 
-                    ElectricBorder {
+                    AnimatedBorder {
                         anchors.fill: parent
                         radius: parent.radius
                         borderWidth: parent.border.width

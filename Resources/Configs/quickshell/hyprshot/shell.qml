@@ -196,7 +196,7 @@ Hyprshot.FreezeScreen {
         }
     }
 
-    component InlineElectricBorder: BarWidgets.ElectricBorder {
+    component InlineAnimatedBorder: BarWidgets.AnimatedBorder {
         anchors.fill: parent
         accentColor: root.accent
         radius: 12
@@ -1493,7 +1493,7 @@ Hyprshot.FreezeScreen {
         Behavior on opacity { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
         Behavior on scale { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
 
-        InlineElectricBorder {
+        InlineAnimatedBorder {
             radius: ocrResultPanel.radius
             borderWidth: ocrResultPanel.border.width
             accentColor: root.modeColor("ocr")
@@ -1734,7 +1734,7 @@ Hyprshot.FreezeScreen {
         antialiasing: true
         clip: true
 
-        InlineElectricBorder {
+        InlineAnimatedBorder {
             radius: actionPanel.radius
             borderWidth: actionPanel.border.width
             accentColor: root.modeColor(root.mode)
@@ -2214,7 +2214,7 @@ Hyprshot.FreezeScreen {
         Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
         Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
 
-        InlineElectricBorder {
+        InlineAnimatedBorder {
             radius: regionShapeMenu.radius
             borderWidth: regionShapeMenu.border.width
             accentColor: root.accent

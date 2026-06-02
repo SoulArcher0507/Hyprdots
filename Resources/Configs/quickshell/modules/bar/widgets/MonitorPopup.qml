@@ -759,7 +759,7 @@ Item {
                 right: parent.right
             }
 
-            ElectricBorder {
+            AnimatedBorder {
                 anchors.fill: parent
                 radius: parent.radius
                 borderWidth: parent.border.width

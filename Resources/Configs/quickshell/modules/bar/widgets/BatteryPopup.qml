@@ -426,7 +426,7 @@ Item {
             yScale: window.popupCardScaleY
         }
 
-        ElectricBorder {
+        AnimatedBorder {
             anchors.fill: parent
             radius: parent.radius
             borderWidth: parent.border.width

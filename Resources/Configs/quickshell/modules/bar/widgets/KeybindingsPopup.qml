@@ -475,7 +475,7 @@ Item {
                 anchors.top: parent.top
                 anchors.right: parent.right
 
-                ElectricBorder {
+                AnimatedBorder {
                     anchors.fill: parent
                     radius: parent.radius
                     borderWidth: parent.border.width

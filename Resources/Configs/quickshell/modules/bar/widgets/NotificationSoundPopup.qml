@@ -498,7 +498,7 @@ Item {
                 yScale: root.pickerCardScaleY
             }
 
-            ElectricBorder {
+            AnimatedBorder {
                 anchors.fill: parent
                 radius: parent.radius
                 borderWidth: parent.border.width
@@ -956,7 +956,7 @@ Item {
             anchors.right: parent.right
             clip: true
 
-            ElectricBorder {
+            AnimatedBorder {
                 anchors.fill: parent
                 radius: parent.radius
                 borderWidth: parent.border.width

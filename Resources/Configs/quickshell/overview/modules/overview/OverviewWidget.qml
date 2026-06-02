@@ -397,7 +397,7 @@ Item {
             running: GlobalStates.overviewOpen && Appearance.edgeAnimationsEnabled
         }
 
-        ElectricBorder {
+        AnimatedBorder {
             anchors.fill: parent
             radius: overviewBackground.radius
             borderWidth: overviewBackground.border.width

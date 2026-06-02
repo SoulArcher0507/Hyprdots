@@ -413,7 +413,7 @@ ShellRoot {
                     border.width: 1
                     clip: true
 
-                    ElectricBorder {
+                    AnimatedBorder {
                         anchors.fill: parent
                         radius: card.radius
                         borderWidth: card.border.width

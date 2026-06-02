@@ -1540,7 +1540,7 @@ Item {
                     border.width: 1
                     clip: true
 
-                    BarWidgets.ElectricBorder {
+                    BarWidgets.AnimatedBorder {
                         anchors.fill: parent
                         radius: parent.radius
                         borderWidth: parent.border.width

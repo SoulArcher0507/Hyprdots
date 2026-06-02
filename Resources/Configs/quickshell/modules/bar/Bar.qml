@@ -755,7 +755,7 @@ Variants {
                                 border.color: wsMa.containsMouse ? moduleFontColor : moduleBorderColor
                                 border.width: 1 * panel.scaleFactor
 
-                                ElectricBorder {
+                                AnimatedBorder {
                                     anchors.fill: parent
                                     radius: parent.radius
                                     borderWidth: parent.border.width
@@ -815,7 +815,7 @@ Variants {
                             rightMargin: 8 * panel.scaleFactor
                         }
 
-                        ElectricBorder {
+                        AnimatedBorder {
                             anchors.fill: parent
                             radius: parent.radius
                             borderWidth: parent.border.width
@@ -845,7 +845,7 @@ Variants {
                             rightMargin: 8 * panel.scaleFactor
                         }
 
-                        ElectricBorder {
+                        AnimatedBorder {
                             anchors.fill: parent
                             radius: parent.radius
                             borderWidth: parent.border.width
@@ -942,7 +942,7 @@ Variants {
                             rightMargin: 8 * panel.scaleFactor
                         }
 
-                        ElectricBorder {
+                        AnimatedBorder {
                             anchors.fill: parent
                             radius: parent.radius
                             borderWidth: parent.border.width
@@ -1172,7 +1172,7 @@ Variants {
                             rightMargin: 8 * panel.scaleFactor
                         }
 
-                        ElectricBorder {
+                        AnimatedBorder {
                             anchors.fill: parent
                             radius: parent.radius
                             borderWidth: parent.border.width
@@ -1453,7 +1453,7 @@ Variants {
                             rightMargin: 8 * panel.scaleFactor
                         }
 
-                        ElectricBorder {
+                        AnimatedBorder {
                             anchors.fill: parent
                             radius: parent.radius
                             borderWidth: parent.border.width
@@ -1713,7 +1713,7 @@ Variants {
                             rightMargin: 8 * panel.scaleFactor
                         }
 
-                        ElectricBorder {
+                        AnimatedBorder {
                             anchors.fill: parent
                             radius: parent.radius
                             borderWidth: parent.border.width
@@ -1777,7 +1777,7 @@ Variants {
                             rightMargin: 8 * panel.scaleFactor
                         }
 
-                        ElectricBorder {
+                        AnimatedBorder {
                             anchors.fill: parent
                             radius: parent.radius
                             borderWidth: parent.border.width
@@ -1877,7 +1877,7 @@ Variants {
                             rightMargin: 16 * panel.scaleFactor
                         }
 
-                        ElectricBorder {
+                        AnimatedBorder {
                             anchors.fill: parent
                             radius: parent.radius
                             borderWidth: parent.border.width

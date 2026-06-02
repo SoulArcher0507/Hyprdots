@@ -218,7 +218,7 @@ ShellRoot {
                     id: card; anchors.fill: parent
                     radius: root.popupCardRadius; color: root.base; border.color: root.moduleBorderColor; border.width: 1; clip: true
 
-                    ElectricBorder {
+                    AnimatedBorder {
                         anchors.fill: parent
                         radius: card.radius
                         borderWidth: card.border.width

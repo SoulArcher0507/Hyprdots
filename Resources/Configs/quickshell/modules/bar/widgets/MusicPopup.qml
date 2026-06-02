@@ -1023,7 +1023,7 @@ Item {
                     z: 10
                 }
 
-                ElectricBorder {
+                AnimatedBorder {
                     anchors.fill: parent
                     radius: parent.radius
                     borderWidth: parent.border.width
