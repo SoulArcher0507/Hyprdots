@@ -2540,6 +2540,10 @@ Item {
                         spacing: 6
                         anchors.right: parent.right
                         ToolBtn {
+                            icon: "WIP"
+                            tip: "WIP"
+                        }
+                        ToolBtn {
                             icon: "󰍹"
                             tip: "Monitor Config"
                             onBtnClicked: {
@@ -2641,6 +2645,10 @@ Item {
                     Row {
                         spacing: 6
                         anchors.right: parent.right
+                        ToolBtn {
+                            icon: "WIP"
+                            tip: "WIP"
+                        }
                         ToolBtn {
                             icon: "󰂚"
                             tip: "Notification Sound Settings"
