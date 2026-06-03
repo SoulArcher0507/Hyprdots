@@ -5873,14 +5873,19 @@ Item {
     component UsageHistoryChart: Item {
         id: chart
         property var points: []
+        property var liveValue: undefined
         property color accentColor: root.accent
         property real maxValue: 100
         property real labelWidth: 30
         property var valueFormatter: null
+        readonly property bool hasLiveValue: liveValue !== undefined && liveValue !== null && !isNaN(Number(liveValue))
+        readonly property real effectiveMaxValue: Math.max(maxValue, hasLiveValue ? Number(liveValue) : 0, 1)
         readonly property real latestValue: {
+            if (hasLiveValue)
+                return Math.max(0, Number(liveValue));
             if (!points || !points.length)
                 return 0;
-            return Math.max(0, Math.min(maxValue, Number(points[points.length - 1]) || 0));
+            return Math.max(0, Number(points[points.length - 1]) || 0);
         }
 
         function formatValue(value) {
@@ -5923,7 +5928,7 @@ Item {
                     anchors.right: parent.right
                     anchors.rightMargin: 4
                     y: (parent.height / 4) * (4 - index) - height / 2
-                    text: chart.formatValue((chart.maxValue / 4) * index)
+                    text: chart.formatValue((chart.effectiveMaxValue / 4) * index)
                     color: ThemePkg.Theme.withAlpha(root.text, 0.40)
                     font.pixelSize: 8
                     font.family: root.textFont
@@ -5988,10 +5993,16 @@ Item {
                 paintGrid(ctx);
 
                 var values = (chart.points || []).slice(0);
+                if (chart.hasLiveValue) {
+                    if (values.length)
+                        values[values.length - 1] = chart.liveValue;
+                    else
+                        values.push(chart.liveValue);
+                }
                 if (!values.length)
                     return;
 
-                var maxRef = Math.max(chart.maxValue, 1);
+                var maxRef = chart.effectiveMaxValue;
                 var inset = 6;
                 var plotWidth = Math.max(0, width - (inset * 2));
                 var plotHeight = Math.max(0, height - (inset * 2));
@@ -6084,6 +6095,7 @@ Item {
         onHeightChanged: chartCanvas.requestPaint()
         onAccentColorChanged: chartCanvas.requestPaint()
         onMaxValueChanged: chartCanvas.requestPaint()
+        onLiveValueChanged: chartCanvas.requestPaint()
     }
 
     Component {
@@ -6200,6 +6212,7 @@ Item {
                     UsageHistoryChart {
                         width: parent.width
                         points: root.cpuHistory
+                        liveValue: root.displayedCpuTotal()
                         accentColor: root.resourceAccent("cpu")
                     }
                 }
@@ -6339,6 +6352,7 @@ Item {
                     UsageHistoryChart {
                         width: parent.width
                         points: root.ramHistory
+                        liveValue: ramData.percent
                         accentColor: root.resourceAccent("ram")
                     }
                 }
@@ -6451,6 +6465,7 @@ Item {
                     UsageHistoryChart {
                         width: parent.width
                         points: root.diskHistory
+                        liveValue: osDisk.percent
                         accentColor: root.resourceAccent("disk")
                     }
                 }
@@ -6701,6 +6716,7 @@ Item {
                     UsageHistoryChart {
                         width: parent.width
                         points: root.gpuHistory
+                        liveValue: gpuData.usage_percent
                         accentColor: root.resourceAccent("gpu")
                     }
                 }
@@ -6820,6 +6836,7 @@ Item {
                     UsageHistoryChart {
                         width: parent.width
                         points: root.netHistory
+                        liveValue: netData.total_bps
                         maxValue: root.historyScaleMax(root.netHistory, 1024)
                         labelWidth: 66
                         valueFormatter: function(value) {
