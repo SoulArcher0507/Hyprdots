@@ -9,7 +9,8 @@ end
 -- @bind Quickshell :: SUPER + CTRL + space :: hl.dsp.exec_cmd([[qs ipc -p ~/.config/quickshell/launcher call launcher toggle]]) :: Open Launcher
 bind(mainMod .. " + CTRL + space", hl.dsp.exec_cmd("qs ipc -p ~/.config/quickshell/launcher call launcher toggle"))
 -- @bind Quickshell :: SUPER + CTRL + ALT + space :: hl.dsp.exec_cmd([[qs ipc -p ~/.config/quickshell/gamelauncher call gamelauncher toggle]]) :: Open Game Launcher
-bind(mainMod .. " + CTRL + ALT + space", hl.dsp.exec_cmd("qs ipc -p ~/.config/quickshell/gamelauncher call gamelauncher toggle"))
+bind(mainMod .. " + CTRL + ALT + space",
+    hl.dsp.exec_cmd("qs ipc -p ~/.config/quickshell/gamelauncher call gamelauncher toggle"))
 -- @bind Quickshell :: SUPER + A :: hl.dsp.exec_cmd([[qs ipc -p ~/.config/quickshell/overview call overview toggle]]) :: Open Workspaces Overview
 bind(mainMod .. " + A", hl.dsp.exec_cmd("qs ipc -p ~/.config/quickshell/overview call overview toggle"))
 -- @bind Quickshell :: SUPER + W :: hl.dsp.exec_cmd([[qs ipc call wallpaper toggle]]) :: Open Wallpaper Picker
@@ -49,7 +50,7 @@ bind(mainMod .. " + SHIFT + K", hl.dsp.exec_cmd("qs ipc call keybindings toggle"
 -- @bind Applications :: SUPER + RETURN :: hl.dsp.exec_cmd([[kitty]]) :: Open Terminal
 bind(mainMod .. " + RETURN", hl.dsp.exec_cmd(terminal))
 -- @bind Applications :: SUPER + B :: hl.dsp.exec_cmd([[vivaldi]]) :: Open Browser
-bind(mainMod .. " + B", hl.dsp.exec_cmd("vivaldi"))
+bind(mainMod .. " + B", hl.dsp.exec_cmd("zen-browser"))
 -- @bind Applications :: SUPER + E :: hl.dsp.exec_cmd([[dolphin --new-window]]) :: Open Filemanager
 bind(mainMod .. " + E", hl.dsp.exec_cmd("dolphin --new-window"))
 -- @bind Applications :: SUPER + SHIFT + O :: hl.dsp.exec_cmd([[kitty -e nvim Sync/Università-Typst]]) :: Open University Notes
@@ -160,15 +161,20 @@ end
 
 -- Media
 -- @bind Media :: XF86MonBrightnessUp :: hl.dsp.exec_cmd([[bash ~/.config/hypr/scripts/quickshell/brightness/brightness_control.sh inc 10]]) :: Brightness Up
-bind("XF86MonBrightnessUp", hl.dsp.exec_cmd("bash ~/.config/hypr/scripts/quickshell/brightness/brightness_control.sh inc 10"))
+bind("XF86MonBrightnessUp",
+    hl.dsp.exec_cmd("bash ~/.config/hypr/scripts/quickshell/brightness/brightness_control.sh inc 10"))
 -- @bind Media :: XF86MonBrightnessDown :: hl.dsp.exec_cmd([[bash ~/.config/hypr/scripts/quickshell/brightness/brightness_control.sh dec 10]]) :: Brightness Down
-bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("bash ~/.config/hypr/scripts/quickshell/brightness/brightness_control.sh dec 10"))
+bind("XF86MonBrightnessDown",
+    hl.dsp.exec_cmd("bash ~/.config/hypr/scripts/quickshell/brightness/brightness_control.sh dec 10"))
 -- @bind Media :: XF86AudioRaiseVolume :: hl.dsp.exec_cmd([[bash ~/.config/hypr/scripts/quickshell/volume/audio_control.sh set-volume sink @DEFAULT_SINK@ +5]]) :: Volume Up
-bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("bash ~/.config/hypr/scripts/quickshell/volume/audio_control.sh set-volume sink @DEFAULT_SINK@ +5"))
+bind("XF86AudioRaiseVolume",
+    hl.dsp.exec_cmd("bash ~/.config/hypr/scripts/quickshell/volume/audio_control.sh set-volume sink @DEFAULT_SINK@ +5"))
 -- @bind Media :: XF86AudioLowerVolume :: hl.dsp.exec_cmd([[bash ~/.config/hypr/scripts/quickshell/volume/audio_control.sh set-volume sink @DEFAULT_SINK@ -5]]) :: Volume Down
-bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("bash ~/.config/hypr/scripts/quickshell/volume/audio_control.sh set-volume sink @DEFAULT_SINK@ -5"))
+bind("XF86AudioLowerVolume",
+    hl.dsp.exec_cmd("bash ~/.config/hypr/scripts/quickshell/volume/audio_control.sh set-volume sink @DEFAULT_SINK@ -5"))
 -- @bind Media :: XF86AudioMute :: hl.dsp.exec_cmd([[bash ~/.config/hypr/scripts/quickshell/volume/audio_control.sh toggle-mute sink @DEFAULT_SINK@]]) :: Toggle Mute
-bind("XF86AudioMute", hl.dsp.exec_cmd("bash ~/.config/hypr/scripts/quickshell/volume/audio_control.sh toggle-mute sink @DEFAULT_SINK@"))
+bind("XF86AudioMute",
+    hl.dsp.exec_cmd("bash ~/.config/hypr/scripts/quickshell/volume/audio_control.sh toggle-mute sink @DEFAULT_SINK@"))
 -- @bind Media :: XF86AudioPlay :: hl.dsp.exec_cmd([[playerctl play-pause]]) :: Play Pause
 bind("XF86AudioPlay", hl.dsp.exec_cmd("playerctl play-pause"))
 -- @bind Media :: XF86AudioPause :: hl.dsp.exec_cmd([[playerctl pause]]) :: Pause

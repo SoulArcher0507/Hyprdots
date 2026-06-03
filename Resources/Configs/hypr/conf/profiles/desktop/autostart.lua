@@ -25,7 +25,7 @@ start_once({
     "awww-daemon",
 
     -- Hypridle / Hyprsunset
-    "hypridle",
+    "~/.config/hypr/scripts/start-hypridle.sh",
     "hyprsunset",
 
     -- Clipboard, auth and wallet
@@ -46,5 +46,5 @@ start_once({
 })
 
 hl.on("hyprland.start", function()
-    hl.exec_cmd("sh -c 'command -v vivaldi >/dev/null 2>&1 && sleep 2 && exec vivaldi' &")
+    hl.exec_cmd("sh -c 'command -v zen-browser >/dev/null 2>&1 && sleep 2 && exec zen-browser' &")
 end)

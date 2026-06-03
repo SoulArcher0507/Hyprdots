@@ -66,6 +66,7 @@ playerctl
 polkit
 polkit-kde-agent
 polkit-qt6
+power-profiles-daemon
 python
 python-pillow
 qqc2-breeze-style

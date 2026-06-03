@@ -6,30 +6,10 @@ if [[ $EUID -ne 0 ]]; then
   exec sudo "$0" "$@"
 fi
 
-# Argument parsing
-THEME=""
-if [[ $# -gt 0 ]]; then
-  case "${1,,}" in  # lowercase for case-insensitivity
-    pc)     THEME="pc" ;;
-    laptop) THEME="laptop" ;;
-    *)
-      echo "Unknown argument: $1"
-      echo "Usage: $0 [pc|laptop]"
-      exit 1
-      ;;
-  esac
-fi
-
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 BASE_PKGS="$REPO_ROOT/Resources/Pkgs"
-
-case "$THEME" in
-  pc)     THEME_PKGS="$REPO_ROOT/Themes/Desktop/Desktop-Pkgs" ;;
-  laptop) THEME_PKGS="$REPO_ROOT/Themes/Laptop/Laptop-Pkgs" ;;
-  *)      THEME_PKGS="" ;;
-esac
 
 # pacman.conf setup 
 PACMAN_CONF="/etc/pacman.conf"
@@ -131,14 +111,6 @@ load_packages() {
 load_packages "$BASE_PKGS/pacman"  PACMAN_PACKAGES "pacman"
 load_packages "$BASE_PKGS/aur"     AUR_PACKAGES    "AUR"
 load_packages "$BASE_PKGS/flatpak" FLAT_PACKAGES   "flatpak"
-
-# Load theme packages (only if a theme was specified)
-if [[ -n "$THEME_PKGS" ]]; then
-  echo "=== Loading theme packages: $THEME ==="
-  load_packages "$THEME_PKGS/pacman"  PACMAN_PACKAGES "pacman [$THEME]"
-  load_packages "$THEME_PKGS/aur"     AUR_PACKAGES    "AUR [$THEME]"
-  load_packages "$THEME_PKGS/flatpak" FLAT_PACKAGES   "flatpak [$THEME]"
-fi
 
 # Installers 
 install_pacman_pkgs() {

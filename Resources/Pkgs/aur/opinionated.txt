@@ -1,8 +1,11 @@
 adwsteamgtk
 antigravity
+blockbench-bin
 epson-inkjet-printer-escpr2
 feishin-bin
+galaxybudsclient-bin
 localsend-bin
 pacseek
+sunshine-bin
 vesktop-bin
 webapp-manager

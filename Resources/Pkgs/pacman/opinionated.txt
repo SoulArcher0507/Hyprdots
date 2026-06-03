@@ -3,6 +3,7 @@ baloo
 bleachbit
 cmatrix
 code
+digikam
 dosfstools
 dotnet-sdk
 easyeffects
@@ -25,7 +26,10 @@ obsidian
 okular
 openmpi
 partitionmanager
+prismlauncher
 qalculate-qt
+radeontop
+solaar
 steam
 syncthing
 timeshift
@@ -36,6 +40,7 @@ tree
 typst
 vlc
 vlc-plugin-ffmpeg
+vorta
 wine
 winetricks
 wireshark-qt

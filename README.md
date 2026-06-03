@@ -18,12 +18,22 @@ Hyprdots is my personal Arch Linux + Hyprland configuration built around Hyprlan
 - Editor: Neovim
 - Shell: Zsh
 
+## Hyprland Device Profiles
+Hyprland loads the shared config from `Resources/Configs/hypr` and automatically selects the `desktop` or `laptop` profile at startup.
+Set `HYPRDOTS_DEVICE_PROFILE=desktop` or `HYPRDOTS_DEVICE_PROFILE=laptop` to force a profile manually.
+
 ## Installation
 ```bash
 git clone https://github.com/SoulArcher0507/Hyprdots.git
 cd Hyprdots
 chmod +x install.sh
 ./install.sh
+```
+
+## Update
+```bash
+cd ~/.config/Hyprdots
+./update.sh
 ```
 
 You also need to add an openweather api key for the weather widget to work. This can be done via the button in the Arch Tools popup. 

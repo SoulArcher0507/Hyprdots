@@ -79,7 +79,8 @@ Item {
     readonly property var transformLabels: ["0°", "90°", "180°", "270°"]
     readonly property var transformValues: [0, 1, 2, 3]
 
-    readonly property string configPath: Quickshell.env("HOME") + "/.config/hypr/conf/monitor.lua"
+    readonly property string deviceProfileScriptPath: Quickshell.env("HOME") + "/.config/hypr/scripts/device-profile.sh"
+    readonly property string profileConfigDir: Quickshell.env("HOME") + "/.config/hypr/conf/profiles"
     readonly property string activeWallpaperPath: Quickshell.env("HOME") + "/Pictures/Wallpapers/active/active.jpg"
     readonly property string wallpaperScriptPath: Quickshell.env("HOME") + "/.config/awww/wallpaper.sh"
 
@@ -406,8 +407,10 @@ Item {
     }
 
     function applyMonitorConfig(configContent) {
-        var cmd = "mkdir -p " + root.shellQuote(Quickshell.env("HOME") + "/.config/hypr/conf") +
-            " && cat > " + root.shellQuote(root.configPath) + " <<'QSMONEOF'\n" +
+        var cmd = "profile=$(" + root.shellQuote(root.deviceProfileScriptPath) + " 2>/dev/null || printf desktop)" +
+            " && target=" + root.shellQuote(root.profileConfigDir) + "/\"$profile\"/monitor.lua" +
+            " && mkdir -p \"$(dirname \"$target\")\"" +
+            " && cat > \"$target\" <<'QSMONEOF'\n" +
             configContent +
             "QSMONEOF\n" +
             "hyprctl reload";

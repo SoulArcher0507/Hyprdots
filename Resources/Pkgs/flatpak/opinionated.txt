@@ -1,4 +1,5 @@
 app.fluxer.Fluxer
+com.core447.StreamController
 com.github.tchx84.Flatseal
 com.heroicgameslauncher.hgl
 org.telegram.desktop

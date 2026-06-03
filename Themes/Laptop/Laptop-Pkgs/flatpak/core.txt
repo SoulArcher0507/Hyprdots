@@ -1,1 +1,0 @@
-# No laptop-specific core Flatpak packages.

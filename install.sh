@@ -20,6 +20,17 @@ CONFIG_DIR="$TARGET_HOME/.config"
 TARGET_REPO_DIR="$CONFIG_DIR/Hyprdots"
 LEGACY_REPO_LINK="$CONFIG_DIR/hyprdots"
 
+cleanup_deprecated_hypr_configs() {
+    local hypr_dir="$CONFIG_DIR/hypr"
+
+    run_target_cmd test -d "$hypr_dir" || return 0
+    run_target_cmd rm -f -- "$hypr_dir/hyprland.conf" "$hypr_dir/colors.conf"
+
+    if run_target_cmd test -d "$hypr_dir/conf"; then
+        run_target_cmd find "$hypr_dir/conf" -maxdepth 1 -type f -name "*.conf" -delete
+    fi
+}
+
 run_target_cmd() {
     if [[ $EUID -eq 0 ]]; then
         sudo -H -u "$TARGET_USER" env HOME="$TARGET_HOME" USER="$TARGET_USER" LOGNAME="$TARGET_USER" SUDO_USER="$TARGET_USER" "$@"
@@ -80,43 +91,13 @@ run_target_cmd mkdir -p \
     "$TARGET_HOME/Templates" \
     "$TARGET_HOME/Videos"
 
-echo "=== Theme Selection ==="
+echo "=== Package Installation ==="
+run_target_bash "$SCRIPT_DIR/Resources/Scripts/packinstall.sh"
 
-THEME_SCRIPTS=()
-while IFS= read -r -d '' f; do
-    THEME_SCRIPTS+=("$f")
-done < <(find "$SCRIPT_DIR/Themes" -mindepth 2 -maxdepth 2 -name "*-install.sh" -print0 | sort -z)
-
-THEME_LABELS=()
-for f in "${THEME_SCRIPTS[@]}"; do
-    label="$(basename "$(dirname "$f")")/$(basename "$f")"
-    THEME_LABELS+=("$label")
-done
-
-echo "Scripts available:"
-for i in "${!THEME_LABELS[@]}"; do
-    echo "  [$((i+1))] ${THEME_LABELS[$i]}"
-done
 echo ""
-
-PS3="Insert theme number: "
-select LABEL in "${THEME_LABELS[@]}"; do
-    if [[ -n "$LABEL" ]]; then
-        IDX=$((REPLY-1))
-        SCRIPT_PATH="${THEME_SCRIPTS[$IDX]}"
-        echo ""
-        echo "Installing: $SCRIPT_PATH"
-        run_target_bash "$SCRIPT_PATH"
-        break
-    fi
-
-    echo "Not a valide choice."
-    echo ""
-    for i in "${!THEME_LABELS[@]}"; do
-        echo "  [$((i+1))] ${THEME_LABELS[$i]}"
-    done
-    echo ""
-done
+echo "=== Config Installation ==="
+run_target_cmd rsync -av --progress "$SCRIPT_DIR/Resources/Configs/" "$CONFIG_DIR/"
+cleanup_deprecated_hypr_configs
 
 if pacman -Q dunst >/dev/null 2>&1; then
     sudo pacman -R --noconfirm dunst
@@ -142,8 +123,9 @@ run_target_cmd env WALLPAPER_SYNC_COLORS=1 "$TARGET_HOME/.config/awww/wallpaper.
 
 sudo systemctl enable --now bluetooth.service
 sudo systemctl enable --now cups.service 
-sudo usermod -aG lp $USER   # add user to printer group
+sudo usermod -aG lp "$TARGET_USER"   # add user to printer group
 sudo systemctl enable --now NetworkManager.service
+sudo systemctl enable --now power-profiles-daemon.service
 sudo systemctl enable --now firewalld
 sudo firewall-cmd --permanent --zone=trusted --add-interface=tailscale0
 sudo firewall-cmd --permanent --zone=trusted --add-port=53317/tcp
