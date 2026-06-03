@@ -367,6 +367,18 @@ apply_icon_theme() {
   fi
 }
 
+apply_gtk_dark_theme() {
+  update_gtk_setting_file "$GTK3_SETTINGS" gtk-theme-name Adwaita-dark
+  update_gtk_setting_file "$GTK4_SETTINGS" gtk-theme-name Adwaita-dark
+  update_gtk_setting_file "$GTK3_SETTINGS" gtk-application-prefer-dark-theme 1
+  update_gtk_setting_file "$GTK4_SETTINGS" gtk-application-prefer-dark-theme 1
+
+  if command -v gsettings >/dev/null 2>&1; then
+    gsettings set org.gnome.desktop.interface color-scheme prefer-dark >/dev/null 2>&1 || true
+    gsettings set org.gnome.desktop.interface gtk-theme Adwaita-dark >/dev/null 2>&1 || true
+  fi
+}
+
 hard_reload_plasmashell() {
   [[ "$HARD_RELOAD_PLASMA" = "1" ]] || return 0
 
@@ -539,6 +551,7 @@ else
   echo "[WARN] Tema Kora non trovato in ~/.local/share/icons, ~/.icons o /usr/share/icons. Salto la parte icone."
 fi
 
+apply_gtk_dark_theme
 reapply_plasma_theme
 notify_kglobalsettings
 reconfigure_kwin
