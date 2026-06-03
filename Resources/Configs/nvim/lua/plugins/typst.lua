@@ -5,7 +5,8 @@ return {
         tag = 'v1.3.2',
         config = function()
             require 'typst-preview'.setup {
-                open_cmd = 'firefox %s',
+                open_cmd = 'zen-browser --private-window %s',
+                -- open_cmd = 'firefox %s',
                 -- open_cmd = 'vivaldi --app=%s',
                 dependencies_bin = { ['tinymist'] = 'tinymist' },
             }

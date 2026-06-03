@@ -2,7 +2,7 @@
 -- hyprctl layers: layer addresses
 
 hl.window_rule({ match = { title = "^.*All Files.*$" }, float = true })
-hl.window_rule({ match = { title = "Typst Preview — Mozilla Firefox" }, opacity = "1.2" })
+hl.window_rule({ match = { title = "Typst Preview — Zen Browser Private Browsing" }, opacity = "1.2" })
 
 -- Browser Picture in Picture
 hl.window_rule({ match = { title = "^(Picture-in-Picture)$" }, float = true })
