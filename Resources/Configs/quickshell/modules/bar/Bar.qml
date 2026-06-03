@@ -61,7 +61,9 @@ Variants {
 
             PanelWindow {
                 id: overlayWindow
-                focusable: true
+                readonly property bool overlayActive: (switcher.shownOverlay !== "") || (switcher.pendingIndex !== -1)
+
+                focusable: overlayActive
                 screen: delegateRoot.modelData
                 anchors {
                     top: true
@@ -70,7 +72,7 @@ Variants {
                     bottom: true
                 }
                 color: "transparent"
-                visible: (switcher.shownOverlay !== "") || (switcher.pendingIndex !== -1)
+                visible: overlayActive
                 onVisibleChanged: if (visible)
                     switcher.forceActiveFocus()
 
@@ -91,6 +93,8 @@ Variants {
 
                 MouseArea {
                     anchors.fill: parent
+                    enabled: overlayWindow.overlayActive
+                    visible: overlayWindow.overlayActive
                     z: 0
                     onClicked: switcher.close()
                 }
@@ -99,7 +103,8 @@ Variants {
                     id: switcher
                     anchors.fill: parent
                     z: 1
-                    focus: overlayWindow.visible
+                    enabled: overlayWindow.overlayActive
+                    focus: overlayWindow.overlayActive
 
                     property int updPacman: panel.updPacman
                     property int updAur: panel.updAur
@@ -410,6 +415,22 @@ Variants {
                         finalizeClose.start();
                     }
 
+                    function forceClose() {
+                        finalizeClose.stop();
+                        finalizeSwap.stop();
+                        loaderA.sourceComponent = null;
+                        loaderB.sourceComponent = null;
+                        loaderA.opacity = 1.0;
+                        loaderB.opacity = 0.0;
+                        loaderA.scale = 1.0;
+                        loaderB.scale = 1.0;
+                        activeIndex = 0;
+                        shownOverlay = "";
+                        pendingShownOverlay = "";
+                        pendingIndex = -1;
+                        activeDur = dur;
+                    }
+
                     function swap(which) {
                         if (!which || which === shownOverlay)
                             return;
@@ -554,6 +575,9 @@ Variants {
                         function onGlobalCloseShellPopups() {
                             switcher.close();
                         }
+                        function onGlobalForceCloseShellPopups() {
+                            switcher.forceClose();
+                        }
                         function onGlobalCloseAllPopups() {
                             switcher.close();
                         }
@@ -620,6 +644,7 @@ Variants {
                 NotificationSoundPopup {
                     anchors.fill: parent
                     overlayScreen: delegateRoot.modelData
+                    overlaySwitcher: switcher
                 }
             }
 

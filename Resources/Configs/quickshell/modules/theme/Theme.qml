@@ -26,6 +26,7 @@ QtObject {
     signal globalToggleFocusTime
     signal globalToggleNotifications
     signal globalCloseShellPopups
+    signal globalForceCloseShellPopups
     signal globalCloseAllPopups
     signal globalShowVolumeOverlay
     signal globalShowBrightnessOverlay

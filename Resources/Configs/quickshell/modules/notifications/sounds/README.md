@@ -9,7 +9,7 @@ Supported extensions:
 - `.aac`
 - `.m4a`
 
-Any files stored in subfolders are ignored by the popup sound picker.
+Any files stored in subfolders are ignored by the notification sound popup.
 Use `sounds/alternatives/` for optional variants you want to keep around without making them active.
 
 If no valid sound file is present here, Quickshell falls back to the bundled `default-notification.wav` and then to a system notification sound.

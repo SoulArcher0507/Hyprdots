@@ -195,6 +195,9 @@ ShellRoot {
         function hide(): void {
             ThemePkg.Theme.globalCloseShellPopups();
         }
+        function forceHide(): void {
+            ThemePkg.Theme.globalForceCloseShellPopups();
+        }
     }
 
     IpcHandler {
@@ -250,6 +253,9 @@ ShellRoot {
         target: "global"
         function closeShellPopups(): void {
             ThemePkg.Theme.globalCloseShellPopups();
+        }
+        function forceCloseShellPopups(): void {
+            ThemePkg.Theme.globalForceCloseShellPopups();
         }
         function closeAllPopups(): void {
             ThemePkg.Theme.globalCloseAllPopups();
