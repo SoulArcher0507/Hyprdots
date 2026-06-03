@@ -17,11 +17,13 @@ PROGRESS_MAX_LINES="${ARCHTOOLS_UPDATE_PROGRESS_MAX_LINES:-200}"
 PROGRESS_MAX_BYTES="${ARCHTOOLS_UPDATE_PROGRESS_MAX_BYTES:-65536}"
 AUR_BUILD_JOBS="${ARCHTOOLS_AUR_BUILD_JOBS:-}"
 PACMAN_CANCEL_GRACE_SECONDS="${ARCHTOOLS_PACMAN_CANCEL_GRACE_SECONDS:-45}"
+PROGRESS_HEARTBEAT_SECONDS="${ARCHTOOLS_UPDATE_PROGRESS_HEARTBEAT_SECONDS:-2}"
 
 [[ "$MAX_ERROR_LINES" =~ ^[0-9]+$ ]] && (( MAX_ERROR_LINES > 0 )) || MAX_ERROR_LINES=40
 [[ "$PROGRESS_MAX_LINES" =~ ^[0-9]+$ ]] && (( PROGRESS_MAX_LINES > 0 )) || PROGRESS_MAX_LINES=200
 [[ "$PROGRESS_MAX_BYTES" =~ ^[0-9]+$ ]] && (( PROGRESS_MAX_BYTES > 0 )) || PROGRESS_MAX_BYTES=65536
 [[ "$PACMAN_CANCEL_GRACE_SECONDS" =~ ^[0-9]+$ ]] && (( PACMAN_CANCEL_GRACE_SECONDS > 0 )) || PACMAN_CANCEL_GRACE_SECONDS=45
+[[ "$PROGRESS_HEARTBEAT_SECONDS" =~ ^[0-9]+$ ]] && (( PROGRESS_HEARTBEAT_SECONDS > 0 )) || PROGRESS_HEARTBEAT_SECONDS=2
 
 if [[ -z "$AUR_BUILD_JOBS" ]]; then
     cpu_count="$(nproc 2>/dev/null || echo 1)"
@@ -79,6 +81,221 @@ current_millis() {
     date +%s%3N 2>/dev/null || printf '%s000' "$(date +%s)"
 }
 
+progress_pacman=0
+progress_aur=0
+progress_flatpak=0
+CURRENT_UPDATE_STAGE=""
+
+clamp_percent() {
+    local raw="${1:-0}"
+    raw="${raw%%.*}"
+    [[ "$raw" =~ ^[0-9]+$ ]] || raw=0
+    (( raw < 0 )) && raw=0
+    (( raw > 100 )) && raw=100
+    printf '%s' "$raw"
+}
+
+get_stage_progress() {
+    case "$1" in
+        pacman)  printf '%s' "$progress_pacman" ;;
+        aur)     printf '%s' "$progress_aur" ;;
+        flatpak) printf '%s' "$progress_flatpak" ;;
+        *)       printf '0' ;;
+    esac
+}
+
+set_stage_progress() {
+    local stage="$1" pct
+    pct="$(clamp_percent "$2")"
+    local current
+    current="$(get_stage_progress "$stage")"
+    (( pct < current )) && pct="$current"
+
+    case "$stage" in
+        pacman)  progress_pacman="$pct" ;;
+        aur)     progress_aur="$pct" ;;
+        flatpak) progress_flatpak="$pct" ;;
+    esac
+}
+
+mark_requested_stages_complete() {
+    case "$PROVIDER" in
+        all)
+            progress_pacman=100
+            progress_aur=100
+            progress_flatpak=100
+            ;;
+        pacman)  progress_pacman=100 ;;
+        aur)     progress_aur=100 ;;
+        flatpak) progress_flatpak=100 ;;
+    esac
+}
+
+overall_progress() {
+    case "$PROVIDER" in
+        pacman)  printf '%s' "$progress_pacman" ;;
+        aur)     printf '%s' "$progress_aur" ;;
+        flatpak) printf '%s' "$progress_flatpak" ;;
+        *)       printf '%s' $(( (progress_pacman + progress_aur + progress_flatpak) / 3 )) ;;
+    esac
+}
+
+json_escape() {
+    local val="$1"
+    val="${val//\\/\\\\}"
+    val="${val//\"/\\\"}"
+    val="${val//$'\n'/\\n}"
+    val="${val//$'\r'/}"
+    printf '%s' "$val"
+}
+
+prepare_progress_for_emit() {
+    local stage="$1" status="$2"
+    case "$stage" in
+        pacman|aur|flatpak)
+            case "$status" in
+                starting)
+                    set_stage_progress "$stage" 2
+                    ;;
+                running)
+                    set_stage_progress "$stage" 6
+                    ;;
+                done|success|skipped|error)
+                    set_stage_progress "$stage" 100
+                    ;;
+            esac
+            ;;
+        complete)
+            mark_requested_stages_complete
+            ;;
+    esac
+}
+
+append_progress_fields() {
+    local stage="$1"
+    printf ',"progress":%s' "$(overall_progress)"
+    if [[ "$stage" == "pacman" || "$stage" == "aur" || "$stage" == "flatpak" ]]; then
+        printf ',"stageProgress":%s' "$(get_stage_progress "$stage")"
+    fi
+    printf ',"progressPacman":%s,"progressAur":%s,"progressFlatpak":%s' "$progress_pacman" "$progress_aur" "$progress_flatpak"
+}
+
+emit_stage_progress() {
+    local stage="$1" pct="$2" detail="${3:-}"
+    [[ "$stage" == "pacman" || "$stage" == "aur" || "$stage" == "flatpak" ]] || return 0
+    set_stage_progress "$stage" "$pct"
+
+    local escaped_detail json
+    escaped_detail="$(json_escape "$detail")"
+    json="{\"stage\":\"$stage\",\"status\":\"running\",\"detail\":\"$escaped_detail\""
+    json+="$(append_progress_fields "$stage")"
+    json+="}"
+    echo "$json" >> "$PROGRESS_FILE"
+    trim_progress_file
+}
+
+last_percent_in_text() {
+    local text="$1" pct="" scan="$1"
+    while [[ "$scan" =~ ([0-9]{1,3})% ]]; do
+        pct="${BASH_REMATCH[1]}"
+        scan="${scan#*"${BASH_REMATCH[0]}"}"
+    done
+    [[ -n "$pct" ]] || return 1
+    clamp_percent "$pct"
+}
+
+progress_from_record() {
+    local stage="$1" record="$2" pct numerator denominator
+    [[ -n "$stage" ]] || return 0
+
+    if [[ "$record" =~ \(([0-9]+)[[:space:]]*/[[:space:]]*([0-9]+)\) ]]; then
+        numerator="${BASH_REMATCH[1]}"
+        denominator="${BASH_REMATCH[2]}"
+        if [[ "$denominator" =~ ^[0-9]+$ ]] && (( denominator > 0 && numerator <= denominator )); then
+            pct=$(( numerator * 100 / denominator ))
+            emit_stage_progress "$stage" "$pct" "$record"
+            return 0
+        fi
+    fi
+
+    if [[ "$record" =~ [Tt]otal|[Oo]verall|[Pp]rogress || "$stage" == "flatpak" ]]; then
+        if pct="$(last_percent_in_text "$record")"; then
+            emit_stage_progress "$stage" "$pct" "$record"
+        fi
+    fi
+}
+
+record_error_line() {
+    local tmp="$1" line="$2" max_chars=4000
+    if (( ${#line} > max_chars )); then
+        line="${line:0:max_chars}... [truncated]"
+    fi
+    printf '%s\n' "$line" >> "$tmp"
+    local line_count
+    line_count="$(wc -l < "$tmp" 2>/dev/null || echo 0)"
+    if (( line_count > MAX_ERROR_LINES )); then
+        local trimmed="${tmp}.trim"
+        tail -n "$MAX_ERROR_LINES" "$tmp" > "$trimmed" 2>/dev/null && mv "$trimmed" "$tmp"
+        rm -f "$trimmed"
+    fi
+}
+
+read_command_output() {
+    local fifo="$1" tmp="$2" progress_stage="$3"
+    local char="" record="" separator=""
+    : > "$tmp"
+
+    while IFS= read -r -N 1 char; do
+        separator=""
+        if [[ "$char" == $'\r' || "$char" == $'\n' ]]; then
+            separator="$char"
+            printf '%s%s' "$record" "$separator" >> "$LOG_FILE"
+            if [[ -n "$record" ]]; then
+                record_error_line "$tmp" "$record"
+                progress_from_record "$progress_stage" "$record"
+            fi
+            record=""
+        else
+            record+="$char"
+            if (( ${#record} >= 4096 )); then
+                printf '%s\n' "$record" >> "$LOG_FILE"
+                record_error_line "$tmp" "$record"
+                progress_from_record "$progress_stage" "$record"
+                record=""
+            fi
+        fi
+    done < "$fifo"
+
+    if [[ -n "$record" ]]; then
+        printf '%s\n' "$record" >> "$LOG_FILE"
+        record_error_line "$tmp" "$record"
+        progress_from_record "$progress_stage" "$record"
+    fi
+}
+
+progress_heartbeat() {
+    local cmd_pid="$1" stage="$2" floor="${3:-8}" cap="${4:-92}"
+    local start now elapsed estimate detail
+    [[ -n "$stage" ]] || return 0
+    start="$(date +%s)"
+    while kill -0 "$cmd_pid" >/dev/null 2>&1; do
+        sleep "$PROGRESS_HEARTBEAT_SECONDS"
+        kill -0 "$cmd_pid" >/dev/null 2>&1 || break
+        now="$(date +%s)"
+        elapsed=$(( now - start ))
+        estimate=$(( floor + (elapsed * (cap - floor) / 120) ))
+        (( estimate > cap )) && estimate="$cap"
+        detail="Updating $stage..."
+        emit_stage_progress "$stage" "$estimate" "$detail"
+    done
+}
+
+quoted_command() {
+    local quoted=""
+    printf -v quoted '%q ' "$@"
+    printf '%s' "${quoted% }"
+}
+
 run_bounded() {
     local tmp="/tmp/archtools_update_output_$$"
     local fifo="/tmp/archtools_update_fifo_$$"
@@ -95,48 +312,31 @@ run_bounded() {
         printf '\n'
     } >> "$LOG_FILE"
 
-    awk -v max_lines="$MAX_ERROR_LINES" -v max_chars=4000 -v log_file="$LOG_FILE" '
-        {
-            line = $0
-            print line >> log_file
-            fflush(log_file)
-            if (length(line) > max_chars) {
-                line = substr(line, 1, max_chars) "... [truncated]"
-            }
-            idx = NR % max_lines
-            lines[idx] = line
-        }
-        END {
-            start = NR > max_lines ? NR - max_lines + 1 : 1
-            for (i = start; i <= NR; i++) {
-                print lines[i % max_lines]
-            }
-        }
-    ' < "$fifo" > "$tmp" &
+    read_command_output "$fifo" "$tmp" "$CURRENT_UPDATE_STAGE" &
     reader_pid=$!
 
     printf '%s\n' "$@" > "$CURRENT_CMD_ARGS_FILE"
-    if has setsid; then
-        ( trap - INT QUIT TERM; exec setsid "$@" ) > "$fifo" 2>&1 &
+    if has script; then
+        local cmd_string
+        cmd_string="$(quoted_command "$@")"
+        if has setsid; then
+            ( trap - INT QUIT TERM; exec setsid script -qefc "$cmd_string" /dev/null ) > "$fifo" 2>&1 &
+        else
+            ( trap - INT QUIT TERM; exec script -qefc "$cmd_string" /dev/null ) > "$fifo" 2>&1 &
+        fi
     else
-        ( trap - INT QUIT TERM; exec "$@" ) > "$fifo" 2>&1 &
+        if has setsid; then
+            ( trap - INT QUIT TERM; exec setsid "$@" ) > "$fifo" 2>&1 &
+        else
+            ( trap - INT QUIT TERM; exec "$@" ) > "$fifo" 2>&1 &
+        fi
     fi
     cmd_pid=$!
     echo "$cmd_pid" > "$CURRENT_CMD_PID_FILE"
     ps -o pgid= -p "$cmd_pid" 2>/dev/null | tr -d '[:space:]' > "$CURRENT_CMD_PGID_FILE" || true
     ps -o sid= -p "$cmd_pid" 2>/dev/null | tr -d '[:space:]' > "$CURRENT_CMD_SID_FILE" || true
 
-    (
-        while kill -0 "$cmd_pid" >/dev/null 2>&1; do
-            sleep 15
-            kill -0 "$cmd_pid" >/dev/null 2>&1 || break
-            {
-                printf '[command/running] still active:'
-                printf ' %q' "$@"
-                printf '\n'
-            } >> "$LOG_FILE"
-        done
-    ) &
+    progress_heartbeat "$cmd_pid" "$CURRENT_UPDATE_STAGE" &
     heartbeat_pid=$!
 
     wait "$cmd_pid"
@@ -166,6 +366,8 @@ run_bounded() {
 
 emit() {
     local stage="$1" status="$2"; shift 2
+    prepare_progress_for_emit "$stage" "$status"
+
     local json="{\"stage\":\"$stage\",\"status\":\"$status\""
     local detail_text=""
     for kv in "$@"; do
@@ -176,13 +378,11 @@ emit() {
         if [[ "$val" =~ ^[0-9]+$ ]]; then
             json+=",\"$key\":$val"
         else
-            val="${val//\\/\\\\}"
-            val="${val//\"/\\\"}"
-            val="${val//$'\n'/\\n}"
-            val="${val//$'\r'/}"
+            val="$(json_escape "$val")"
             json+=",\"$key\":\"$val\""
         fi
     done
+    json+="$(append_progress_fields "$stage")"
     if [[ "$stage" == "complete" ]]; then
         json+=",\"finishedTimestamp\":$(current_millis)"
     fi
@@ -513,12 +713,15 @@ run_pacman() {
         return 1
     fi
 
-    if ! run_bounded sudo -A pacman --noconfirm --noprogressbar -Syu; then
+    CURRENT_UPDATE_STAGE="pacman"
+    if ! run_bounded sudo -A pacman --noconfirm -Syu; then
+        CURRENT_UPDATE_STAGE=""
         err_output="$(truncate_err "$RUN_BOUNDED_OUTPUT")"
         errors+=("pacman: $err_output")
         emit pacman error "detail=$err_output"
         return 1
     fi
+    CURRENT_UPDATE_STAGE=""
 
     count_pacman=$n_before
     emit pacman done "count=$n_before" "detail=Updated $n_before packages"
@@ -557,13 +760,27 @@ run_aur() {
         return 1
     fi
 
+    local aur_status=0
     case "$helper" in
-        yay)    run_bounded "$helper" -Sua --noconfirm ;;
-        paru)   run_bounded "$helper" -Sua --noconfirm ;;
-        pikaur) run_bounded "$helper" -Sua --noconfirm ;;
+        yay)
+            CURRENT_UPDATE_STAGE="aur"
+            run_bounded "$helper" -Sua --noconfirm
+            aur_status=$?
+            ;;
+        paru)
+            CURRENT_UPDATE_STAGE="aur"
+            run_bounded "$helper" -Sua --noconfirm
+            aur_status=$?
+            ;;
+        pikaur)
+            CURRENT_UPDATE_STAGE="aur"
+            run_bounded "$helper" -Sua --noconfirm
+            aur_status=$?
+            ;;
     esac
+    CURRENT_UPDATE_STAGE=""
 
-    if [[ $? -ne 0 ]]; then
+    if [[ "$aur_status" -ne 0 ]]; then
         err_output="$(truncate_err "$RUN_BOUNDED_OUTPUT")"
         errors+=("aur($helper): $err_output")
         emit aur error "detail=$err_output"
@@ -594,12 +811,15 @@ run_flatpak() {
 
     emit flatpak running "detail=Updating $n_before Flatpak apps..."
 
+    CURRENT_UPDATE_STAGE="flatpak"
     if ! run_bounded flatpak update -y --noninteractive; then
+        CURRENT_UPDATE_STAGE=""
         err_output="$(truncate_err "$RUN_BOUNDED_OUTPUT")"
         errors+=("flatpak: $err_output")
         emit flatpak error "detail=$err_output"
         return 1
     fi
+    CURRENT_UPDATE_STAGE=""
 
     count_flatpak=$n_before
     emit flatpak done "count=$n_before" "detail=Updated $n_before Flatpak apps"
@@ -629,11 +849,14 @@ case "$PROVIDER" in
             else
                 emit pacman running "detail=Updating $pac_n_before packages..."
                 if ensure_sudo "pacman"; then
-                    if ! run_bounded sudo -A pacman --noconfirm --noprogressbar -Syu; then
+                    CURRENT_UPDATE_STAGE="pacman"
+                    if ! run_bounded sudo -A pacman --noconfirm -Syu; then
+                        CURRENT_UPDATE_STAGE=""
                         pac_err_output="$(truncate_err "$RUN_BOUNDED_OUTPUT")"
                         errors+=("pacman: $pac_err_output")
                         emit pacman error "detail=$pac_err_output"
                     fi
+                    CURRENT_UPDATE_STAGE=""
                     if [[ ${#errors[@]} -eq 0 ]]; then
                         count_pacman=$pac_n_before
                         emit pacman done "count=$pac_n_before" "detail=Updated $pac_n_before packages"

@@ -151,6 +151,10 @@ Item {
     property int updateCountAur: (switcher ? switcher.archUpdCountAur : 0)
     property int updateCountFlatpak: (switcher ? switcher.archUpdCountFlatpak : 0)
     property int updateCountTotal: (switcher ? switcher.archUpdCountTotal : 0)
+    property real updateProgress: (switcher ? switcher.archUpdProgress : 0)
+    property real updateProgressPacman: (switcher ? switcher.archUpdProgressPacman : 0)
+    property real updateProgressAur: (switcher ? switcher.archUpdProgressAur : 0)
+    property real updateProgressFlatpak: (switcher ? switcher.archUpdProgressFlatpak : 0)
     property real updateFinishedTimestamp: (switcher ? switcher.archUpdFinishedTs : 0)
     readonly property bool updateResultVisible: updateFinishedTimestamp > 0
     readonly property bool updateShowStatus: updateRunning || updateResultVisible
@@ -711,6 +715,25 @@ Item {
     function safeNumber(value, fallback) {
         var num = Number(value);
         return isNaN(num) ? (fallback !== undefined ? fallback : 0) : num;
+    }
+
+    function normalizedProgress(value) {
+        var num = Number(value);
+        if (isNaN(num))
+            return 0.0;
+        if (num > 1.0)
+            num = num / 100.0;
+        return Math.max(0.0, Math.min(1.0, num));
+    }
+
+    function progressLabel(value) {
+        return String(Math.round(root.normalizedProgress(value) * 100)) + "%";
+    }
+
+    function monotonicProgress(current, incoming) {
+        var next = root.normalizedProgress(incoming);
+        var previous = root.normalizedProgress(current);
+        return root.updateRunning ? Math.max(previous, next) : next;
     }
 
     function shellQuote(value) {
@@ -1480,6 +1503,10 @@ Item {
         root.updateCountAur = root.switcher.archUpdCountAur || 0;
         root.updateCountFlatpak = root.switcher.archUpdCountFlatpak || 0;
         root.updateCountTotal = root.switcher.archUpdCountTotal || 0;
+        root.updateProgress = root.normalizedProgress(root.switcher.archUpdProgress || 0);
+        root.updateProgressPacman = root.normalizedProgress(root.switcher.archUpdProgressPacman || 0);
+        root.updateProgressAur = root.normalizedProgress(root.switcher.archUpdProgressAur || 0);
+        root.updateProgressFlatpak = root.normalizedProgress(root.switcher.archUpdProgressFlatpak || 0);
         root.updateFinishedTimestamp = root.switcher.archUpdFinishedTs || 0;
         root.updateStagePacman = root.switcher.archUpdStagePacman || "";
         root.updateStageAur = root.switcher.archUpdStageAur || "";
@@ -1503,6 +1530,10 @@ Item {
         root.updateCountAur = 0;
         root.updateCountFlatpak = 0;
         root.updateCountTotal = 0;
+        root.updateProgress = 0;
+        root.updateProgressPacman = 0;
+        root.updateProgressAur = 0;
+        root.updateProgressFlatpak = 0;
         root.updateFinishedTimestamp = 0;
         root.updateStagePacman = "";
         root.updateStageAur = "";
@@ -1527,6 +1558,10 @@ Item {
             countAur: root.updateCountAur,
             countFlatpak: root.updateCountFlatpak,
             countTotal: root.updateCountTotal,
+            progress: root.updateProgress,
+            progressPacman: root.updateProgressPacman,
+            progressAur: root.updateProgressAur,
+            progressFlatpak: root.updateProgressFlatpak,
             finishedTimestamp: root.updateFinishedTimestamp,
             stagePacman: root.updateStagePacman,
             stageAur: root.updateStageAur,
@@ -1550,6 +1585,10 @@ Item {
         root.updateCountAur = 0;
         root.updateCountFlatpak = 0;
         root.updateCountTotal = 0;
+        root.updateProgress = 0;
+        root.updateProgressPacman = 0;
+        root.updateProgressAur = 0;
+        root.updateProgressFlatpak = 0;
         root.updateFinishedTimestamp = 0;
         root.updateStagePacman = "";
         root.updateStageAur = "";
@@ -1574,7 +1613,6 @@ Item {
         var progressFile = root.shellQuote(root.progressFile);
         var monitorCmd = "printf '\\033]0;ArchTools Update Output\\007'; "
             + "echo 'ArchTools live update output'; "
-            + "echo 'Close this terminal whenever you want. The update keeps running.'; "
             + "echo; "
             + "while [ ! -f " + logFile + " ] && [ ! -f " + progressFile + " ]; do echo 'Waiting for update output...'; sleep 1; done; "
             + "if [ -f " + logFile + " ]; then tail -n +1 -F " + logFile + "; else tail -n +1 -F " + progressFile + "; fi";
@@ -1585,8 +1623,11 @@ Item {
             + " || (command -v wezterm >/dev/null 2>&1 && wezterm -e bash -lc '" + safeCmd + "')"
             + " || (command -v gnome-terminal >/dev/null 2>&1 && gnome-terminal -- bash -lc '" + safeCmd + "')"
             + " || (command -v xterm >/dev/null 2>&1 && xterm -e bash -lc '" + safeCmd + "')";
+        var floatingCmd = "if command -v hyprctl >/dev/null 2>&1; then hyprctl dispatch exec "
+            + root.shellQuote("[float; center; size 980 620] sh -lc " + root.shellQuote(terminalCmd))
+            + "; else " + terminalCmd + "; fi";
 
-        root.runDetachedShell(terminalCmd);
+        root.runDetachedShell(floatingCmd);
         root.closeArchToolsPanel();
     }
 
@@ -1668,12 +1709,28 @@ Item {
             root.updateStatus = status;
             root.updateDetail = detail;
 
-            if (stage === "pacman")
+            if (obj.progress !== undefined)
+                root.updateProgress = root.monotonicProgress(root.updateProgress, obj.progress);
+            if (obj.progressPacman !== undefined)
+                root.updateProgressPacman = root.monotonicProgress(root.updateProgressPacman, obj.progressPacman);
+            if (obj.progressAur !== undefined)
+                root.updateProgressAur = root.monotonicProgress(root.updateProgressAur, obj.progressAur);
+            if (obj.progressFlatpak !== undefined)
+                root.updateProgressFlatpak = root.monotonicProgress(root.updateProgressFlatpak, obj.progressFlatpak);
+
+            if (stage === "pacman") {
                 root.updateStagePacman = status;
-            else if (stage === "aur")
+                if (obj.stageProgress !== undefined)
+                    root.updateProgressPacman = root.monotonicProgress(root.updateProgressPacman, obj.stageProgress);
+            } else if (stage === "aur") {
                 root.updateStageAur = status;
-            else if (stage === "flatpak")
+                if (obj.stageProgress !== undefined)
+                    root.updateProgressAur = root.monotonicProgress(root.updateProgressAur, obj.stageProgress);
+            } else if (stage === "flatpak") {
                 root.updateStageFlatpak = status;
+                if (obj.stageProgress !== undefined)
+                    root.updateProgressFlatpak = root.monotonicProgress(root.updateProgressFlatpak, obj.stageProgress);
+            }
 
             if (status === "error") {
                 root.updateHadError = true;
@@ -1697,6 +1754,13 @@ Item {
                 root.updateStagePacman = root.finalProviderStatus("pacman", root.updateStagePacman, status);
                 root.updateStageAur = root.finalProviderStatus("aur", root.updateStageAur, status);
                 root.updateStageFlatpak = root.finalProviderStatus("flatpak", root.updateStageFlatpak, status);
+                root.updateProgress = 1.0;
+                if (root.updateProviderWasRequested("pacman"))
+                    root.updateProgressPacman = 1.0;
+                if (root.updateProviderWasRequested("aur"))
+                    root.updateProgressAur = 1.0;
+                if (root.updateProviderWasRequested("flatpak"))
+                    root.updateProgressFlatpak = 1.0;
                 root.updateRunning = false;
                 root.updateFinishedTimestamp = Number(obj.finishedTimestamp || root.updateFinishedTimestamp || Date.now());
                 updateProgressPoller.stop();
@@ -1770,12 +1834,13 @@ Item {
         return status;
     }
 
-    function providerStatusLabel(status) {
+    function providerStatusLabel(status, progress) {
         switch (status) {
         case "starting":
         case "running":
+            return root.normalizedProgress(progress) > 0.0 ? "Update" : "...";
         case "queued":
-            return "...";
+            return "Queued";
         case "done":
         case "success":
             return "Done";
@@ -1793,6 +1858,23 @@ Item {
         if (!s)
             return "";
         return root.updateStatusIcon(s);
+    }
+
+    function providerProgress(providerLabel) {
+        switch (providerLabel) {
+        case "pacman":
+            return root.updateProgressPacman;
+        case "yay":
+            return root.updateProgressAur;
+        case "flatpak":
+            return root.updateProgressFlatpak;
+        default:
+            return 0.0;
+        }
+    }
+
+    function isActiveProviderStatus(status) {
+        return status === "starting" || status === "running" || status === "queued";
     }
 
     Io.Process {
@@ -2768,11 +2850,12 @@ Item {
                     UpdateBubble {
                         anchors.fill: parent
                         compact: false
-                        value: root.updateShowStatus ? root.updateStatusIcon(root.updateStatus) : String(root.updTotal)
+                        value: root.updateRunning ? root.progressLabel(root.updateProgress) : (root.updateShowStatus ? root.updateStatusIcon(root.updateStatus) : String(root.updTotal))
                         label: root.updateShowStatus ? root.updateStatusText() : "updates"
                         isUpdateRunning: root.updateRunning
                         isUpdateResult: root.updateResultVisible
                         isUpdateError: root.updateHadError
+                        updateProgress: root.updateProgress
                         onHoldComplete: {
                             root.startBackgroundUpdate("all");
                         }
@@ -2831,11 +2914,15 @@ Item {
                             anchors.fill: parent
                             compact: true
                             property string providerStatus: root.updateShowStatus ? root.providerStageStatus(modelData.label) : ""
-                            value: providerStatus ? root.updateStatusIcon(providerStatus) : String(modelData.count())
-                            label: providerStatus ? root.providerStatusLabel(providerStatus) : modelData.label
-                            isUpdateRunning: root.updateRunning && root.updateProviderWasRequested(root.updateProviderKey(modelData.label))
-                            isUpdateResult: root.updateResultVisible && providerStatus !== ""
+                            property real providerProgressValue: root.providerProgress(modelData.label)
+                            property bool providerActive: root.isActiveProviderStatus(providerStatus)
+                            property bool providerTerminal: root.isTerminalUpdateStatus(providerStatus)
+                            value: providerActive ? root.progressLabel(providerProgressValue) : (providerStatus ? root.updateStatusIcon(providerStatus) : String(modelData.count()))
+                            label: providerStatus ? root.providerStatusLabel(providerStatus, providerProgressValue) : modelData.label
+                            isUpdateRunning: root.updateRunning && providerActive
+                            isUpdateResult: providerTerminal || (root.updateResultVisible && providerStatus !== "")
                             isUpdateError: providerStatus === "error"
+                            updateProgress: providerProgressValue
                             onHoldComplete: {
                                 root.startBackgroundUpdate(modelData.label === "yay" ? "aur" : modelData.label);
                             }
@@ -7239,6 +7326,7 @@ Item {
         property bool compact: false
         property color accentColor: root.activeColor
         property real fillLevel: 0.0
+        property real updateProgress: 0.0
         property bool triggered: false
         property real flashOpacity: 0.0
         property int holdDuration: 700
@@ -7246,19 +7334,22 @@ Item {
         property bool isUpdateResult: false
         property bool isUpdateError: false
         readonly property bool showUpdateState: isUpdateRunning || isUpdateResult
-        readonly property color updateStateColor: isUpdateError ? root.red : (isUpdateRunning ? root.accent2 : root.success)
+        readonly property bool progressSliceActive: isUpdateRunning
+        readonly property color updateStateColor: isUpdateError ? root.red : (isUpdateRunning ? bubble.accentColor : root.success)
         readonly property color effectiveAccent: showUpdateState ? updateStateColor : accentColor
         readonly property bool hovered: bubbleMa.containsMouse
         readonly property bool isDangerState: bubble.hovered || bubble.fillLevel > 0.0
-        readonly property color bubbleTopColor: bubble.showUpdateState ? Qt.lighter(bubble.effectiveAccent, 1.15) : (bubble.isDangerState ? Qt.lighter(root.red, 1.15) : Qt.lighter(accentColor, 1.15))
-        readonly property color bubbleBottomColor: bubble.showUpdateState ? bubble.effectiveAccent : (bubble.isDangerState ? root.red : accentColor)
+        readonly property color bubbleTopColor: bubble.progressSliceActive ? Qt.lighter(root.surface1, 1.12) : (bubble.showUpdateState ? Qt.lighter(bubble.effectiveAccent, 1.15) : (bubble.isDangerState ? Qt.lighter(root.red, 1.15) : Qt.lighter(accentColor, 1.15)))
+        readonly property color bubbleBottomColor: bubble.progressSliceActive ? root.surface0 : (bubble.showUpdateState ? bubble.effectiveAccent : (bubble.isDangerState ? root.red : accentColor))
         readonly property color bubbleBorderColor: bubble.showUpdateState ? Qt.lighter(bubble.effectiveAccent, 1.1) : (bubble.isDangerState ? root.maroon : Qt.lighter(accentColor, 1.1))
         readonly property color bubbleWaveTopColor: root.surface1
         readonly property color bubbleWaveBottomColor: root.crust
         readonly property color bubbleGlowColor: bubble.showUpdateState ? bubble.effectiveAccent : (bubble.isDangerState ? root.red : bubble.accentColor)
         readonly property color bubblePulseColor: bubble.showUpdateState ? bubble.effectiveAccent : (bubble.isDangerState ? root.red : bubble.accentColor)
-        readonly property color bubblePrimaryTextColor: root.crust
-        readonly property color bubbleSecondaryTextColor: bubble.hovered ? root.crust : "#99000000"
+        readonly property color bubblePrimaryTextColor: bubble.progressSliceActive ? root.text : root.crust
+        readonly property color bubbleSecondaryTextColor: bubble.progressSliceActive ? root.subtext0 : (bubble.hovered ? root.crust : "#99000000")
+        readonly property real progressAccentLuma: (bubble.effectiveAccent.r * 0.299) + (bubble.effectiveAccent.g * 0.587) + (bubble.effectiveAccent.b * 0.114)
+        readonly property color progressSliceColor: bubble.progressAccentLuma < 0.36 ? ThemePkg.Theme.mix(bubble.effectiveAccent, root.text, 0.52) : bubble.effectiveAccent
         readonly property real waveAmplitude: compact ? 6 : 10
         readonly property real glowBaseOpacity: compact ? 0.14 : 0.18
         readonly property real pulseBaseOpacity: compact ? 0.24 : 0.30
@@ -7271,6 +7362,23 @@ Item {
         property bool suppressNextClick: false
         property double lastRightReleaseMs: 0
         property int doubleTapHoldWindow: 350
+
+        Behavior on updateProgress {
+            NumberAnimation {
+                duration: 360
+                easing.type: Easing.OutCubic
+            }
+        }
+
+        function canvasColor(colorValue, lightenAmount, alpha) {
+            var c = colorValue || root.accent;
+            var amount = Math.max(0.0, Math.min(1.0, lightenAmount || 0.0));
+            var r = Math.round((c.r + (1.0 - c.r) * amount) * 255);
+            var g = Math.round((c.g + (1.0 - c.g) * amount) * 255);
+            var b = Math.round((c.b + (1.0 - c.b) * amount) * 255);
+            var a = alpha === undefined ? 1.0 : Math.max(0.0, Math.min(1.0, alpha));
+            return "rgba(" + r + "," + g + "," + b + "," + a + ")";
+        }
 
         Rectangle {
             anchors.centerIn: parent
@@ -7378,6 +7486,69 @@ Item {
             }
             layer.enabled: true
             layer.smooth: true
+        }
+
+        Canvas {
+            id: progressSliceCanvas
+            anchors.fill: parent
+            visible: bubble.progressSliceActive
+            opacity: 0.96
+            z: 2
+
+            Connections {
+                target: bubble
+                function onUpdateProgressChanged() {
+                    progressSliceCanvas.requestPaint();
+                }
+                function onEffectiveAccentChanged() {
+                    progressSliceCanvas.requestPaint();
+                }
+                function onProgressSliceColorChanged() {
+                    progressSliceCanvas.requestPaint();
+                }
+                function onProgressSliceActiveChanged() {
+                    progressSliceCanvas.requestPaint();
+                }
+            }
+            onVisibleChanged: requestPaint()
+            onWidthChanged: requestPaint()
+            onHeightChanged: requestPaint()
+
+            onPaint: {
+                var ctx = getContext("2d");
+                ctx.clearRect(0, 0, width, height);
+                if (!bubble.progressSliceActive)
+                    return;
+
+                var progress = Math.max(0.0, Math.min(1.0, bubble.updateProgress));
+                if (progress <= 0.001)
+                    return;
+
+                var cx = width / 2;
+                var cy = height / 2;
+                var radius = Math.max(0, Math.min(width, height) / 2 - 1);
+                var startAngle = -Math.PI / 2;
+                var endAngle = startAngle + (Math.PI * 2 * progress);
+
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+                ctx.clip();
+
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.arc(cx, cy, radius, startAngle, endAngle, false);
+                ctx.closePath();
+
+                var grad = ctx.createRadialGradient(cx, cy, radius * 0.08, cx, cy, radius);
+                grad.addColorStop(0.0, bubble.canvasColor(bubble.progressSliceColor, 0.32, 1.0));
+                grad.addColorStop(0.58, bubble.canvasColor(bubble.progressSliceColor, 0.10, 1.0));
+                grad.addColorStop(1.0, bubble.canvasColor(bubble.progressSliceColor, 0.0, 1.0));
+                ctx.fillStyle = grad;
+                ctx.fill();
+
+                ctx.restore();
+            }
         }
 
         Rectangle {

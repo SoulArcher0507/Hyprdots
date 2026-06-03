@@ -120,6 +120,10 @@ Variants {
                         countAur: 0,
                         countFlatpak: 0,
                         countTotal: 0,
+                        progress: 0,
+                        progressPacman: 0,
+                        progressAur: 0,
+                        progressFlatpak: 0,
                         finishedTimestamp: 0,
                         stagePacman: "",
                         stageAur: "",
@@ -137,6 +141,10 @@ Variants {
                     property int archUpdCountAur: 0
                     property int archUpdCountFlatpak: 0
                     property int archUpdCountTotal: 0
+                    property real archUpdProgress: 0
+                    property real archUpdProgressPacman: 0
+                    property real archUpdProgressAur: 0
+                    property real archUpdProgressFlatpak: 0
                     property real archUpdFinishedTs: 0
                     property string archUpdStagePacman: ""
                     property string archUpdStageAur: ""
@@ -156,6 +164,10 @@ Variants {
                         archUpdCountAur = Number(s.countAur || 0);
                         archUpdCountFlatpak = Number(s.countFlatpak || 0);
                         archUpdCountTotal = Number(s.countTotal || 0);
+                        archUpdProgress = Number(s.progress || 0);
+                        archUpdProgressPacman = Number(s.progressPacman || 0);
+                        archUpdProgressAur = Number(s.progressAur || 0);
+                        archUpdProgressFlatpak = Number(s.progressFlatpak || 0);
                         archUpdFinishedTs = Number(s.finishedTimestamp || 0);
                         archUpdStagePacman = s.stagePacman || "";
                         archUpdStageAur = s.stageAur || "";
@@ -177,6 +189,10 @@ Variants {
                             countAur: o.countAur !== undefined ? Number(o.countAur || 0) : Number(s.countAur || 0),
                             countFlatpak: o.countFlatpak !== undefined ? Number(o.countFlatpak || 0) : Number(s.countFlatpak || 0),
                             countTotal: o.countTotal !== undefined ? Number(o.countTotal || 0) : Number(s.countTotal || 0),
+                            progress: o.progress !== undefined ? Number(o.progress || 0) : Number(s.progress || 0),
+                            progressPacman: o.progressPacman !== undefined ? Number(o.progressPacman || 0) : Number(s.progressPacman || 0),
+                            progressAur: o.progressAur !== undefined ? Number(o.progressAur || 0) : Number(s.progressAur || 0),
+                            progressFlatpak: o.progressFlatpak !== undefined ? Number(o.progressFlatpak || 0) : Number(s.progressFlatpak || 0),
                             finishedTimestamp: o.finishedTimestamp !== undefined ? Number(o.finishedTimestamp || 0) : Number(s.finishedTimestamp || 0),
                             stagePacman: o.stagePacman !== undefined ? String(o.stagePacman || "") : (s.stagePacman || ""),
                             stageAur: o.stageAur !== undefined ? String(o.stageAur || "") : (s.stageAur || ""),
@@ -198,6 +214,10 @@ Variants {
                             countAur: 0,
                             countFlatpak: 0,
                             countTotal: 0,
+                            progress: 0,
+                            progressPacman: 0,
+                            progressAur: 0,
+                            progressFlatpak: 0,
                             finishedTimestamp: 0,
                             stagePacman: "",
                             stageAur: "",
