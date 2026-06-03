@@ -10,7 +10,7 @@ Item {
     id: root
     anchors.fill: parent
 
-    readonly property int panelWidth: 760
+    readonly property int panelWidth: 600
     readonly property int panelHeight: 610
     readonly property int panelMargin: 16
     readonly property real popupOpenWidth: root.panelWidth
@@ -755,11 +755,9 @@ Item {
                                 }
                             }
 
-                            ActionButton {
+                            PingIconButton {
                                 Layout.preferredWidth: 40
                                 Layout.preferredHeight: 40
-                                icon: "󰓅"
-                                label: ""
                                 enabled: online && !actionRunner.running
                                 onActivated: {
                                     root.selectPeer(peersModel.get(index));
@@ -893,6 +891,81 @@ Item {
             anchors.fill: parent
             hoverEnabled: true
             enabled: actionBtn.enabled
+            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+            acceptedButtons: Qt.NoButton
+        }
+    }
+
+    component PingIconButton: Rectangle {
+        id: pingBtn
+        property bool hovered: hoverHandler.hovered
+        property bool pressed: tapHandler.pressed
+        signal activated()
+        implicitWidth: 40
+        implicitHeight: 40
+        radius: 12
+        color: enabled ? (hovered ? "#20ffffff" : "#10ffffff") : "#08ffffff"
+        border.color: enabled ? (hovered ? root.accent : "#24ffffff") : "#12ffffff"
+        border.width: 1
+        opacity: enabled ? 1.0 : 0.45
+        Behavior on color { ColorAnimation { duration: 150 } }
+        Behavior on border.color { ColorAnimation { duration: 150 } }
+        scale: pressed && enabled ? 0.96 : 1.0
+        Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutBack } }
+
+        Item {
+            anchors.centerIn: parent
+            width: 18
+            height: 18
+
+            Rectangle {
+                anchors.centerIn: parent
+                width: 16
+                height: 16
+                radius: 8
+                color: "transparent"
+                border.color: pingBtn.hovered && pingBtn.enabled ? root.accent : root.text
+                border.width: 1
+                opacity: 0.48
+            }
+
+            Rectangle {
+                anchors.centerIn: parent
+                width: 11
+                height: 11
+                radius: 5.5
+                color: "transparent"
+                border.color: pingBtn.hovered && pingBtn.enabled ? root.accent : root.text
+                border.width: 1
+                opacity: 0.82
+            }
+
+            Rectangle {
+                anchors.centerIn: parent
+                width: 4
+                height: 4
+                radius: 2
+                color: pingBtn.hovered && pingBtn.enabled ? root.accent : root.text
+                opacity: 0.95
+            }
+        }
+
+        HoverHandler {
+            id: hoverHandler
+            cursorShape: pingBtn.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+        }
+
+        TapHandler {
+            id: tapHandler
+            acceptedButtons: Qt.LeftButton
+            enabled: pingBtn.enabled
+            onTapped: pingBtn.activated()
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            enabled: pingBtn.enabled
             cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
             acceptedButtons: Qt.NoButton
         }
