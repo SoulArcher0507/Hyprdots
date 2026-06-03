@@ -257,6 +257,7 @@ Variants {
 
                     Loader {
                         id: loaderA
+                        property bool animateTransition: true
                         anchors.fill: parent
                         asynchronous: false
                         visible: item ? true : false
@@ -264,12 +265,14 @@ Variants {
                         scale: 1.0
                         z: 1
                         Behavior on opacity {
+                            enabled: loaderA.animateTransition
                             NumberAnimation {
                                 duration: switcher.activeDur
                                 easing.type: Easing.OutCubic
                             }
                         }
                         Behavior on scale {
+                            enabled: loaderA.animateTransition
                             NumberAnimation {
                                 duration: switcher.activeDur
                                 easing.type: Easing.OutCubic
@@ -280,6 +283,7 @@ Variants {
                     }
                     Loader {
                         id: loaderB
+                        property bool animateTransition: true
                         anchors.fill: parent
                         asynchronous: false
                         visible: item ? true : false
@@ -287,12 +291,14 @@ Variants {
                         scale: 1.0
                         z: 2
                         Behavior on opacity {
+                            enabled: loaderB.animateTransition
                             NumberAnimation {
                                 duration: switcher.activeDur
                                 easing.type: Easing.OutCubic
                             }
                         }
                         Behavior on scale {
+                            enabled: loaderB.animateTransition
                             NumberAnimation {
                                 duration: switcher.activeDur
                                 easing.type: Easing.OutCubic
@@ -318,9 +324,20 @@ Variants {
                         }
                         return dur;
                     }
+                    function overlayOwnsOpenAnimation(loader) {
+                        var item = loader ? loader.item : null;
+                        return !!(item && item.overlayOwnsOpenAnimation);
+                    }
                     function overlayOwnsCloseAnimation(loader) {
                         var item = loader ? loader.item : null;
                         return !!(item && item.overlayOwnsCloseAnimation);
+                    }
+                    function prepareOverlayOpen(loader) {
+                        var ownsOpen = overlayOwnsOpenAnimation(loader);
+                        loader.animateTransition = !ownsOpen;
+                        loader.opacity = ownsOpen ? 1.0 : 0.0;
+                        loader.scale = ownsOpen ? 1.0 : scaleIn;
+                        loader.animateTransition = true;
                     }
                     function requestOverlayCloseAnimation(loader) {
                         var item = loader ? loader.item : null;
@@ -346,8 +363,7 @@ Variants {
                         var L = currentLoader();
                         L.sourceComponent = compFor(which);
                         activeDur = overlayEnterDurationFor(L);
-                        L.opacity = 0.0;
-                        L.scale = scaleIn;
+                        prepareOverlayOpen(L);
                         L.opacity = 1.0;
                         L.scale = 1.0;
                         shownOverlay = which;
@@ -378,8 +394,7 @@ Variants {
 
                         inL.sourceComponent = compFor(which);
                         activeDur = Math.max(overlayExitDurationFor(outL), overlayEnterDurationFor(inL));
-                        inL.opacity = 0.0;
-                        inL.scale = scaleIn;
+                        prepareOverlayOpen(inL);
 
                         if (overlayOwnsCloseAnimation(outL)) {
                             requestOverlayCloseAnimation(outL);

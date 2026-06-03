@@ -1,15 +1,13 @@
+import "../../theme" as ThemePkg
 import QtQuick
 import Quickshell
-import "../../theme" as ThemePkg
 
 Item {
     id: root
-    anchors.fill: parent
 
     property color moduleColor
     property color moduleBorderColor
     property color moduleFontColor
-
     readonly property int panelWidth: 500
     readonly property int panelHeight: 285
     readonly property real popupOpenWidth: panelWidth
@@ -22,24 +20,16 @@ Item {
     readonly property real barPanelCenterY: barPanelHeight / 2
     readonly property int overlayEnterDuration: 515
     readonly property int overlayExitDuration: 375
+    readonly property bool overlayOwnsOpenAnimation: true
     readonly property bool overlayOwnsCloseAnimation: true
     property bool popupTargetVisible: false
-    property real popupCardOpacity: 0.0
-    property real popupCardScaleX: 0.42
-    property real popupCardScaleY: 0.24
-    property real popupCardWidth: popupClosedWidth
-    property real popupCardHeight: popupClosedHeight
-    property real popupCardRadius: popupClosedRadius
-    property real popupCardLift: popupOriginLift()
-    property real hostLoaderOpacity: (parent && parent.opacity !== undefined) ? parent.opacity : 1.0
+    property real hostLoaderOpacity: (parent && parent.opacity !== undefined) ? parent.opacity : 1
     property real lastHostLoaderOpacity: hostLoaderOpacity
-
     readonly property var _theme: ThemePkg.Theme
     readonly property color base: _theme.background
     readonly property color text: _theme.foreground
     readonly property color subtext0: _theme.muted
     readonly property color surface0: _theme.surface(0.1)
-
     readonly property color red: _theme.danger
     readonly property color green: _theme.success
     readonly property color yellow: _theme.c3
@@ -48,59 +38,26 @@ Item {
     readonly property color peach: _theme.warning
     readonly property color surface1: _theme.surface(0.2)
     readonly property string lockScript: Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/lock/lock_screen.sh"
-
-    property real introMain: 0
-    Component.onCompleted: {
-        introMain = 1.0;
-        popupTargetVisible = true;
-        popupEnterAnim.start();
-    }
-
-    onHostLoaderOpacityChanged: {
-        if (hostLoaderOpacity < lastHostLoaderOpacity - 0.001 && popupTargetVisible) {
-            popupTargetVisible = false;
-            popupEnterAnim.stop();
-            if (!popupExitAnim.running)
-                popupExitAnim.start();
-        }
-        lastHostLoaderOpacity = hostLoaderOpacity;
-    }
-
     property real globalOrbitAngle: 0
-    NumberAnimation on globalOrbitAngle {
-        from: 0
-        to: Math.PI * 2
-        duration: 200000
-        loops: Animation.Infinite
-        running: true
-    }
+
+    signal startButtonEnter()
+    signal startButtonExit()
 
     function beginOverlayClose() {
         if (!popupTargetVisible)
-            return;
+            return ;
+
         popupTargetVisible = false;
-        popupEnterAnim.stop();
-        if (!popupExitAnim.running)
-            popupExitAnim.start();
+        root.startButtonExit();
     }
 
     function cancelOverlayClose() {
         popupTargetVisible = true;
-        popupExitAnim.stop();
-        popupEnterAnim.stop();
-        popupEnterAnim.start();
+        root.startButtonEnter();
     }
 
     function triggerHibernate() {
-        const cmd = "err=\"$(systemctl hibernate 2>&1)\"\n"
-            + "status=$?\n"
-            + "if [ \"$status\" -ne 0 ]; then\n"
-            + "    if [ -z \"$err\" ]; then\n"
-            + "        err=\"Hibernate failed.\"\n"
-            + "    fi\n"
-            + "    notify-send -a \"ArchTools\" -i \"system-suspend-hibernate\" \"Hibernate\" \"$err\"\n"
-            + "fi\n"
-            + "exit \"$status\"\n";
+        const cmd = "err=\"$(systemctl hibernate 2>&1)\"\n" + "status=$?\n" + "if [ \"$status\" -ne 0 ]; then\n" + "    if [ -z \"$err\" ]; then\n" + "        err=\"Hibernate failed.\"\n" + "    fi\n" + "    notify-send -a \"ArchTools\" -i \"system-suspend-hibernate\" \"Hibernate\" \"$err\"\n" + "fi\n" + "exit \"$status\"\n";
         Quickshell.execDetached(["bash", "-lc", cmd]);
     }
 
@@ -129,116 +86,75 @@ Item {
         }
     }
 
-    function popupOriginLift() {
-        return root.barPanelCenterY - (root.popupClosedHeight / 2);
+    anchors.fill: parent
+    Component.onCompleted: {
+        popupTargetVisible = true;
+        Qt.callLater(function() {
+            root.startButtonEnter();
+        });
     }
-
-    SequentialAnimation {
-        id: popupEnterAnim
-        running: false
-
-        ParallelAnimation {
-            NumberAnimation { target: root; property: "popupCardOpacity"; to: 0.82; duration: 210; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardScaleX"; to: 0.985; duration: 280; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.94; duration: 300; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardWidth"; to: root.popupOpenWidth - 18; duration: 285; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardHeight"; to: root.popupOpenHeight - 18; duration: 300; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardRadius"; to: 28; duration: 270; easing.type: Easing.OutQuad }
-            NumberAnimation { target: root; property: "popupCardLift"; to: 8; duration: 300; easing.type: Easing.OutCubic }
+    onHostLoaderOpacityChanged: {
+        if (hostLoaderOpacity < lastHostLoaderOpacity - 0.001 && popupTargetVisible) {
+            popupTargetVisible = false;
+            root.startButtonExit();
         }
-
-        ParallelAnimation {
-            NumberAnimation { target: root; property: "popupCardOpacity"; to: 1.0; duration: 175; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardScaleX"; to: 1.0; duration: 205; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardScaleY"; to: 1.0; duration: 205; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardWidth"; to: root.popupOpenWidth; duration: 205; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardHeight"; to: root.popupOpenHeight; duration: 215; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "popupCardRadius"; to: root.popupOpenRadius; duration: 195; easing.type: Easing.InOutQuad }
-            NumberAnimation { target: root; property: "popupCardLift"; to: 0; duration: 205; easing.type: Easing.OutCubic }
-        }
+        lastHostLoaderOpacity = hostLoaderOpacity;
     }
-
-    SequentialAnimation {
-        id: popupExitAnim
-        running: false
-
-        ParallelAnimation {
-            NumberAnimation { target: root; property: "popupCardScaleX"; to: 1.04; duration: 85; easing.type: Easing.OutQuad }
-            NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.95; duration: 85; easing.type: Easing.OutQuad }
-            NumberAnimation { target: root; property: "popupCardWidth"; to: root.popupOpenWidth + 14; duration: 95; easing.type: Easing.OutQuad }
-            NumberAnimation { target: root; property: "popupCardHeight"; to: root.popupOpenHeight - 16; duration: 95; easing.type: Easing.OutQuad }
-            NumberAnimation { target: root; property: "popupCardRadius"; to: 28; duration: 95; easing.type: Easing.OutQuad }
-            NumberAnimation { target: root; property: "popupCardLift"; to: 5; duration: 95; easing.type: Easing.OutQuad }
-            NumberAnimation { target: root; property: "popupCardOpacity"; to: 0.88; duration: 80; easing.type: Easing.OutQuad }
-        }
-
-        ParallelAnimation {
-            NumberAnimation { target: root; property: "popupCardOpacity"; to: 0.0; duration: 180; easing.type: Easing.InCubic }
-            NumberAnimation { target: root; property: "popupCardScaleX"; to: 0.42; duration: 260; easing.type: Easing.InCubic }
-            NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.24; duration: 280; easing.type: Easing.InCubic }
-            NumberAnimation { target: root; property: "popupCardWidth"; to: root.popupClosedWidth; duration: 200; easing.type: Easing.InCubic }
-            NumberAnimation { target: root; property: "popupCardHeight"; to: root.popupClosedHeight; duration: 210; easing.type: Easing.InCubic }
-            NumberAnimation { target: root; property: "popupCardRadius"; to: root.popupClosedRadius; duration: 200; easing.type: Easing.InQuad }
-            NumberAnimation { target: root; property: "popupCardLift"; to: root.popupOriginLift(); duration: 280; easing.type: Easing.InCubic }
-        }
-    }
-
 
     ListModel {
         id: powerModel
+
         ListElement {
             iconText: ""
             labelText: "Lock"
             actionType: "lock"
             btnColor: "yellow"
         }
+
         ListElement {
             iconText: ""
             labelText: "Logout"
             actionType: "logout"
             btnColor: "peach"
         }
+
         ListElement {
             iconText: ""
             labelText: "Suspend"
             actionType: "suspend"
             btnColor: "blue"
         }
+
         ListElement {
             iconText: ""
             labelText: "Hibernate"
             actionType: "hibernate"
             btnColor: "mauve"
         }
+
         ListElement {
             iconText: ""
             labelText: "Reboot"
             actionType: "reboot"
             btnColor: "green"
         }
+
         ListElement {
             iconText: ""
             labelText: "Shutdown"
             actionType: "shutdown"
             btnColor: "red"
         }
+
     }
 
     Item {
         id: popupShell
-        width: root.popupCardWidth
-        height: root.popupCardHeight
+
+        width: root.popupOpenWidth
+        height: root.popupOpenHeight
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.verticalCenter: parent.verticalCenter
-        anchors.verticalCenterOffset: root.popupCardLift
-        opacity: root.popupCardOpacity
-
-        transform: Scale {
-            origin.x: popupShell.width / 2
-            origin.y: popupShell.height / 2
-            xScale: root.popupCardScaleX
-            yScale: root.popupCardScaleY
-        }
 
         Grid {
             anchors.centerIn: parent
@@ -246,295 +162,608 @@ Item {
             columns: 3
             rowSpacing: 25
             columnSpacing: 25
-            scale: 0.9 + (0.1 * introMain)
-            opacity: introMain
-            transform: Translate {
-                y: 20 * (1 - introMain)
-            }
-            Behavior on scale {
-                NumberAnimation {
-                    duration: 500
-                    easing.type: Easing.OutQuart
-                }
-            }
-            Behavior on opacity {
-                NumberAnimation {
-                    duration: 500
-                    easing.type: Easing.OutQuart
-                }
-            }
-            Behavior on transform {
-                NumberAnimation {
-                    duration: 500
-                    easing.type: Easing.OutQuart
-                }
-            }
 
             Repeater {
                 model: powerModel
 
-                Rectangle {
-                    id: actionCapsule
+                Item {
+                    id: actionSlot
+
                     width: 150
                     height: 130
-                    radius: 16
-
-                    property color brandColor: root[model.btnColor]
-                    property color c2: Qt.lighter(brandColor, 1.2)
-
-                    color: btnMa.containsMouse ? Qt.lighter(root.moduleColor, 1.2) : root.moduleColor
-                    border.color: btnMa.containsMouse ? brandColor : root.moduleBorderColor
-                    border.width: btnMa.containsMouse ? 2 : 1
-
-                    AnimatedBorder {
-                        anchors.fill: parent
-                        radius: parent.radius
-                        borderWidth: parent.border.width
-                        accentColor: actionCapsule.brandColor
-                    }
-
-                    Behavior on color {
-                        ColorAnimation {
-                            duration: 200
-                        }
-                    }
-                    Behavior on border.color {
-                        ColorAnimation {
-                            duration: 200
-                        }
-                    }
-
-                    scale: btnMa.pressed ? 0.95 : (btnMa.containsMouse ? 1.05 : 1.0)
-                    Behavior on scale {
-                        NumberAnimation {
-                            duration: 400
-                            easing.type: Easing.OutQuart
-                        }
-                    }
-
-                    property real fillLevel: 0.0
-                    property bool triggered: false
-                    property real flashOpacity: 0.0
-
-                    Item {
-                        anchors.fill: parent
-                        clip: true
-
-                        Rectangle {
-                            width: parent.width * 0.8
-                            height: width
-                            radius: width / 2
-                            x: (parent.width / 2 - width / 2) + Math.cos(root.globalOrbitAngle * 2) * 40
-                            y: (parent.height / 2 - height / 2) + Math.sin(root.globalOrbitAngle * 2) * 30
-                            opacity: 0.08
-                            color: actionCapsule.brandColor
-                        }
-                        Rectangle {
-                            width: parent.width * 0.9
-                            height: width
-                            radius: width / 2
-                            x: (parent.width / 2 - width / 2) + Math.sin(root.globalOrbitAngle * 1.5) * -40
-                            y: (parent.height / 2 - height / 2) + Math.cos(root.globalOrbitAngle * 1.5) * -30
-                            opacity: 0.06
-                            color: actionCapsule.c2
-                        }
-                    }
-
-                    Canvas {
-                        id: actionWaveCanvas
-                        anchors.fill: parent
-
-                        property real wavePhase: 0.0
-                        NumberAnimation on wavePhase {
-                            running: actionCapsule.fillLevel > 0.0 && actionCapsule.fillLevel < 1.0
-                            loops: Animation.Infinite
-                            from: 0
-                            to: Math.PI * 2
-                            duration: 800
-                        }
-                        onWavePhaseChanged: requestPaint()
-                        Connections {
-                            target: actionCapsule
-                            function onFillLevelChanged() {
-                                actionWaveCanvas.requestPaint();
-                            }
-                        }
-
-                        onPaint: {
-                            var ctx = getContext("2d");
-                            ctx.clearRect(0, 0, width, height);
-                            if (actionCapsule.fillLevel <= 0.001)
-                                return;
-
-                            var r = 16;
-                            var fillY = height * (1.0 - actionCapsule.fillLevel);
-                            ctx.save();
-                            ctx.beginPath();
-                            ctx.moveTo(r, 0);
-                            ctx.lineTo(width - r, 0);
-                            ctx.arcTo(width, 0, width, r, r);
-                            ctx.lineTo(width, height - r);
-                            ctx.arcTo(width, height, width - r, height, r);
-                            ctx.lineTo(r, height);
-                            ctx.arcTo(0, height, 0, height - r, r);
-                            ctx.lineTo(0, r);
-                            ctx.arcTo(0, 0, r, 0, r);
-                            ctx.closePath();
-                            ctx.clip();
-
-                            ctx.beginPath();
-                            ctx.moveTo(0, fillY);
-                            if (actionCapsule.fillLevel < 0.99) {
-                                var waveAmp = 10 * Math.sin(actionCapsule.fillLevel * Math.PI);
-                                var cp1y = fillY + Math.sin(wavePhase) * waveAmp;
-                                var cp2y = fillY + Math.cos(wavePhase + Math.PI) * waveAmp;
-                                ctx.bezierCurveTo(width * 0.33, cp2y, width * 0.66, cp1y, width, fillY);
-                                ctx.lineTo(width, height);
-                                ctx.lineTo(0, height);
-                            } else {
-                                ctx.lineTo(width, 0);
-                                ctx.lineTo(width, height);
-                                ctx.lineTo(0, height);
-                            }
-                            ctx.closePath();
-
-                            var grad = ctx.createLinearGradient(0, 0, 0, height);
-                            grad.addColorStop(0, actionCapsule.brandColor.toString());
-                            grad.addColorStop(1, actionCapsule.c2.toString());
-                            ctx.fillStyle = grad;
-                            ctx.fill();
-                            ctx.restore();
-                        }
-                    }
 
                     Rectangle {
-                        anchors.fill: parent
-                        radius: 16
-                        color: "#ffffff"
-                        opacity: actionCapsule.flashOpacity
-                        PropertyAnimation on opacity {
-                            id: cardFlashAnim
-                            to: 0
-                            duration: 500
-                            easing.type: Easing.OutExpo
-                        }
-                    }
+                        id: actionCapsule
 
-                    Column {
-                        anchors.centerIn: parent
-                        spacing: 12
+                        readonly property real buttonOpenWidth: actionSlot.width
+                        readonly property real buttonOpenHeight: actionSlot.height
+                        readonly property real buttonClosedWidth: 64
+                        readonly property real buttonClosedHeight: 30
+                        readonly property real buttonOpenRadius: 16
+                        readonly property real buttonClosedRadius: 10
+                        property real buttonOpacity: 0
+                        property real buttonScaleX: 0.42
+                        property real buttonScaleY: 0.24
+                        property real buttonWidth: buttonClosedWidth
+                        property real buttonHeight: buttonClosedHeight
+                        property real buttonRadius: buttonClosedRadius
+                        property real buttonLift: 8.5
+                        property real interactionScale: btnMa.pressed ? 0.95 : (btnMa.containsMouse ? 1.05 : 1)
+                        property color brandColor: root[model.btnColor]
+                        property color c2: Qt.lighter(brandColor, 1.2)
+                        property real fillLevel: 0
+                        property bool triggered: false
+                        property real flashOpacity: 0
 
-                        Text {
-                            text: model.iconText
-                            font.pixelSize: 42
-                            font.family: "CaskaydiaMono Nerd Font"
-                            color: btnMa.containsMouse ? actionCapsule.brandColor : root.moduleFontColor
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            Behavior on color {
-                                ColorAnimation {
-                                    duration: 150
-                                }
-                            }
-                        }
-
-                        Text {
-                            text: model.labelText
-                            font.pixelSize: 14
-                            font.family: "Fira Sans Semibold"
-                            color: btnMa.containsMouse ? root.text : root.moduleFontColor
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            Behavior on color {
-                                ColorAnimation {
-                                    duration: 150
-                                }
-                            }
-                        }
-                    }
-
-                    Item {
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.bottom: parent.bottom
-                        height: actionCapsule.height * actionCapsule.fillLevel
+                        width: buttonWidth
+                        height: buttonHeight
+                        x: (actionSlot.width - width) / 2
+                        y: (actionSlot.height - height) / 2
+                        radius: buttonRadius
+                        opacity: buttonOpacity
                         clip: true
+                        color: btnMa.containsMouse ? Qt.lighter(root.moduleColor, 1.2) : root.moduleColor
+                        border.color: btnMa.containsMouse ? brandColor : root.moduleBorderColor
+                        border.width: btnMa.containsMouse ? 2 : 1
+                        transform: [
+                            Scale {
+                                origin.x: actionCapsule.width / 2
+                                origin.y: actionCapsule.height / 2
+                                xScale: actionCapsule.buttonScaleX * actionCapsule.interactionScale
+                                yScale: actionCapsule.buttonScaleY * actionCapsule.interactionScale
+                            },
+                            Translate {
+                                y: actionCapsule.buttonLift
+                            }
+                        ]
+
+                        AnimatedBorder {
+                            anchors.fill: parent
+                            radius: parent.radius
+                            borderWidth: parent.border.width
+                            accentColor: actionCapsule.brandColor
+                        }
+
+                        Connections {
+                            function onStartButtonEnter() {
+                                buttonExitAnim.stop();
+                                buttonEnterAnim.restart();
+                            }
+
+                            function onStartButtonExit() {
+                                buttonEnterAnim.stop();
+                                buttonExitAnim.restart();
+                            }
+
+                            target: root
+                        }
+
+                        SequentialAnimation {
+                            id: buttonEnterAnim
+
+                            running: false
+
+                            ParallelAnimation {
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonOpacity"
+                                    to: 0.82
+                                    duration: 210
+                                    easing.type: Easing.OutCubic
+                                }
+
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonScaleX"
+                                    to: 0.985
+                                    duration: 280
+                                    easing.type: Easing.OutCubic
+                                }
+
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonScaleY"
+                                    to: 0.94
+                                    duration: 300
+                                    easing.type: Easing.OutCubic
+                                }
+
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonWidth"
+                                    to: actionCapsule.buttonOpenWidth - 18
+                                    duration: 285
+                                    easing.type: Easing.OutCubic
+                                }
+
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonHeight"
+                                    to: actionCapsule.buttonOpenHeight - 18
+                                    duration: 300
+                                    easing.type: Easing.OutCubic
+                                }
+
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonRadius"
+                                    to: 28
+                                    duration: 270
+                                    easing.type: Easing.OutQuad
+                                }
+
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonLift"
+                                    to: 8
+                                    duration: 300
+                                    easing.type: Easing.OutCubic
+                                }
+
+                            }
+
+                            ParallelAnimation {
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonOpacity"
+                                    to: 1
+                                    duration: 175
+                                    easing.type: Easing.OutCubic
+                                }
+
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonScaleX"
+                                    to: 1
+                                    duration: 205
+                                    easing.type: Easing.OutCubic
+                                }
+
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonScaleY"
+                                    to: 1
+                                    duration: 205
+                                    easing.type: Easing.OutCubic
+                                }
+
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonWidth"
+                                    to: actionCapsule.buttonOpenWidth
+                                    duration: 205
+                                    easing.type: Easing.OutCubic
+                                }
+
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonHeight"
+                                    to: actionCapsule.buttonOpenHeight
+                                    duration: 215
+                                    easing.type: Easing.OutCubic
+                                }
+
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonRadius"
+                                    to: actionCapsule.buttonOpenRadius
+                                    duration: 195
+                                    easing.type: Easing.InOutQuad
+                                }
+
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonLift"
+                                    to: 0
+                                    duration: 205
+                                    easing.type: Easing.OutCubic
+                                }
+
+                            }
+
+                        }
+
+                        SequentialAnimation {
+                            id: buttonExitAnim
+
+                            running: false
+
+                            ParallelAnimation {
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonScaleX"
+                                    to: 1.04
+                                    duration: 85
+                                    easing.type: Easing.OutQuad
+                                }
+
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonScaleY"
+                                    to: 0.95
+                                    duration: 85
+                                    easing.type: Easing.OutQuad
+                                }
+
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonWidth"
+                                    to: actionCapsule.buttonOpenWidth + 14
+                                    duration: 95
+                                    easing.type: Easing.OutQuad
+                                }
+
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonHeight"
+                                    to: actionCapsule.buttonOpenHeight - 16
+                                    duration: 95
+                                    easing.type: Easing.OutQuad
+                                }
+
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonRadius"
+                                    to: 28
+                                    duration: 95
+                                    easing.type: Easing.OutQuad
+                                }
+
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonLift"
+                                    to: 5
+                                    duration: 95
+                                    easing.type: Easing.OutQuad
+                                }
+
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonOpacity"
+                                    to: 0.88
+                                    duration: 80
+                                    easing.type: Easing.OutQuad
+                                }
+
+                            }
+
+                            ParallelAnimation {
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonOpacity"
+                                    to: 0
+                                    duration: 180
+                                    easing.type: Easing.InCubic
+                                }
+
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonScaleX"
+                                    to: 0.42
+                                    duration: 260
+                                    easing.type: Easing.InCubic
+                                }
+
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonScaleY"
+                                    to: 0.24
+                                    duration: 280
+                                    easing.type: Easing.InCubic
+                                }
+
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonWidth"
+                                    to: actionCapsule.buttonClosedWidth
+                                    duration: 200
+                                    easing.type: Easing.InCubic
+                                }
+
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonHeight"
+                                    to: actionCapsule.buttonClosedHeight
+                                    duration: 210
+                                    easing.type: Easing.InCubic
+                                }
+
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonRadius"
+                                    to: actionCapsule.buttonClosedRadius
+                                    duration: 200
+                                    easing.type: Easing.InQuad
+                                }
+
+                                NumberAnimation {
+                                    target: actionCapsule
+                                    property: "buttonLift"
+                                    to: 8.5
+                                    duration: 280
+                                    easing.type: Easing.InCubic
+                                }
+
+                            }
+
+                        }
+
+                        Item {
+                            anchors.fill: parent
+                            clip: true
+
+                            Rectangle {
+                                width: parent.width * 0.8
+                                height: width
+                                radius: width / 2
+                                x: (parent.width / 2 - width / 2) + Math.cos(root.globalOrbitAngle * 2) * 40
+                                y: (parent.height / 2 - height / 2) + Math.sin(root.globalOrbitAngle * 2) * 30
+                                opacity: 0.08
+                                color: actionCapsule.brandColor
+                            }
+
+                            Rectangle {
+                                width: parent.width * 0.9
+                                height: width
+                                radius: width / 2
+                                x: (parent.width / 2 - width / 2) + Math.sin(root.globalOrbitAngle * 1.5) * -40
+                                y: (parent.height / 2 - height / 2) + Math.cos(root.globalOrbitAngle * 1.5) * -30
+                                opacity: 0.06
+                                color: actionCapsule.c2
+                            }
+
+                        }
+
+                        Canvas {
+                            id: actionWaveCanvas
+
+                            property real wavePhase: 0
+
+                            anchors.fill: parent
+                            onWavePhaseChanged: requestPaint()
+                            onPaint: {
+                                var ctx = getContext("2d");
+                                ctx.clearRect(0, 0, width, height);
+                                if (actionCapsule.fillLevel <= 0.001)
+                                    return ;
+
+                                var r = 16;
+                                var fillY = height * (1 - actionCapsule.fillLevel);
+                                ctx.save();
+                                ctx.beginPath();
+                                ctx.moveTo(r, 0);
+                                ctx.lineTo(width - r, 0);
+                                ctx.arcTo(width, 0, width, r, r);
+                                ctx.lineTo(width, height - r);
+                                ctx.arcTo(width, height, width - r, height, r);
+                                ctx.lineTo(r, height);
+                                ctx.arcTo(0, height, 0, height - r, r);
+                                ctx.lineTo(0, r);
+                                ctx.arcTo(0, 0, r, 0, r);
+                                ctx.closePath();
+                                ctx.clip();
+                                ctx.beginPath();
+                                ctx.moveTo(0, fillY);
+                                if (actionCapsule.fillLevel < 0.99) {
+                                    var waveAmp = 10 * Math.sin(actionCapsule.fillLevel * Math.PI);
+                                    var cp1y = fillY + Math.sin(wavePhase) * waveAmp;
+                                    var cp2y = fillY + Math.cos(wavePhase + Math.PI) * waveAmp;
+                                    ctx.bezierCurveTo(width * 0.33, cp2y, width * 0.66, cp1y, width, fillY);
+                                    ctx.lineTo(width, height);
+                                    ctx.lineTo(0, height);
+                                } else {
+                                    ctx.lineTo(width, 0);
+                                    ctx.lineTo(width, height);
+                                    ctx.lineTo(0, height);
+                                }
+                                ctx.closePath();
+                                var grad = ctx.createLinearGradient(0, 0, 0, height);
+                                grad.addColorStop(0, actionCapsule.brandColor.toString());
+                                grad.addColorStop(1, actionCapsule.c2.toString());
+                                ctx.fillStyle = grad;
+                                ctx.fill();
+                                ctx.restore();
+                            }
+
+                            Connections {
+                                function onFillLevelChanged() {
+                                    actionWaveCanvas.requestPaint();
+                                }
+
+                                target: actionCapsule
+                            }
+
+                            NumberAnimation on wavePhase {
+                                running: actionCapsule.fillLevel > 0 && actionCapsule.fillLevel < 1
+                                loops: Animation.Infinite
+                                from: 0
+                                to: Math.PI * 2
+                                duration: 800
+                            }
+
+                        }
+
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 16
+                            color: "#ffffff"
+                            opacity: actionCapsule.flashOpacity
+
+                            PropertyAnimation on opacity {
+                                id: cardFlashAnim
+
+                                to: 0
+                                duration: 500
+                                easing.type: Easing.OutExpo
+                            }
+
+                        }
 
                         Column {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            y: (actionCapsule.height / 2) - (height / 2) - (actionCapsule.height - parent.height)
+                            anchors.centerIn: parent
                             spacing: 12
 
                             Text {
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                font.family: "CaskaydiaMono Nerd Font"
-                                font.pixelSize: 42
-                                color: root.base
                                 text: model.iconText
+                                font.pixelSize: 42
+                                font.family: "CaskaydiaMono Nerd Font"
+                                color: btnMa.containsMouse ? actionCapsule.brandColor : root.moduleFontColor
+                                anchors.horizontalCenter: parent.horizontalCenter
+
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: 150
+                                    }
+
+                                }
+
                             }
 
                             Text {
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                font.family: "Fira Sans Semibold"
-                                font.pixelSize: 14
-                                color: root.base
                                 text: model.labelText
+                                font.pixelSize: 14
+                                font.family: "Fira Sans Semibold"
+                                color: btnMa.containsMouse ? root.text : root.moduleFontColor
+                                anchors.horizontalCenter: parent.horizontalCenter
+
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: 150
+                                    }
+
+                                }
+
+                            }
+
+                        }
+
+                        Item {
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            height: actionCapsule.height * actionCapsule.fillLevel
+                            clip: true
+
+                            Column {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                y: (actionCapsule.height / 2) - (height / 2) - (actionCapsule.height - parent.height)
+                                spacing: 12
+
+                                Text {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    font.family: "CaskaydiaMono Nerd Font"
+                                    font.pixelSize: 42
+                                    color: root.base
+                                    text: model.iconText
+                                }
+
+                                Text {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    font.family: "Fira Sans Semibold"
+                                    font.pixelSize: 14
+                                    color: root.base
+                                    text: model.labelText
+                                }
+
+                            }
+
+                        }
+
+                        MouseArea {
+                            id: btnMa
+
+                            anchors.fill: parent
+                            enabled: actionCapsule.buttonOpacity > 0.98
+                            hoverEnabled: true
+                            cursorShape: actionCapsule.triggered ? Qt.ArrowCursor : Qt.PointingHandCursor
+                            onPressed: {
+                                if (!actionCapsule.triggered) {
+                                    drainAnim.stop();
+                                    fillAnim.start();
+                                }
+                            }
+                            onReleased: {
+                                if (!actionCapsule.triggered && actionCapsule.fillLevel < 1) {
+                                    fillAnim.stop();
+                                    drainAnim.start();
+                                }
                             }
                         }
-                    }
 
-                    MouseArea {
-                        id: btnMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: actionCapsule.triggered ? Qt.ArrowCursor : Qt.PointingHandCursor
+                        NumberAnimation {
+                            id: fillAnim
 
-                        onPressed: {
-                            if (!actionCapsule.triggered) {
-                                drainAnim.stop();
-                                fillAnim.start();
+                            target: actionCapsule
+                            property: "fillLevel"
+                            to: 1
+                            duration: 600 * (1 - actionCapsule.fillLevel)
+                            easing.type: Easing.InSine
+                            onFinished: {
+                                actionCapsule.triggered = true;
+                                actionCapsule.flashOpacity = 0.6;
+                                cardFlashAnim.start();
+                                exitTimer.start();
                             }
                         }
-                        onReleased: {
-                            if (!actionCapsule.triggered && actionCapsule.fillLevel < 1.0) {
-                                fillAnim.stop();
-                                drainAnim.start();
+
+                        NumberAnimation {
+                            id: drainAnim
+
+                            target: actionCapsule
+                            property: "fillLevel"
+                            to: 0
+                            duration: 1500 * actionCapsule.fillLevel
+                            easing.type: Easing.OutQuad
+                        }
+
+                        Timer {
+                            id: exitTimer
+
+                            interval: 500
+                            onTriggered: {
+                                root.triggerPowerAction(model.actionType);
+                                _theme.globalTogglePower();
                             }
                         }
-                    }
 
-                    NumberAnimation {
-                        id: fillAnim
-                        target: actionCapsule
-                        property: "fillLevel"
-                        to: 1.0
-                        duration: 600 * (1.0 - actionCapsule.fillLevel)
-                        easing.type: Easing.InSine
-                        onFinished: {
-                            actionCapsule.triggered = true;
-                            actionCapsule.flashOpacity = 0.6;
-                            cardFlashAnim.start();
-                            exitTimer.start();
+                        Behavior on color {
+                            ColorAnimation {
+                                duration: 200
+                            }
+
                         }
-                    }
 
-                    NumberAnimation {
-                        id: drainAnim
-                        target: actionCapsule
-                        property: "fillLevel"
-                        to: 0.0
-                        duration: 1500 * actionCapsule.fillLevel
-                        easing.type: Easing.OutQuad
-                    }
+                        Behavior on border.color {
+                            ColorAnimation {
+                                duration: 200
+                            }
 
-                    Timer {
-                        id: exitTimer
-                        interval: 500
-                        onTriggered: {
-                            root.triggerPowerAction(model.actionType);
-                            _theme.globalTogglePower();
                         }
+
+                        Behavior on interactionScale {
+                            NumberAnimation {
+                                duration: 400
+                                easing.type: Easing.OutQuart
+                            }
+
+                        }
+
                     }
+
                 }
+
             }
+
         }
+
     }
+
+    NumberAnimation on globalOrbitAngle {
+        from: 0
+        to: Math.PI * 2
+        duration: 200000
+        loops: Animation.Infinite
+        running: true
+    }
+
 }

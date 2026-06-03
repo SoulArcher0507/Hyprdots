@@ -342,18 +342,18 @@ Scope {
                         id: toastCard
                         readonly property real toastTargetHeight: toastContent.implicitHeight + 24
                         readonly property real toastOpenWidth: root.toastWidth
-                        readonly property real toastClosedWidth: Math.max(300, root.toastWidth - 44)
-                        readonly property real toastClosedHeight: Math.max(88, toastTargetHeight - 22)
+                        readonly property real toastClosedWidth: 280
+                        readonly property real toastClosedHeight: 30
                         readonly property real toastOpenRadius: 16
-                        readonly property real toastClosedRadius: 26
+                        readonly property real toastClosedRadius: 10
                         property bool dismissing: false
                         property real popupOpacity: 0.0
-                        property real popupScaleX: 0.91
-                        property real popupScaleY: 0.79
-                        property real popupWidth: toastOpenWidth
-                        property real popupHeight: toastTargetHeight
+                        property real popupScaleX: 0.42
+                        property real popupScaleY: 0.24
+                        property real popupWidth: toastClosedWidth
+                        property real popupHeight: toastClosedHeight
                         property real popupRadius: toastClosedRadius
-                        property real popupLift: 18
+                        property real popupLift: 8.5
                         readonly property bool richAnimationsActive: !dismissing && popupOpacity > 0.98 && ThemePkg.Theme.edgeAnimationsEnabled
                         width: root.toastWidth
                         height: toastTargetHeight
@@ -385,17 +385,21 @@ Scope {
                             running: false
 
                             ParallelAnimation {
-                                NumberAnimation { target: toastCard; property: "popupOpacity"; to: 0.78; duration: 145; easing.type: Easing.OutCubic }
-                                NumberAnimation { target: toastCard; property: "popupScaleX"; to: 0.985; duration: 175; easing.type: Easing.OutCubic }
-                                NumberAnimation { target: toastCard; property: "popupScaleY"; to: 0.94; duration: 190; easing.type: Easing.OutCubic }
-                                NumberAnimation { target: toastCard; property: "popupRadius"; to: 20; duration: 190; easing.type: Easing.OutQuad }
-                                NumberAnimation { target: toastCard; property: "popupLift"; to: 8; duration: 190; easing.type: Easing.OutCubic }
+                                NumberAnimation { target: toastCard; property: "popupOpacity"; to: 0.82; duration: 210; easing.type: Easing.OutCubic }
+                                NumberAnimation { target: toastCard; property: "popupScaleX"; to: 0.985; duration: 280; easing.type: Easing.OutCubic }
+                                NumberAnimation { target: toastCard; property: "popupScaleY"; to: 0.94; duration: 300; easing.type: Easing.OutCubic }
+                                NumberAnimation { target: toastCard; property: "popupWidth"; to: toastCard.toastOpenWidth - 18; duration: 285; easing.type: Easing.OutCubic }
+                                NumberAnimation { target: toastCard; property: "popupHeight"; to: toastCard.toastTargetHeight - 18; duration: 300; easing.type: Easing.OutCubic }
+                                NumberAnimation { target: toastCard; property: "popupRadius"; to: 28; duration: 270; easing.type: Easing.OutQuad }
+                                NumberAnimation { target: toastCard; property: "popupLift"; to: 8; duration: 300; easing.type: Easing.OutCubic }
                             }
 
                             ParallelAnimation {
                                 NumberAnimation { target: toastCard; property: "popupOpacity"; to: 1.0; duration: 175; easing.type: Easing.OutCubic }
                                 NumberAnimation { target: toastCard; property: "popupScaleX"; to: 1.0; duration: 205; easing.type: Easing.OutCubic }
                                 NumberAnimation { target: toastCard; property: "popupScaleY"; to: 1.0; duration: 205; easing.type: Easing.OutCubic }
+                                NumberAnimation { target: toastCard; property: "popupWidth"; to: toastCard.toastOpenWidth; duration: 205; easing.type: Easing.OutCubic }
+                                NumberAnimation { target: toastCard; property: "popupHeight"; to: toastCard.toastTargetHeight; duration: 215; easing.type: Easing.OutCubic }
                                 NumberAnimation { target: toastCard; property: "popupRadius"; to: toastCard.toastOpenRadius; duration: 195; easing.type: Easing.InOutQuad }
                                 NumberAnimation { target: toastCard; property: "popupLift"; to: 0; duration: 205; easing.type: Easing.OutCubic }
                             }
@@ -408,17 +412,21 @@ Scope {
                             ParallelAnimation {
                                 NumberAnimation { target: toastCard; property: "popupScaleX"; to: 1.04; duration: 85; easing.type: Easing.OutQuad }
                                 NumberAnimation { target: toastCard; property: "popupScaleY"; to: 0.95; duration: 85; easing.type: Easing.OutQuad }
-                                NumberAnimation { target: toastCard; property: "popupRadius"; to: 22; duration: 95; easing.type: Easing.OutQuad }
+                                NumberAnimation { target: toastCard; property: "popupWidth"; to: toastCard.toastOpenWidth + 14; duration: 95; easing.type: Easing.OutQuad }
+                                NumberAnimation { target: toastCard; property: "popupHeight"; to: toastCard.toastTargetHeight - 16; duration: 95; easing.type: Easing.OutQuad }
+                                NumberAnimation { target: toastCard; property: "popupRadius"; to: 28; duration: 95; easing.type: Easing.OutQuad }
                                 NumberAnimation { target: toastCard; property: "popupLift"; to: 5; duration: 95; easing.type: Easing.OutQuad }
                                 NumberAnimation { target: toastCard; property: "popupOpacity"; to: 0.88; duration: 80; easing.type: Easing.OutQuad }
                             }
 
                             ParallelAnimation {
                                 NumberAnimation { target: toastCard; property: "popupOpacity"; to: 0.0; duration: 180; easing.type: Easing.InCubic }
-                                NumberAnimation { target: toastCard; property: "popupScaleX"; to: 0.84; duration: 205; easing.type: Easing.InCubic }
-                                NumberAnimation { target: toastCard; property: "popupScaleY"; to: 0.68; duration: 220; easing.type: Easing.InCubic }
+                                NumberAnimation { target: toastCard; property: "popupScaleX"; to: 0.42; duration: 260; easing.type: Easing.InCubic }
+                                NumberAnimation { target: toastCard; property: "popupScaleY"; to: 0.24; duration: 280; easing.type: Easing.InCubic }
+                                NumberAnimation { target: toastCard; property: "popupWidth"; to: toastCard.toastClosedWidth; duration: 200; easing.type: Easing.InCubic }
+                                NumberAnimation { target: toastCard; property: "popupHeight"; to: toastCard.toastClosedHeight; duration: 210; easing.type: Easing.InCubic }
                                 NumberAnimation { target: toastCard; property: "popupRadius"; to: toastCard.toastClosedRadius; duration: 200; easing.type: Easing.InQuad }
-                                NumberAnimation { target: toastCard; property: "popupLift"; to: 24; duration: 200; easing.type: Easing.InCubic }
+                                NumberAnimation { target: toastCard; property: "popupLift"; to: 8.5; duration: 280; easing.type: Easing.InCubic }
                             }
 
                             onFinished: root._removeToastById(toastCard._thisId)

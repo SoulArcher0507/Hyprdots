@@ -23,11 +23,11 @@ Scope {
             property bool popupMounted: false
             property bool popupTargetVisible: false
             property real popupOpacity: 0.0
-            property real popupScaleX: 0.91
-            property real popupScaleY: 0.79
-            property real popupWidthFactor: 0.9
-            property real popupHeightFactor: 0.82
-            property real popupLift: 18
+            property real popupScaleX: 0.42
+            property real popupScaleY: 0.24
+            property real popupWidthFactor: 0.42
+            property real popupHeightFactor: 0.24
+            property real popupLift: 8.5
             screen: modelData
             visible: popupMounted
 
@@ -107,12 +107,12 @@ Scope {
                 }
 
                 ParallelAnimation {
-                    NumberAnimation { target: root; property: "popupOpacity"; to: 0.78; duration: 145; easing.type: Easing.OutCubic }
-                    NumberAnimation { target: root; property: "popupScaleX"; to: 0.985; duration: 175; easing.type: Easing.OutCubic }
-                    NumberAnimation { target: root; property: "popupScaleY"; to: 0.94; duration: 190; easing.type: Easing.OutCubic }
-                    NumberAnimation { target: root; property: "popupWidthFactor"; to: 0.975; duration: 190; easing.type: Easing.OutCubic }
-                    NumberAnimation { target: root; property: "popupHeightFactor"; to: 0.93; duration: 200; easing.type: Easing.OutCubic }
-                    NumberAnimation { target: root; property: "popupLift"; to: 8; duration: 190; easing.type: Easing.OutCubic }
+                    NumberAnimation { target: root; property: "popupOpacity"; to: 0.82; duration: 210; easing.type: Easing.OutCubic }
+                    NumberAnimation { target: root; property: "popupScaleX"; to: 0.985; duration: 280; easing.type: Easing.OutCubic }
+                    NumberAnimation { target: root; property: "popupScaleY"; to: 0.94; duration: 300; easing.type: Easing.OutCubic }
+                    NumberAnimation { target: root; property: "popupWidthFactor"; to: 0.985; duration: 285; easing.type: Easing.OutCubic }
+                    NumberAnimation { target: root; property: "popupHeightFactor"; to: 0.94; duration: 300; easing.type: Easing.OutCubic }
+                    NumberAnimation { target: root; property: "popupLift"; to: 8; duration: 300; easing.type: Easing.OutCubic }
                 }
 
                 ParallelAnimation {
@@ -137,7 +137,7 @@ Scope {
                 ParallelAnimation {
                     NumberAnimation { target: root; property: "popupScaleX"; to: 1.04; duration: 85; easing.type: Easing.OutQuad }
                     NumberAnimation { target: root; property: "popupScaleY"; to: 0.95; duration: 85; easing.type: Easing.OutQuad }
-                    NumberAnimation { target: root; property: "popupWidthFactor"; to: 1.03; duration: 95; easing.type: Easing.OutQuad }
+                    NumberAnimation { target: root; property: "popupWidthFactor"; to: 1.04; duration: 95; easing.type: Easing.OutQuad }
                     NumberAnimation { target: root; property: "popupHeightFactor"; to: 0.95; duration: 95; easing.type: Easing.OutQuad }
                     NumberAnimation { target: root; property: "popupLift"; to: 5; duration: 95; easing.type: Easing.OutQuad }
                     NumberAnimation { target: root; property: "popupOpacity"; to: 0.88; duration: 80; easing.type: Easing.OutQuad }
@@ -145,11 +145,11 @@ Scope {
 
                 ParallelAnimation {
                     NumberAnimation { target: root; property: "popupOpacity"; to: 0.0; duration: 180; easing.type: Easing.InCubic }
-                    NumberAnimation { target: root; property: "popupScaleX"; to: 0.84; duration: 205; easing.type: Easing.InCubic }
-                    NumberAnimation { target: root; property: "popupScaleY"; to: 0.68; duration: 220; easing.type: Easing.InCubic }
-                    NumberAnimation { target: root; property: "popupWidthFactor"; to: 0.86; duration: 200; easing.type: Easing.InCubic }
-                    NumberAnimation { target: root; property: "popupHeightFactor"; to: 0.74; duration: 210; easing.type: Easing.InCubic }
-                    NumberAnimation { target: root; property: "popupLift"; to: 24; duration: 200; easing.type: Easing.InCubic }
+                    NumberAnimation { target: root; property: "popupScaleX"; to: 0.42; duration: 260; easing.type: Easing.InCubic }
+                    NumberAnimation { target: root; property: "popupScaleY"; to: 0.24; duration: 280; easing.type: Easing.InCubic }
+                    NumberAnimation { target: root; property: "popupWidthFactor"; to: 0.42; duration: 200; easing.type: Easing.InCubic }
+                    NumberAnimation { target: root; property: "popupHeightFactor"; to: 0.24; duration: 210; easing.type: Easing.InCubic }
+                    NumberAnimation { target: root; property: "popupLift"; to: 8.5; duration: 280; easing.type: Easing.InCubic }
                 }
             }
 
