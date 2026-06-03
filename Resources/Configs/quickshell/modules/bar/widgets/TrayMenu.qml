@@ -27,6 +27,8 @@ PopupWindow {
 
     property var activeSubMenuEntry: null
     property real activeSubMenuY: 0
+    property bool subMenuLoaderActive: false
+    property int subMenuOpenRevision: 0
     property bool isSubmenu: false
 
     signal closeMenuTree
@@ -49,6 +51,7 @@ PopupWindow {
 
             finalizingAnimatedClose = false;
             popupTargetVisible = false;
+            closeActiveSubmenuNow();
             root.activeSubMenuEntry = null;
             resetClosedMorph();
         }
@@ -97,22 +100,67 @@ PopupWindow {
         popupEnterAnim.start();
     }
 
+    function closeNow() {
+        popupEnterAnim.stop();
+        popupExitAnim.stop();
+        closeActiveSubmenuNow();
+        popupTargetVisible = false;
+        activeSubMenuEntry = null;
+        finalizingAnimatedClose = true;
+        root.visible = false;
+        resetClosedMorph();
+    }
+
+    function closeActiveSubmenuNow() {
+        subMenuOpenRevision += 1;
+        if (subMenuLoader.item) {
+            if (subMenuLoader.item.closeNow) {
+                subMenuLoader.item.closeNow();
+            } else {
+                subMenuLoader.item.visible = false;
+            }
+        }
+        subMenuLoaderActive = false;
+    }
+
+    function openSubmenu(entry, y) {
+        if (!popupTargetVisible)
+            return;
+
+        if (!entry) {
+            closeActiveSubmenuNow();
+            activeSubMenuEntry = null;
+            return;
+        }
+
+        activeSubMenuY = y;
+        if (activeSubMenuEntry === entry && subMenuLoaderActive)
+            return;
+
+        closeActiveSubmenuNow();
+        activeSubMenuEntry = entry;
+
+        const revision = subMenuOpenRevision;
+        Qt.callLater(function () {
+            if (revision === subMenuOpenRevision && root.visible && root.popupTargetVisible && activeSubMenuEntry === entry)
+                subMenuLoaderActive = true;
+        });
+    }
+
     function beginAnimatedClose() {
         if (!root.visible && popupCardOpacity <= 0.001)
             return;
 
         popupTargetVisible = false;
+        closeActiveSubmenuNow();
         root.activeSubMenuEntry = null;
-        if (subMenuLoader.item && subMenuLoader.item.beginAnimatedClose)
-            subMenuLoader.item.beginAnimatedClose();
         popupEnterAnim.stop();
         if (!popupExitAnim.running)
             popupExitAnim.start();
     }
 
     function finalizeClose() {
-        if (subMenuLoader.item && subMenuLoader.item.visible && subMenuLoader.item.beginAnimatedClose)
-            subMenuLoader.item.beginAnimatedClose();
+        closeActiveSubmenuNow();
         root.activeSubMenuEntry = null;
         finalizingAnimatedClose = true;
         root.visible = false;
@@ -237,18 +285,16 @@ PopupWindow {
                         onEntered: {
                             if (!itemRect.isSeparator) {
                                 if (typeof modelData.hasChildren !== "undefined" && modelData.hasChildren) {
-                                    root.activeSubMenuEntry = modelData;
-                                    root.activeSubMenuY = contentColumn.y + itemRect.y;
+                                    root.openSubmenu(modelData, contentColumn.y + itemRect.y);
                                 } else {
-                                    root.activeSubMenuEntry = null;
+                                    root.openSubmenu(null, 0);
                                 }
                             }
                         }
 
                         onClicked: {
                             if (typeof modelData.hasChildren !== "undefined" && modelData.hasChildren) {
-                                root.activeSubMenuEntry = modelData;
-                                root.activeSubMenuY = contentColumn.y + itemRect.y;
+                                root.openSubmenu(modelData, contentColumn.y + itemRect.y);
                             } else {
                                 modelData.triggered();
                                 root.closeMenuTree();
@@ -262,8 +308,8 @@ PopupWindow {
 
     Loader {
         id: subMenuLoader
-        active: root.visible && root.activeSubMenuEntry !== null
-        source: active ? "TrayMenu.qml" : ""
+        active: root.subMenuLoaderActive
+        source: "TrayMenu.qml"
 
         onLoaded: {
             item.trayItemMenu = Qt.binding(function () {
