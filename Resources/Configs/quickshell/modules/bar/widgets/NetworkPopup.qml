@@ -2638,7 +2638,7 @@ Item {
                                         }
                                         Text {
                                             Layout.fillWidth: true
-                                            font.family: "JetBrains Mono"
+                                            font.family: window.textFont
                                             font.pixelSize: 10
                                             color: floatCard.connectionFailed ? window.red : (floatCard.isMyBusy ? window.activeColor : window.overlay0)
                                             text: floatCard.connectionFailed ? "Wrong Password" : (floatCard.isMyBusy ? "Connecting..." : (floatCard.renderFill > 0.1 && floatCard.renderFill < 1.0 ? "Hold..." : action))
@@ -2730,7 +2730,7 @@ Item {
                                             }
                                             Text {
                                                 Layout.fillWidth: true
-                                                font.family: "JetBrains Mono"
+                                                font.family: window.textFont
                                                 font.pixelSize: 10
                                                 color: floatCard.connectionFailed ? window.red : window.crust
                                                 text: floatCard.connectionFailed ? "Wrong Password" : (floatCard.isMyBusy ? "Connecting..." : (floatCard.renderFill > 0.1 && floatCard.renderFill < 1.0 ? "Hold..." : action))
