@@ -29,6 +29,7 @@ Item {
     property real popupCardHeight: popupClosedHeight
     property real popupCardRadius: popupClosedRadius
     property real popupCardY: barPanelCenterY - (popupClosedHeight / 2)
+    property real parallaxReveal: 0.0
 
     readonly property var _theme: ThemePkg.Theme
     readonly property color base: _theme.surface(0.10)
@@ -52,6 +53,7 @@ Item {
     readonly property color green: _theme.success
     readonly property color yellow: _theme.c3
     readonly property color lavender: _theme.accent
+    readonly property color accent2: _theme.accent2
 
     property color moduleColor: _theme.surface(0.10)
     property color moduleBorderColor: _theme.mix(_theme.background, _theme.foreground, 0.35)
@@ -102,6 +104,9 @@ Item {
         "b6": 0, "b7": 0, "b8": 0, "b9": 0, "b10": 0,
         "preset": "Flat", "pending": false
     })
+
+    readonly property int visualizerBarCount: 72
+    property var visualizerLevels: emptyVisualizerLevels()
 
     property bool userIsSeeking: false
     property bool userToggledPlay: false
@@ -176,6 +181,8 @@ Item {
         root.popupCardHeight = root.popupClosedHeight;
         root.popupCardRadius = root.popupClosedRadius;
         root.popupCardY = root.popupOriginY();
+        root.parallaxReveal = 0.0;
+        root.visualizerLevels = root.emptyVisualizerLevels();
     }
 
     function _showMusicPopup() {
@@ -318,6 +325,50 @@ Item {
         }
     }
 
+    function emptyVisualizerLevels() {
+        var values = [];
+        for (var i = 0; i < root.visualizerBarCount; i++)
+            values.push(0);
+        return values;
+    }
+
+    function applyVisualizerLine(line) {
+        if (!line || root.musicData.status !== "Playing")
+            return;
+
+        var cleaned = String(line).replace(/[^0-9;.,-]/g, "");
+        var rawParts = cleaned.split(";");
+        var parts = [];
+        for (var p = 0; p < rawParts.length; p++) {
+            if (rawParts[p] !== "")
+                parts.push(rawParts[p]);
+        }
+        if (parts.length > root.visualizerBarCount)
+            parts = parts.slice(parts.length - root.visualizerBarCount);
+
+        var previous = root.visualizerLevels || root.emptyVisualizerLevels();
+        var next = [];
+        var seenValue = false;
+
+        for (var i = 0; i < root.visualizerBarCount; i++) {
+            var raw = i < parts.length ? Number(parts[i].replace(",", ".")) : 0;
+            if (!isNaN(raw) && raw > 0)
+                seenValue = true;
+
+            var normalized = isNaN(raw) ? 0 : Math.max(0, Math.min(1, raw / 100));
+            var eased = Math.pow(normalized, 0.72);
+            var oldValue = previous.length > i ? Number(previous[i]) : 0;
+            if (isNaN(oldValue))
+                oldValue = 0;
+            next.push((oldValue * 0.42) + (eased * 0.58));
+        }
+
+        if (seenValue)
+            root.visualizerLevels = next;
+        else
+            root.visualizerLevels = next.map(function(v) { return v * 0.72; });
+    }
+
     Timer { id: seekDebounceTimer; interval: 2500; onTriggered: root.userIsSeeking = false }
     Timer { id: playDebounceTimer; interval: 1500; onTriggered: root.userToggledPlay = false }
     Timer {
@@ -366,6 +417,80 @@ Item {
         }
     }
 
+    Process {
+        id: visualizerProc
+        running: root.popupMounted && root.parallaxReveal > 0.001 && root.musicData.status === "Playing"
+        command: ["bash", root.scriptsDir + "/music_visualizer.sh"]
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: line => root.applyVisualizerLine(line)
+        }
+        onRunningChanged: {
+            if (!running)
+                root.visualizerLevels = root.emptyVisualizerLevels();
+        }
+    }
+
+    component MusicParallaxBand : Item {
+        id: band
+
+        property bool topEdge: true
+        property real reveal: 0.0
+        property var levels: root.visualizerLevels
+        property color colorA: root.moduleFontColor
+        property color colorB: root.accent2
+        property color colorC: root.surface2
+        property bool playing: root.musicData && root.musicData.status === "Playing"
+        property int barCount: root.visualizerBarCount
+
+        visible: reveal > 0.001
+        opacity: reveal
+        clip: true
+
+        Repeater {
+            model: band.barCount
+            delegate: Item {
+                id: barSlot
+
+                property real sourceLevel: band.levels && band.levels.length > index ? Number(band.levels[index]) : 0
+                property real level: Math.max(0, Math.min(1, isNaN(sourceLevel) ? 0 : sourceLevel))
+                property real slotWidth: band.width / band.barCount
+                property real visualHeight: 4 + (band.height - 12) * level
+                property color barColor: index % 4 === 0 ? band.colorB : band.colorA
+
+                width: slotWidth
+                height: band.height
+                x: index * slotWidth
+
+                Rectangle {
+                    width: Math.max(2, barSlot.slotWidth * 0.18)
+                    height: barSlot.visualHeight
+                    x: (barSlot.width - width) / 2
+                    y: band.topEdge ? 0 : parent.height - height
+                    radius: width / 2
+                    color: barSlot.barColor
+                    opacity: band.playing ? 0.74 : 0.20
+
+                    Behavior on height {
+                        NumberAnimation {
+                            duration: band.playing ? 75 : 180
+                            easing.type: Easing.OutSine
+                        }
+                    }
+
+                    Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.OutSine } }
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: parent.radius
+                        color: root.text
+                        opacity: band.playing ? 0.10 : 0.03
+                    }
+                }
+            }
+        }
+    }
+
     PanelWindow {
         id: musicWin
         visible: root.popupMounted
@@ -393,8 +518,31 @@ Item {
             onClicked: root._hideMusicPopup()
         }
 
+        MusicParallaxBand {
+            id: topParallax
+            width: musicWin.width
+            height: Math.min(180, Math.max(118, musicWin.height * 0.17))
+            y: -height * (1.0 - root.parallaxReveal)
+            topEdge: true
+            reveal: root.parallaxReveal
+            levels: root.visualizerLevels
+            z: 1
+        }
+
+        MusicParallaxBand {
+            id: bottomParallax
+            width: musicWin.width
+            height: topParallax.height
+            y: musicWin.height - (height * root.parallaxReveal)
+            topEdge: false
+            reveal: root.parallaxReveal
+            levels: root.visualizerLevels
+            z: 1
+        }
+
         Rectangle {
             id: musicCard
+            z: 2
             focus: true
             width: root.popupCardWidth
             height: root.popupCardHeight
@@ -1063,6 +1211,7 @@ Item {
         }
 
         ParallelAnimation {
+            NumberAnimation { target: root; property: "parallaxReveal"; to: 1.0; duration: 520; easing.type: Easing.OutQuart }
             NumberAnimation { target: root; property: "popupCardOpacity"; to: 0.82; duration: 210; easing.type: Easing.OutCubic }
             NumberAnimation { target: root; property: "popupCardScaleX"; to: 0.985; duration: 280; easing.type: Easing.OutCubic }
             NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.94; duration: 300; easing.type: Easing.OutCubic }
@@ -1103,6 +1252,7 @@ Item {
         }
 
         ParallelAnimation {
+            NumberAnimation { target: root; property: "parallaxReveal"; to: 0.0; duration: 300; easing.type: Easing.InCubic }
             NumberAnimation { target: root; property: "popupCardOpacity"; to: 0.0; duration: 180; easing.type: Easing.InCubic }
             NumberAnimation { target: root; property: "popupCardScaleX"; to: 0.42; duration: 260; easing.type: Easing.InCubic }
             NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.24; duration: 280; easing.type: Easing.InCubic }

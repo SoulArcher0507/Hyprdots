@@ -930,20 +930,28 @@ Item {
                             Rectangle {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
-                                
-                                color: isToday ? window.textAccent : (dayMa.containsMouse ? Qt.alpha(window.surface2, 0.4) : "transparent")
+
+                                color: "transparent"
                                 radius: 10
-                                scale: dayMa.containsMouse ? 1.2 : 1.0
-                                border.color: isToday ? window.surface0 : (dayMa.containsMouse ? window.overlay0 : "transparent")
-                                border.width: isToday || dayMa.containsMouse ? 1 : 0
-                                
-                                Behavior on color {
-                                    enabled: window.animationsEnabled
-                                    ColorAnimation { duration: 150 }
-                                }
-                                Behavior on scale {
-                                    enabled: window.animationsEnabled
-                                    NumberAnimation { duration: 250; easing.type: Easing.OutBack }
+
+                                Rectangle {
+                                    id: dayBackground
+                                    anchors.fill: parent
+                                    radius: parent.radius
+                                    color: isToday ? window.textAccent : (dayMa.containsMouse ? Qt.alpha(window.surface2, 0.4) : "transparent")
+                                    scale: dayMa.containsMouse ? 1.2 : 1.0
+                                    border.color: isToday ? window.surface0 : (dayMa.containsMouse ? window.overlay0 : "transparent")
+                                    border.width: isToday || dayMa.containsMouse ? 1 : 0
+                                    transformOrigin: Item.Center
+
+                                    Behavior on color {
+                                        enabled: window.animationsEnabled
+                                        ColorAnimation { duration: 150 }
+                                    }
+                                    Behavior on scale {
+                                        enabled: window.animationsEnabled
+                                        NumberAnimation { duration: 250; easing.type: Easing.OutBack }
+                                    }
                                 }
 
                                 Text {
