@@ -340,7 +340,7 @@ Scope {
 
                     delegate: Item {
                         id: toastCard
-                        readonly property real toastTargetHeight: toastContent.implicitHeight + 24
+                        readonly property real toastTargetHeight: Math.ceil(toastContent.implicitHeight + 28)
                         readonly property real toastOpenWidth: root.toastWidth
                         readonly property real toastClosedWidth: 280
                         readonly property real toastClosedHeight: 30
@@ -354,9 +354,10 @@ Scope {
                         property real popupHeight: toastClosedHeight
                         property real popupRadius: toastClosedRadius
                         property real popupLift: 8.5
+                        property bool toastReady: false
                         readonly property bool richAnimationsActive: !dismissing && popupOpacity > 0.98 && ThemePkg.Theme.edgeAnimationsEnabled
                         width: root.toastWidth
-                        height: toastTargetHeight
+                        height: Math.ceil(Math.max(toastTargetHeight, popupHeight + Math.max(0, popupLift)))
                         implicitWidth: root.toastWidth
                         implicitHeight: height
 
@@ -366,8 +367,14 @@ Scope {
                         readonly property bool toastBodyExpanded: root._toastBodyExpanded(model.toastId, model.toastBody)
 
                         Component.onCompleted: {
+                            toastReady = true;
                             popupEnterAnim.start();
                             dismissTimer.start();
+                        }
+
+                        onToastTargetHeightChanged: {
+                            if (toastReady && !dismissing && !popupEnterAnim.running && !popupExitAnim.running)
+                                popupHeight = toastTargetHeight;
                         }
 
                         function dismissToast() {
@@ -402,6 +409,11 @@ Scope {
                                 NumberAnimation { target: toastCard; property: "popupHeight"; to: toastCard.toastTargetHeight; duration: 215; easing.type: Easing.OutCubic }
                                 NumberAnimation { target: toastCard; property: "popupRadius"; to: toastCard.toastOpenRadius; duration: 195; easing.type: Easing.InOutQuad }
                                 NumberAnimation { target: toastCard; property: "popupLift"; to: 0; duration: 205; easing.type: Easing.OutCubic }
+                            }
+
+                            onFinished: {
+                                if (!toastCard.dismissing)
+                                    toastCard.popupHeight = toastCard.toastTargetHeight;
                             }
                         }
 
