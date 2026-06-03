@@ -457,6 +457,12 @@ Item {
             }
         }
 
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.AllButtons
+            onClicked: {}
+        }
+
         ColumnLayout { 
             id: contentLayout
 

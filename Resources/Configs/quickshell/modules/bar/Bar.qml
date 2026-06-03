@@ -40,6 +40,10 @@ Variants {
         Hyprland.dispatch("hl.dsp.focus({ workspace = " + id + " })");
     }
 
+    function openOverview() {
+        Quickshell.execDetached(["qs", "ipc", "-p", Quickshell.env("HOME") + "/.config/quickshell/overview", "call", "overview", "open"]);
+    }
+
     readonly property color moduleColor: ThemePkg.Theme.surface(0.10)
     readonly property color moduleBorderColor: ThemePkg.Theme.mix(ThemePkg.Theme.background, ThemePkg.Theme.foreground, 0.35)
     readonly property color moduleFontColor: ThemePkg.Theme.accent
@@ -794,8 +798,15 @@ Variants {
                                     id: wsMa
                                     anchors.fill: parent
                                     hoverEnabled: true
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: bar.focusWorkspace(modelData.id)
+                                    onClicked: function (mouse) {
+                                        if (mouse.button === Qt.LeftButton) {
+                                            bar.focusWorkspace(modelData.id);
+                                        } else if (mouse.button === Qt.RightButton) {
+                                            bar.openOverview();
+                                        }
+                                    }
                                 }
 
                                 Text {

@@ -249,6 +249,12 @@ Scope {
                         event.accepted = true;
                     }
                 }
+
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.AllButtons
+                    onClicked: GlobalStates.overviewOpen = false
+                }
             }
 
             ColumnLayout {
