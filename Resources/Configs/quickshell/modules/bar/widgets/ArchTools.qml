@@ -91,17 +91,17 @@ Item {
     property int upMins: 0
     property int upSecs: 0
 
-    property int unreadNews: 0
-    property int unreadDotfiles: 0
+    property int unreadNews: ArchState.ArchToolsState.unreadNews
+    property int unreadDotfiles: ArchState.ArchToolsState.unreadDotfiles
     onUnreadNewsChanged: ArchState.ArchToolsState.unreadNews = unreadNews
     onUnreadDotfilesChanged: ArchState.ArchToolsState.unreadDotfiles = unreadDotfiles
 
     property bool autolockDisabled: false
 
-    property int updPacman: 0
-    property int updAur: 0
-    property int updFlatpak: 0
-    property int updTotal: 0
+    property int updPacman: ArchState.ArchToolsState.updatePacman
+    property int updAur: ArchState.ArchToolsState.updateAur
+    property int updFlatpak: ArchState.ArchToolsState.updateFlatpak
+    property int updTotal: ArchState.ArchToolsState.updateTotal
     property var updatesListCache: ({})
 
     property real statCpuTotal: 0
@@ -327,8 +327,41 @@ Item {
     property real hostLoaderOpacity: (parent && parent.opacity !== undefined) ? parent.opacity : 1.0
     property real lastHostLoaderOpacity: hostLoaderOpacity
 
+    function syncNotificationCountsFromState() {
+        root.unreadNews = Number(ArchState.ArchToolsState.unreadNews || 0);
+        root.unreadDotfiles = Number(ArchState.ArchToolsState.unreadDotfiles || 0);
+    }
+
+    function syncUpdateCountsFromState() {
+        root.updPacman = Number(ArchState.ArchToolsState.updatePacman || 0);
+        root.updAur = Number(ArchState.ArchToolsState.updateAur || 0);
+        root.updFlatpak = Number(ArchState.ArchToolsState.updateFlatpak || 0);
+        root.updTotal = Number(ArchState.ArchToolsState.updateTotal || 0);
+
+        if (root.switcher) {
+            root.switcher.updPacman = root.updPacman;
+            root.switcher.updAur = root.updAur;
+            root.switcher.updFlatpak = root.updFlatpak;
+            root.switcher.updTotal = root.updTotal;
+            root.switcher.updLastTs = ArchState.ArchToolsState.updatesLastTs || root.switcher.updLastTs;
+            root.switcher._updLastMs = Number(ArchState.ArchToolsState.updatesLastMs || root.switcher._updLastMs || 0);
+        }
+    }
+
+    function publishUpdateCountsToState(timestampMs) {
+        var now = Number(timestampMs || Date.now());
+        ArchState.ArchToolsState.updatePacman = Number(root.updPacman || 0);
+        ArchState.ArchToolsState.updateAur = Number(root.updAur || 0);
+        ArchState.ArchToolsState.updateFlatpak = Number(root.updFlatpak || 0);
+        ArchState.ArchToolsState.updateTotal = Number(root.updTotal || 0);
+        ArchState.ArchToolsState.updatesLastTs = Qt.formatDateTime(new Date(now), "HH:mm");
+        ArchState.ArchToolsState.updatesLastMs = now;
+    }
+
     Component.onCompleted: {
         root.restoreUpdateStateFromSwitcher();
+        root.syncNotificationCountsFromState();
+        root.syncUpdateCountsFromState();
         popupTargetVisible = true;
         introState = 1.0;
         archPanel.visible = true;
@@ -339,7 +372,38 @@ Item {
         startupRefreshTimer.start();
     }
 
-    onSwitcherChanged: root.restoreUpdateStateFromSwitcher()
+    onSwitcherChanged: {
+        root.restoreUpdateStateFromSwitcher();
+        root.syncUpdateCountsFromState();
+    }
+
+    Connections {
+        target: ArchState.ArchToolsState
+        function onUnreadNewsChanged() {
+            root.unreadNews = Number(ArchState.ArchToolsState.unreadNews || 0);
+        }
+        function onUnreadDotfilesChanged() {
+            root.unreadDotfiles = Number(ArchState.ArchToolsState.unreadDotfiles || 0);
+        }
+        function onUpdatePacmanChanged() {
+            root.syncUpdateCountsFromState();
+        }
+        function onUpdateAurChanged() {
+            root.syncUpdateCountsFromState();
+        }
+        function onUpdateFlatpakChanged() {
+            root.syncUpdateCountsFromState();
+        }
+        function onUpdateTotalChanged() {
+            root.syncUpdateCountsFromState();
+        }
+        function onUpdatesLastTsChanged() {
+            root.syncUpdateCountsFromState();
+        }
+        function onUpdatesLastMsChanged() {
+            root.syncUpdateCountsFromState();
+        }
+    }
 
     onHostLoaderOpacityChanged: {
         if (hostLoaderOpacity < lastHostLoaderOpacity - 0.001 && popupTargetVisible) {
@@ -1007,14 +1071,42 @@ Item {
             onStreamFinished: {
                 try {
                     var obj = JSON.parse(text.trim());
-                    if (obj.updPacman !== undefined)
+                    var loadedUpdateCounts = false;
+                    if (obj.updPacman !== undefined) {
                         root.updPacman = obj.updPacman;
-                    if (obj.updAur !== undefined)
+                        loadedUpdateCounts = true;
+                    }
+                    if (obj.updAur !== undefined) {
                         root.updAur = obj.updAur;
-                    if (obj.updFlatpak !== undefined)
+                        loadedUpdateCounts = true;
+                    }
+                    if (obj.updFlatpak !== undefined) {
                         root.updFlatpak = obj.updFlatpak;
-                    if (obj.updTotal !== undefined)
+                        loadedUpdateCounts = true;
+                    }
+                    if (obj.updTotal !== undefined) {
                         root.updTotal = obj.updTotal;
+                        loadedUpdateCounts = true;
+                    }
+                    if (loadedUpdateCounts) {
+                        var cacheMs = Number(obj.updLastMs || 0);
+                        var stateMs = Number(ArchState.ArchToolsState.updatesLastMs || 0);
+                        var cacheIsCurrent = stateMs <= 0 || (cacheMs > 0 && cacheMs >= stateMs);
+
+                        if (!cacheIsCurrent) {
+                            root.syncUpdateCountsFromState();
+                        } else {
+                            ArchState.ArchToolsState.updatePacman = Number(root.updPacman || 0);
+                            ArchState.ArchToolsState.updateAur = Number(root.updAur || 0);
+                            ArchState.ArchToolsState.updateFlatpak = Number(root.updFlatpak || 0);
+                            ArchState.ArchToolsState.updateTotal = Number(root.updTotal || 0);
+                            if (obj.updLastTs !== undefined)
+                                ArchState.ArchToolsState.updatesLastTs = String(obj.updLastTs || "");
+                            if (obj.updLastMs !== undefined)
+                                ArchState.ArchToolsState.updatesLastMs = Number(obj.updLastMs || 0);
+                            root.syncUpdateCountsFromState();
+                        }
+                    }
                     if (obj.cpuTotal !== undefined)
                         root.statCpuTotal = obj.cpuTotal;
                     if (obj.cpuCores)
@@ -1068,6 +1160,8 @@ Item {
             updAur: root.updAur,
             updFlatpak: root.updFlatpak,
             updTotal: root.updTotal,
+            updLastTs: ArchState.ArchToolsState.updatesLastTs,
+            updLastMs: ArchState.ArchToolsState.updatesLastMs,
             cpuTotal: root.statCpuTotal,
             cpuCores: root.statCpuCores,
             gpuName: root.statGpuName,
@@ -1169,13 +1263,15 @@ Item {
             root.updAur = aur;
             root.updFlatpak = fl;
             root.updTotal = tot;
+            var now = Date.now();
+            root.publishUpdateCountsToState(now);
             if (root.switcher) {
                 root.switcher.updPacman = pc;
                 root.switcher.updAur = aur;
                 root.switcher.updFlatpak = fl;
                 root.switcher.updTotal = tot;
-                root.switcher.updLastTs = Qt.formatDateTime(new Date(), "HH:mm");
-                root.switcher._updLastMs = Date.now();
+                root.switcher.updLastTs = ArchState.ArchToolsState.updatesLastTs;
+                root.switcher._updLastMs = now;
             }
             root.saveCache(true);
         }

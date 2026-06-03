@@ -662,87 +662,13 @@ Variants {
                     right: 0
                 }
 
-                property int updPacman: 0
-                property int updAur: 0
-                property int updFlatpak: 0
-                property int updTotal: 0
-                property string updLastTs: ""
-                property var _updLastMs: 0
-                property int updatesMinIntervalMs: 5 * 60 * 1000   
-
-                property string _updatesCheckCmdBoot: "$HOME/.config/hypr/scripts/quickshell/archtools/updates-check.sh"
-                property string _updatesCacheFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_cache.json"
-
-                function applyUpdateCounts(obj) {
-                    var pc = Number(obj.pacman !== undefined ? obj.pacman : (obj.updPacman || 0));
-                    var aur = Number(obj.aur !== undefined ? obj.aur : (obj.updAur || 0));
-                    var fl = Number(obj.flatpak !== undefined ? obj.flatpak : (obj.updFlatpak || 0));
-                    var tot = Number(obj.total !== undefined ? obj.total : (obj.updTotal !== undefined ? obj.updTotal : (pc + aur + fl)));
-
-                    panel.updPacman = isNaN(pc) ? 0 : pc;
-                    panel.updAur = isNaN(aur) ? 0 : aur;
-                    panel.updFlatpak = isNaN(fl) ? 0 : fl;
-                    panel.updTotal = isNaN(tot) ? 0 : tot;
-                    panel.updLastTs = Qt.formatDateTime(new Date(), "HH:mm");
-                    panel._updLastMs = Date.now();
-                }
-
-                Process {
-                    id: updatesCacheLoadProc
-                    command: ["bash", "-lc", "cat " + "'" + panel._updatesCacheFile.replace(/'/g, "'\\''") + "'" + " 2>/dev/null || echo '{}'"]
-                    stdout: StdioCollector {
-                        id: updatesCacheLoadOut
-                        waitForEnd: true
-                    }
-                    running: true
-
-                    onExited: function (exitCode, exitStatus) {
-                        try {
-                            var obj = JSON.parse((updatesCacheLoadOut.text || "{}").trim());
-                            panel.applyUpdateCounts(obj);
-                            // Seed ArchTools badge counts from cache
-                            if (obj.unreadNews !== undefined)
-                                ArchState.ArchToolsState.unreadNews = Number(obj.unreadNews || 0);
-                            if (obj.unreadDotfiles !== undefined)
-                                ArchState.ArchToolsState.unreadDotfiles = Number(obj.unreadDotfiles || 0);
-                        } catch (e) {}
-                    }
-                }
-
-                Timer {
-                    id: delayedUpdatesCheckTimer
-                    interval: 12000
-                    repeat: false
-                    running: true
-                    onTriggered: {
-                        if (!updatesCheckProcBootGlobal.running)
-                            updatesCheckProcBootGlobal.running = true;
-                    }
-                }
-
-                Process {
-                    id: updatesCheckProcBootGlobal
-                    command: ["bash", "-lc", panel._updatesCheckCmdBoot]
-                    stdout: StdioCollector {
-                        id: updatesCheckOutBootGlobal
-                        waitForEnd: true
-                    }
-                    running: false
-
-                    onExited: function (exitCode, exitStatus) {
-                        var raw = (updatesCheckOutBootGlobal.text || "").trim();
-                        var start = raw.lastIndexOf("{");
-                        var end = raw.lastIndexOf("}");
-                        var json = (start !== -1 && end !== -1 && end > start) ? raw.slice(start, end + 1) : raw;
-
-                        try {
-                            var obj = JSON.parse(json);
-                            panel.applyUpdateCounts(obj);
-                        } catch (e) {
-                            return;
-                        }
-                    }
-                }
+                property int updPacman: ArchState.ArchToolsState.updatePacman
+                property int updAur: ArchState.ArchToolsState.updateAur
+                property int updFlatpak: ArchState.ArchToolsState.updateFlatpak
+                property int updTotal: ArchState.ArchToolsState.updateTotal
+                property string updLastTs: ArchState.ArchToolsState.updatesLastTs
+                property var _updLastMs: ArchState.ArchToolsState.updatesLastMs
+                property int updatesMinIntervalMs: 5 * 60 * 1000
 
                 Rectangle {
                     id: barBg

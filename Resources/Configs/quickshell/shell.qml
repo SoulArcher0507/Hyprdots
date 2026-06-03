@@ -308,6 +308,8 @@ ShellRoot {
         sourceComponent: Bar {}
     }
 
+    BarWidgets.ArchToolsRefresh {}
+
     Component {
         id: notificationPopupComponent
         Notifications.NotificationPopup {}
