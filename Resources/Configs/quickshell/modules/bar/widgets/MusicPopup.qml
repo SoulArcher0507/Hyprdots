@@ -59,6 +59,7 @@ Item {
     property color moduleBorderColor: _theme.mix(_theme.background, _theme.foreground, 0.35)
     property color moduleFontColor: _theme.accent
 
+    readonly property string textFont: "Fira Sans"
     readonly property string scriptsDir: Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/music"
 
     IpcHandler {
@@ -690,7 +691,7 @@ Item {
                                                 Text {
                                                     id: titleTextMain
                                                     text: root.musicData.title; color: root.dynamicTextColor
-                                                    font.family: "JetBrains Mono"; font.pixelSize: 20; font.bold: true
+                                                    font.family: root.textFont; font.pixelSize: 20; font.bold: true
                                                     Behavior on color { ColorAnimation { duration: 600 } }
                                                     onTextChanged: {
                                                         marqueeContainer.x = 0;
@@ -699,7 +700,7 @@ Item {
                                                 }
                                                 Text {
                                                     text: root.musicData.title; color: root.dynamicTextColor
-                                                    font.family: "JetBrains Mono"; font.pixelSize: 20; font.bold: true
+                                                    font.family: root.textFont; font.pixelSize: 20; font.bold: true
                                                     visible: titleTextMain.implicitWidth > titleClipRect.width
                                                 }
                                             }
@@ -715,7 +716,7 @@ Item {
 
                                     Text {
                                         text: root.musicData.artist ? "BY " + root.musicData.artist : ""
-                                        color: root.subtext0; font.family: "JetBrains Mono"; font.pixelSize: 14; font.bold: true
+                                        color: root.subtext0; font.family: root.textFont; font.pixelSize: 14; font.bold: true
                                         elide: Text.ElideRight; maximumLineCount: 1; Layout.fillWidth: true; Layout.preferredHeight: 20
                                     }
                                     RowLayout {
@@ -726,12 +727,12 @@ Item {
                                             RowLayout {
                                                 id: pillContent; anchors.centerIn: parent; spacing: 6
                                                 Text { text: root.musicData.deviceIcon || "󰓃"; color: root.mauve; font.family: "CaskaydiaMono Nerd Font"; font.pixelSize: 14 }
-                                                Text { text: root.musicData.deviceName || "Speaker"; color: root.overlay2; font.family: "JetBrains Mono"; font.pixelSize: 12; font.bold: true }
+                                                Text { text: root.musicData.deviceName || "Speaker"; color: root.overlay2; font.family: root.textFont; font.pixelSize: 12; font.bold: true }
                                             }
                                         }
                                         Text {
                                             text: "VIA " + (root.musicData.source || "Offline")
-                                            color: root.overlay2; font.family: "JetBrains Mono"; font.pixelSize: 12; font.bold: true; font.italic: true
+                                            color: root.overlay2; font.family: root.textFont; font.pixelSize: 12; font.bold: true; font.italic: true
                                         }
                                     }
                                 }
@@ -818,9 +819,9 @@ Item {
 
                                     RowLayout {
                                         Layout.fillWidth: true
-                                        Text { text: root.musicData.positionStr || "00:00"; color: root.overlay2; font.family: "JetBrains Mono"; font.bold: true; font.pixelSize: 13 }
+                                        Text { text: root.musicData.positionStr || "00:00"; color: root.overlay2; font.family: root.textFont; font.bold: true; font.pixelSize: 13 }
                                         Item { Layout.fillWidth: true }
-                                        Text { text: root.musicData.lengthStr || "00:00"; color: root.overlay2; font.family: "JetBrains Mono"; font.bold: true; font.pixelSize: 13 }
+                                        Text { text: root.musicData.lengthStr || "00:00"; color: root.overlay2; font.family: root.textFont; font.bold: true; font.pixelSize: 13 }
                                     }
                                 }
 
@@ -888,7 +889,7 @@ Item {
                                 opacity: root.introEqHeader
                                 transform: Translate { y: 15 * (1 - root.introEqHeader) }
 
-                                Text { text: "Equalizer"; color: root.mauve; font.family: "JetBrains Mono"; font.pixelSize: 16; font.bold: true; Layout.fillWidth: true }
+                                Text { text: "Equalizer"; color: root.mauve; font.family: root.textFont; font.pixelSize: 16; font.bold: true; Layout.fillWidth: true }
 
                                 Rectangle {
                                     Layout.preferredHeight: 28; Layout.preferredWidth: applyTxt.width + 30
@@ -902,7 +903,7 @@ Item {
                                         id: applyTxt; anchors.centerIn: parent
                                         text: root.eqData.pending ? "Apply" : "Saved"
                                         color: root.eqData.pending ? root.base : root.subtext0
-                                        font.family: "JetBrains Mono"; font.pixelSize: 12; font.bold: true
+                                        font.family: root.textFont; font.pixelSize: 12; font.bold: true
                                         Behavior on color { ColorAnimation { duration: 300 } }
                                     }
                                     MouseArea {
@@ -918,7 +919,7 @@ Item {
                                         }
                                     }
                                 }
-                                Text { text: root.eqData.preset || "Flat"; color: root.subtext0; font.family: "JetBrains Mono"; font.pixelSize: 14; font.bold: true; Layout.leftMargin: 15 }
+                                Text { text: root.eqData.preset || "Flat"; color: root.subtext0; font.family: root.textFont; font.pixelSize: 14; font.bold: true; Layout.leftMargin: 15 }
                             }
 
                             Item {
@@ -1065,7 +1066,7 @@ Item {
 
                                                 Text {
                                                     text: modelData.lbl; color: root.overlay1
-                                                    font.family: "JetBrains Mono"; font.pixelSize: 10; font.bold: true
+                                                    font.family: root.textFont; font.pixelSize: 10; font.bold: true
                                                     Layout.alignment: Qt.AlignHCenter
                                                 }
                                             }
@@ -1279,7 +1280,7 @@ Item {
             anchors.centerIn: parent
             text: parent.name
             color: parent.isActivePreset ? root.base : (parent.isHovered ? root.text : root.subtext0)
-            font.family: "JetBrains Mono"
+            font.family: root.textFont
             font.pixelSize: 12
             font.bold: true
             Behavior on color { ColorAnimation { duration: 200 } }

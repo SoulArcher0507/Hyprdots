@@ -2596,7 +2596,7 @@ Item {
                                                 width: parent.width
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 text: floatCard.itemName
-                                                font.family: "JetBrains Mono"
+                                                font.family: window.textFont
                                                 font.weight: Font.Bold
                                                 font.pixelSize: (floatCard.isTrafficInfoCard || floatCard.isSpeedtestDone || floatCard.isTailscaleInfoCard) ? 11 : 13
                                                 color: floatCard.isHighlighted ? window.activeColor : window.text
@@ -2608,7 +2608,7 @@ Item {
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 visible: floatCard.doMarquee && !floatCard.isTrafficInfoCard
                                                 text: floatCard.itemName
-                                                font.family: "JetBrains Mono"
+                                                font.family: window.textFont
                                                 font.weight: Font.Bold
                                                 font.pixelSize: 13
                                                 color: floatCard.isHighlighted ? window.activeColor : window.text
@@ -2624,7 +2624,7 @@ Item {
                                                 Text {
                                                     anchors.verticalCenter: parent.verticalCenter
                                                     text: "Testing"
-                                                    font.family: "JetBrains Mono"
+                                                    font.family: window.textFont
                                                     font.weight: Font.Bold
                                                     font.pixelSize: 13
                                                     color: window.activeColor
@@ -2688,7 +2688,7 @@ Item {
                                                     width: parent.width
                                                     anchors.verticalCenter: parent.verticalCenter
                                                     text: floatCard.itemName
-                                                    font.family: "JetBrains Mono"
+                                                    font.family: window.textFont
                                                     font.weight: Font.Bold
                                                     font.pixelSize: (floatCard.isTrafficInfoCard || floatCard.isSpeedtestDone || floatCard.isTailscaleInfoCard) ? 11 : 13
                                                     color: window.crust
@@ -2700,7 +2700,7 @@ Item {
                                                     anchors.verticalCenter: parent.verticalCenter
                                                     visible: floatCard.doMarquee && !floatCard.isTrafficInfoCard
                                                     text: floatCard.itemName
-                                                    font.family: "JetBrains Mono"
+                                                    font.family: window.textFont
                                                     font.weight: Font.Bold
                                                     font.pixelSize: 13
                                                     color: window.crust
@@ -2716,7 +2716,7 @@ Item {
                                                     Text {
                                                         anchors.verticalCenter: parent.verticalCenter
                                                         text: "Testing"
-                                                        font.family: "JetBrains Mono"
+                                                        font.family: window.textFont
                                                         font.weight: Font.Bold
                                                         font.pixelSize: 13
                                                         color: window.crust
@@ -2911,7 +2911,7 @@ Item {
                                                 anchors.leftMargin: 10
                                                 anchors.rightMargin: 10
                                                 verticalAlignment: TextInput.AlignVCenter
-                                                font.family: "JetBrains Mono"
+                                                font.family: window.textFont
                                                 font.pixelSize: 13
                                                 color: window.text
                                                 echoMode: TextInput.Password

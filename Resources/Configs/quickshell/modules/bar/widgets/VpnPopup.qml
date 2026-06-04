@@ -524,7 +524,7 @@ Item {
                         Text {
                             Layout.fillWidth: true
                             text: root.vpnActive ? (root.selfIp + (root.exitNode !== "" ? " | Exit: " + root.exitNode : "")) : (root.messageText !== "" ? root.messageText : root.backendState)
-                            font.family: "JetBrains Mono"
+                            font.family: root.textFont
                             font.pixelSize: 11
                             color: root.subtext0
                             elide: Text.ElideRight
@@ -616,7 +616,7 @@ Item {
                             Text {
                                 Layout.fillWidth: true
                                 text: actionRunner.running ? "Working..." : root.actionHeadline
-                                font.family: "JetBrains Mono"
+                                font.family: root.textFont
                                 font.weight: Font.Bold
                                 font.pixelSize: 12
                                 color: root.text
@@ -626,7 +626,7 @@ Item {
                                 id: actionDetailText
                                 Layout.fillWidth: true
                                 text: root.actionDetail
-                                font.family: "JetBrains Mono"
+                                font.family: root.textFont
                                 font.pixelSize: 10
                                 color: root.subtext0
                                 wrapMode: Text.Wrap
@@ -731,7 +731,7 @@ Item {
                                     }
                                     Text {
                                         text: exit_node ? "EXIT" : (exit_node_option ? "EXIT READY" : (active ? "ACTIVE" : (online ? "ONLINE" : "OFFLINE")))
-                                        font.family: "JetBrains Mono"
+                                        font.family: root.textFont
                                         font.weight: Font.Bold
                                         font.pixelSize: 10
                                         color: exit_node ? root.yellow : (online ? root.green : root.overlay0)
@@ -740,7 +740,7 @@ Item {
                                 Text {
                                     Layout.fillWidth: true
                                     text: root.peerConnectionText(model)
-                                    font.family: "JetBrains Mono"
+                                    font.family: root.textFont
                                     font.pixelSize: 11
                                     color: root.subtext0
                                     elide: Text.ElideRight
@@ -748,7 +748,7 @@ Item {
                                 Text {
                                     Layout.fillWidth: true
                                     text: dns !== "" ? dns : (tags !== "" ? tags : os)
-                                    font.family: "JetBrains Mono"
+                                    font.family: root.textFont
                                     font.pixelSize: 10
                                     color: root.overlay0
                                     elide: Text.ElideRight
@@ -809,7 +809,7 @@ Item {
                 Text {
                     Layout.fillWidth: true
                     text: value
-                    font.family: "JetBrains Mono"
+                    font.family: root.textFont
                     font.weight: Font.Bold
                     font.pixelSize: 12
                     color: root.text
@@ -818,7 +818,7 @@ Item {
                 Text {
                     Layout.fillWidth: true
                     text: label
-                    font.family: "JetBrains Mono"
+                    font.family: root.textFont
                     font.pixelSize: 9
                     color: root.subtext0
                     elide: Text.ElideRight
