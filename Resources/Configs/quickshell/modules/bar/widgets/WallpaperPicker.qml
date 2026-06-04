@@ -43,6 +43,7 @@ Item {
     property color t_surface1: ThemePkg.Theme.surface(0.15)
     property color t_surface2: ThemePkg.Theme.surface(0.25)
     property color t_text: ThemePkg.Theme.foreground
+    readonly property string textFont: "Fira Sans"
 
     property var rawFiles: []
     property bool listLoaded: false
@@ -1248,7 +1249,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     text: window.currentNotification
                     color: t_text
-                    font.family: "JetBrains Mono"
+                    font.family: window.textFont
                     font.pixelSize: 14
                     font.bold: true
                     opacity: window.showNotification ? 0.9 : 0.0
@@ -1291,7 +1292,7 @@ Item {
                             text: modelData.label
                             anchors.centerIn: parent
                             color: window.currentFilter === modelData.name ? t_text : Qt.rgba(t_text.r, t_text.g, t_text.b, 0.7)
-                            font.family: "JetBrains Mono"
+                            font.family: window.textFont
                             font.bold: window.currentFilter === modelData.name
                         }
 
@@ -1442,7 +1443,7 @@ Item {
                     }
 
                     color: t_text
-                    font.family: "JetBrains Mono"
+                    font.family: window.textFont
                     font.pixelSize: 16
                     clip: true
 
@@ -1581,7 +1582,7 @@ Item {
                                 anchors.centerIn: parent
                                 text: modelData.key
                                 color: t_text
-                                font.family: "JetBrains Mono"
+                                font.family: window.textFont
                                 font.pixelSize: 11
                                 font.bold: true
                             }
@@ -1591,7 +1592,7 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                             text: modelData.label
                             color: isActive ? t_text : Qt.rgba(t_text.r, t_text.g, t_text.b, 0.78)
-                            font.family: "JetBrains Mono"
+                            font.family: window.textFont
                             font.pixelSize: 12
                             font.bold: isActive
                         }

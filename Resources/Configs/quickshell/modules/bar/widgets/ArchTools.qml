@@ -1523,9 +1523,10 @@ Item {
             + " || (command -v wezterm >/dev/null 2>&1 && wezterm -e bash -lc '" + safeCmd + "')"
             + " || (command -v gnome-terminal >/dev/null 2>&1 && gnome-terminal -- bash -lc '" + safeCmd + "')"
             + " || (command -v xterm >/dev/null 2>&1 && xterm -e bash -lc '" + safeCmd + "')";
-        var floatingCmd = "if command -v hyprctl >/dev/null 2>&1; then hyprctl dispatch exec "
-            + root.shellQuote("[float; center; size 980 620] sh -lc " + root.shellQuote(terminalCmd))
-            + "; else " + terminalCmd + "; fi";
+        var floatingExecCmd = "[float; center; size 980 620] sh -lc " + root.shellQuote(terminalCmd);
+        var floatingCmd = "if command -v hyprctl >/dev/null 2>&1 && hyprctl dispatch exec "
+            + root.shellQuote(floatingExecCmd)
+            + "; then :; else " + terminalCmd + "; fi";
 
         root.runDetachedShell(floatingCmd);
         root.closeArchToolsPanel();
@@ -7604,6 +7605,7 @@ Item {
 
             onClicked: {
                 if (bubble.suppressNextClick) {
+                    suppressClickResetTimer.stop();
                     bubble.suppressNextClick = false;
                     return;
                 }
@@ -7647,6 +7649,13 @@ Item {
             }
         }
 
+        Timer {
+            id: suppressClickResetTimer
+            interval: 450
+            repeat: false
+            onTriggered: bubble.suppressNextClick = false
+        }
+
         NumberAnimation {
             id: fillAnim
             target: bubble
@@ -7658,6 +7667,7 @@ Item {
                 if (!bubble.triggered) {
                     bubble.triggered = true;
                     bubble.suppressNextClick = true;
+                    suppressClickResetTimer.restart();
                     bubble.flashOpacity = 0.6;
                     flashDrainAnim.start();
                     if (root.updateRunning) {
