@@ -3,6 +3,7 @@
 
 hl.window_rule({ match = { title = "^.*All Files.*$" }, float = true })
 hl.window_rule({ match = { title = "^(Choose notification sounds|Choose SDDM Image/Video|Choose Profile Avatar|Choose GRUB Background)$" }, float = true })
+hl.window_rule({ match = { title = "^(ArchTools Update Output)$" }, float = true })
 hl.window_rule({ match = { title = "Typst Preview — Zen Browser Private Browsing" }, opacity = "1.2" })
 
 -- Browser Picture in Picture

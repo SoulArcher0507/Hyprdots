@@ -44,6 +44,7 @@ fi
 
 FINISHED=0
 CANCEL_WATCHER_PID=""
+SUDO_KEEPALIVE_PID=""
 cleanup() {
     local exit_code=$?
     if [[ "$FINISHED" == "0" ]]; then
@@ -54,6 +55,9 @@ cleanup() {
     fi
     if [[ -n "$CANCEL_WATCHER_PID" ]]; then
         kill "$CANCEL_WATCHER_PID" >/dev/null 2>&1 || true
+    fi
+    if [[ -n "$SUDO_KEEPALIVE_PID" ]]; then
+        kill "$SUDO_KEEPALIVE_PID" >/dev/null 2>&1 || true
     fi
     rm -f "/tmp/quickshell_sudo_pass_$$" "/tmp/quickshell_askpass_$$" "/tmp/quickshell_auth_cancel_$$"
     rm -f "$PID_FILE" "$CURRENT_CMD_PID_FILE" "$CURRENT_CMD_PGID_FILE" "$CURRENT_CMD_SID_FILE" "$CURRENT_CMD_ARGS_FILE" "$CANCEL_FILE"
@@ -208,7 +212,7 @@ progress_from_record() {
     local stage="$1" record="$2" pct numerator denominator
     [[ -n "$stage" ]] || return 0
 
-    if [[ "$record" =~ \(([0-9]+)[[:space:]]*/[[:space:]]*([0-9]+)\) ]]; then
+    if [[ "$stage" != "aur" && "$record" =~ \(([0-9]+)[[:space:]]*/[[:space:]]*([0-9]+)\) ]]; then
         numerator="${BASH_REMATCH[1]}"
         denominator="${BASH_REMATCH[2]}"
         if [[ "$denominator" =~ ^[0-9]+$ ]] && (( denominator > 0 && numerator <= denominator )); then
@@ -407,6 +411,12 @@ finish_cancelled() {
     exit 130
 }
 
+abort_if_cancelled() {
+    if [[ -f "$CANCEL_FILE" ]]; then
+        finish_cancelled
+    fi
+}
+
 trap finish_cancelled INT TERM QUIT
 
 signal_process_tree() {
@@ -576,17 +586,22 @@ signal_current_command() {
 start_cancel_watcher() {
     local parent_pid="$$"
     (
+        cancel_announced=0
         while kill -0 "$parent_pid" >/dev/null 2>&1; do
             if [[ -f "$CANCEL_FILE" ]]; then
-                echo "{\"stage\":\"cancel\",\"status\":\"running\",\"detail\":\"Cancellation requested\"}" >> "$PROGRESS_FILE"
-                printf '[cancel/running] Cancellation requested\n' >> "$LOG_FILE"
+                if [[ "$cancel_announced" == "0" ]]; then
+                    echo "{\"stage\":\"cancel\",\"status\":\"running\",\"detail\":\"Cancellation requested\"}" >> "$PROGRESS_FILE"
+                    printf '[cancel/running] Cancellation requested\n' >> "$LOG_FILE"
+                    cancel_announced=1
+                fi
                 if [[ -s "$CURRENT_CMD_PID_FILE" ]]; then
                     current_pid="$(cat "$CURRENT_CMD_PID_FILE" 2>/dev/null || true)"
                     signal_current_command "$current_pid"
+                    kill -INT "$parent_pid" >/dev/null 2>&1 || true
+                    exit 0
                 else
                     kill -INT "$parent_pid" >/dev/null 2>&1 || true
                 fi
-                exit 0
             fi
             sleep 0.2
         done
@@ -624,19 +639,45 @@ count_aur=0
 count_flatpak=0
 errors=()
 
+start_sudo_keepalive() {
+    if [[ -n "$SUDO_KEEPALIVE_PID" ]] && kill -0 "$SUDO_KEEPALIVE_PID" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    (
+        while true; do
+            sleep 60
+            sudo -n -v >/dev/null 2>&1 || exit 0
+        done
+    ) &
+    SUDO_KEEPALIVE_PID=$!
+}
+
+validate_sudo_with_askpass() {
+    sudo -A -v
+    local status=$?
+    abort_if_cancelled
+    if [[ "$status" -eq 0 ]]; then
+        start_sudo_keepalive
+    fi
+    return "$status"
+}
 
 ensure_sudo() {
     local stage="$1"
     if sudo -n true 2>/dev/null; then
+        start_sudo_keepalive
         return 0
     fi
     if [[ -n "$SUDO_ASKPASS" ]] && [[ -f "$SUDO_ASKPASS" ]]; then
-        return 0
+        validate_sudo_with_askpass
+        return $?
     fi
 
     export SUDO_PASS_FILE="/tmp/quickshell_sudo_pass_$$"
     export SUDO_CANCEL_FILE="/tmp/quickshell_auth_cancel_$$"
     export SUDO_ASKPASS="/tmp/quickshell_askpass_$$"
+    export CANCEL_FILE
     export PROGRESS_FILE
     
     cat << 'EOF' > "$SUDO_ASKPASS"
@@ -652,36 +693,41 @@ rm -f "$SUDO_PASS_FILE" "$SUDO_CANCEL_FILE"
 touch "$SUDO_PASS_FILE"
 chmod 600 "$SUDO_PASS_FILE"
 
-action=$(notify-send -a "ArchTools" -u critical -A "open=Open Panel" "Admin Password Required" "Click here to enter your password for updates.")
-if [[ "$action" == "open" ]]; then
+open_auth_panel() {
     qs ipc call arch auth "$SUDO_PASS_FILE" >/dev/null 2>&1 || qs ipc call arch toggle >/dev/null 2>&1 || true
+}
 
-    for _ in $(seq 1 300); do
-        if [[ -s "$SUDO_PASS_FILE" ]]; then
-            emit_state running "Authentication received, continuing..."
-            cat "$SUDO_PASS_FILE"
-            rm -f "$SUDO_PASS_FILE" "$SUDO_CANCEL_FILE"
-            exit 0
-        fi
-        if [[ -f "$SUDO_CANCEL_FILE" ]]; then
-            emit_state error "Authentication cancelled"
-            rm -f "$SUDO_PASS_FILE" "$SUDO_CANCEL_FILE"
-            exit 1
-        fi
-        sleep 0.2
-    done
-    
-    emit_state error "Authentication timed out"
-    rm -f "$SUDO_PASS_FILE" "$SUDO_CANCEL_FILE"
-    exit 1
-else
-    emit_state error "Authentication cancelled"
-    rm -f "$SUDO_PASS_FILE" "$SUDO_CANCEL_FILE"
-    exit 1
-fi
+(
+    action=$(notify-send -a "ArchTools" -u critical -A "open=Open Panel" "Admin Password Required" "Enter your password to continue updates.")
+    if [[ "$action" == "open" ]]; then
+        open_auth_panel
+    fi
+) &
+
+open_auth_panel
+
+for _ in $(seq 1 300); do
+    if [[ -s "$SUDO_PASS_FILE" ]]; then
+        emit_state running "Authentication received, continuing..."
+        cat "$SUDO_PASS_FILE"
+        rm -f "$SUDO_PASS_FILE" "$SUDO_CANCEL_FILE"
+        exit 0
+    fi
+    if [[ -f "$SUDO_CANCEL_FILE" || -f "$CANCEL_FILE" ]]; then
+        emit_state error "Authentication cancelled"
+        rm -f "$SUDO_PASS_FILE" "$SUDO_CANCEL_FILE"
+        exit 1
+    fi
+    sleep 0.2
+done
+
+emit_state error "Authentication timed out"
+rm -f "$SUDO_PASS_FILE" "$SUDO_CANCEL_FILE"
+exit 1
 EOF
     chmod +x "$SUDO_ASKPASS"
-    return 0
+    validate_sudo_with_askpass
+    return $?
 }
 
 
@@ -712,6 +758,7 @@ run_pacman() {
     if ! ensure_sudo "pacman"; then
         return 1
     fi
+    abort_if_cancelled
 
     CURRENT_UPDATE_STAGE="pacman"
     if ! run_bounded sudo -A pacman --noconfirm -Syu; then
@@ -759,17 +806,18 @@ run_aur() {
     if ! ensure_sudo "aur"; then
         return 1
     fi
+    abort_if_cancelled
 
     local aur_status=0
     case "$helper" in
         yay)
             CURRENT_UPDATE_STAGE="aur"
-            run_bounded "$helper" -Sua --noconfirm
+            run_bounded "$helper" -Sua --noconfirm --sudoflags=-A --sudoloop
             aur_status=$?
             ;;
         paru)
             CURRENT_UPDATE_STAGE="aur"
-            run_bounded "$helper" -Sua --noconfirm
+            run_bounded "$helper" -Sua --noconfirm --sudoflags=-A --sudoloop
             aur_status=$?
             ;;
         pikaur)
@@ -849,6 +897,7 @@ case "$PROVIDER" in
             else
                 emit pacman running "detail=Updating $pac_n_before packages..."
                 if ensure_sudo "pacman"; then
+                    abort_if_cancelled
                     CURRENT_UPDATE_STAGE="pacman"
                     if ! run_bounded sudo -A pacman --noconfirm -Syu; then
                         CURRENT_UPDATE_STAGE=""

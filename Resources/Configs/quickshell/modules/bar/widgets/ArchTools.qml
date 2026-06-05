@@ -1517,18 +1517,30 @@ Item {
             + "while [ ! -f " + logFile + " ] && [ ! -f " + progressFile + " ]; do echo 'Waiting for update output...'; sleep 1; done; "
             + "if [ -f " + logFile + " ]; then tail -n +1 -F " + logFile + "; else tail -n +1 -F " + progressFile + "; fi";
         var safeCmd = monitorCmd.replace(/'/g, "'\\''");
-        var terminalCmd = "(command -v kitty >/dev/null 2>&1 && kitty bash -lc '" + safeCmd + "')"
-            + " || (command -v alacritty >/dev/null 2>&1 && alacritty -e bash -lc '" + safeCmd + "')"
-            + " || (command -v foot >/dev/null 2>&1 && foot -e bash -lc '" + safeCmd + "')"
-            + " || (command -v wezterm >/dev/null 2>&1 && wezterm -e bash -lc '" + safeCmd + "')"
-            + " || (command -v gnome-terminal >/dev/null 2>&1 && gnome-terminal -- bash -lc '" + safeCmd + "')"
-            + " || (command -v xterm >/dev/null 2>&1 && xterm -e bash -lc '" + safeCmd + "')";
-        var floatingExecCmd = "[float; center; size 980 620] sh -lc " + root.shellQuote(terminalCmd);
-        var floatingCmd = "if command -v hyprctl >/dev/null 2>&1 && hyprctl dispatch exec "
-            + root.shellQuote(floatingExecCmd)
-            + "; then :; else " + terminalCmd + "; fi";
+        var terminalTitle = "ArchTools Update Output";
+        var safeTitle = terminalTitle.replace(/'/g, "'\\''");
+        var terminalCmd = "(command -v kitty >/dev/null 2>&1 && kitty --title '" + safeTitle + "' bash -lc '" + safeCmd + "')"
+            + " || (command -v alacritty >/dev/null 2>&1 && alacritty --title '" + safeTitle + "' -e bash -lc '" + safeCmd + "')"
+            + " || (command -v foot >/dev/null 2>&1 && foot --title '" + safeTitle + "' -e bash -lc '" + safeCmd + "')"
+            + " || (command -v wezterm >/dev/null 2>&1 && wezterm start --always-new-process --title '" + safeTitle + "' -- bash -lc '" + safeCmd + "')"
+            + " || (command -v gnome-terminal >/dev/null 2>&1 && gnome-terminal --title='" + safeTitle + "' -- bash -lc '" + safeCmd + "')"
+            + " || (command -v xterm >/dev/null 2>&1 && xterm -T '" + safeTitle + "' -e bash -lc '" + safeCmd + "')";
+        var cacheDir = Quickshell.env("HOME") + "/.cache/quickshell";
+        var launcherPath = cacheDir + "/archtools_update_output_terminal.sh";
+        var launcherScript = "#!/bin/sh\nexec sh -lc " + root.shellQuote(terminalCmd) + "\n";
+        var prepareLauncher = "mkdir -p " + root.shellQuote(cacheDir)
+            + "; printf '%s' " + root.shellQuote(launcherScript)
+            + " > " + root.shellQuote(launcherPath)
+            + "; chmod +x " + root.shellQuote(launcherPath)
+            + "; ";
+        var floatingTarget = "[float; center; size 980 620] " + launcherPath;
+        var launchCmd = prepareLauncher
+            + "if command -v hyprctl >/dev/null 2>&1; then hyprctl dispatch exec "
+            + root.shellQuote(floatingTarget)
+            + " >/dev/null 2>&1 || " + terminalCmd
+            + "; else " + terminalCmd + "; fi";
 
-        root.runDetachedShell(floatingCmd);
+        root.runDetachedShell(launchCmd);
         root.closeArchToolsPanel();
     }
 
