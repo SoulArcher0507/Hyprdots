@@ -38,7 +38,7 @@ start_once({
     "sh -c 'command -v solaar >/dev/null 2>&1 && exec solaar --window=hide' &",
     "sh -c 'sleep 3 && command -v flatpak >/dev/null 2>&1 && exec flatpak run --env=HYPRLAND_INSTANCE_SIGNATURE=\"$HYPRLAND_INSTANCE_SIGNATURE\" com.core447.StreamController -b' &",
     "sh -c 'command -v steam >/dev/null 2>&1 && exec steam --window=hide' &",
-    "sh -c 'command -v easyeffects >/dev/null 2>&1 && exec easyeffects --hide-window' 
+    "sh -c 'command -v easyeffects >/dev/null 2>&1 && exec easyeffects --hide-window' &",
     "sh -c 'command -v localsend >/dev/null 2>&1 && exec localsend --hidden' &",
     "sh -c 'command -v sunshine >/dev/null 2>&1 && exec sunshine' &",
     "sh -c 'sleep 6 && exec ~/.config/hypr/scripts/quickshell/tray/trayctl.sh launch 30 discord' &",

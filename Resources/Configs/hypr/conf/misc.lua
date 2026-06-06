@@ -2,7 +2,7 @@ hl.config({
     misc = {
         disable_hyprland_logo = true,
         disable_splash_rendering = true,
-        initial_workspace_tracking = 1,
+        initial_workspace_tracking = 2,
         animate_mouse_windowdragging = true,
         focus_on_activate = true,
     },
