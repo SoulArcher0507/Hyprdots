@@ -1,13 +1,13 @@
 hl.on("hyprland.start", function()
     local commands = {
         -- Environment for xdg-desktop-portal-hyprland
-        "dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE",
+        "sh -c 'dbus-update-activation-environment --systemd WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE DBUS_SESSION_BUS_ADDRESS && systemctl --user restart flatpak-session-helper.service'",
 
         -- Setup Quickshell
-        "QT_NO_XDG_DESKTOP_PORTAL=1 qs -d &",
-        "QT_NO_XDG_DESKTOP_PORTAL=1 qs -c ~/.config/quickshell/overview -d &",
-        "QT_NO_XDG_DESKTOP_PORTAL=1 qs -c ~/.config/quickshell/launcher -d &",
-        "QT_NO_XDG_DESKTOP_PORTAL=1 qs -c ~/.config/quickshell/gamelauncher -d &",
+        "~/.config/hypr/scripts/quickshell/qs-priority.sh -d &",
+        "~/.config/hypr/scripts/quickshell/qs-priority.sh -c ~/.config/quickshell/overview -d &",
+        "~/.config/hypr/scripts/quickshell/qs-priority.sh -c ~/.config/quickshell/launcher -d &",
+        "~/.config/hypr/scripts/quickshell/qs-priority.sh -c ~/.config/quickshell/gamelauncher -d &",
         "~/.config/hypr/scripts/quickshell/tray/trayctl.sh watch &",
         "python3 ~/.config/hypr/scripts/quickshell/archtools/focus_daemon.py",
         "python3 ~/.config/hypr/scripts/quickshell/archtools/arch-news.py --fetch",
