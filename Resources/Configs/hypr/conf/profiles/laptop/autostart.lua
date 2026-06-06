@@ -11,7 +11,7 @@ hl.on("hyprland.start", function()
         "~/.config/hypr/scripts/quickshell/tray/trayctl.sh watch &",
         "python3 ~/.config/hypr/scripts/quickshell/archtools/focus_daemon.py",
         "python3 ~/.config/hypr/scripts/quickshell/archtools/arch-news.py --fetch",
-        "python3 ~/.config/hypr/scripts/quickshell/archtools/dotfiles-updates.py",
+        "python3 ~/.config/hypr/scripts/quickshell/archtools/updates-daemon.py &",
 
         -- Wallpaper, idle, sunset and clipboard
         "awww-daemon &",
@@ -22,7 +22,7 @@ hl.on("hyprland.start", function()
         -- Auth, wallet and laptop power automation
         "/usr/lib/polkit-kde-authentication-agent-1 &",
         "~/.config/hypr/scripts/start-kwallet.sh",
-        "pgrep -f laptop_charge_boost.sh >/dev/null || bash ~/.config/hypr/scripts/laptop_charge_boost.sh",
+        "bash ~/.config/hypr/scripts/laptop_charge_boost.sh &",
 
         -- AutoRun apps
         "kdeconnect-indicator &",

@@ -12,6 +12,7 @@ LOW_NOTIFY_THRESHOLD="${LAPTOP_CHARGE_BOOST_NOTIFY_LOW_THRESHOLD:-15}"
 CRITICAL_NOTIFY_THRESHOLD="${LAPTOP_CHARGE_BOOST_NOTIFY_CRITICAL_THRESHOLD:-5}"
 CHARGE_BRIGHTNESS="${LAPTOP_CHARGE_BOOST_BRIGHTNESS:-100}"
 TARGET_PROFILE="${LAPTOP_CHARGE_BOOST_PROFILE:-performance}"
+LOW_POWER_PROFILE="${LAPTOP_CHARGE_BOOST_LOW_PROFILE:-power-saver}"
 
 BAT_DIRS=()
 AC_DIRS=()
@@ -131,13 +132,19 @@ restore_power_profile_from() {
     powerprofilesctl set "$previous" >/dev/null 2>&1 || true
 }
 
-set_performance_profile() {
+set_power_profile() {
+    local profile="$1"
+
     command -v powerprofilesctl >/dev/null 2>&1 || return 0
-    powerprofilesctl set "$TARGET_PROFILE" >/dev/null 2>&1 || true
+    powerprofilesctl set "$profile" >/dev/null 2>&1 || true
+}
+
+set_performance_profile() {
+    set_power_profile "$TARGET_PROFILE"
 }
 
 clear_low_battery_state() {
-    rm -f "$STATE_DIR/low_battery.active" "$STATE_DIR/low_battery.brightness"
+    rm -f "$STATE_DIR/low_battery.active" "$STATE_DIR/low_battery.brightness" "$STATE_DIR/low_battery.power_profile"
 }
 
 clear_battery_notification_state() {
@@ -176,14 +183,24 @@ activate_charge_boost() {
     clear_battery_notification_state
 
     if ! charge_active; then
-        if low_battery_active && [[ -s "$STATE_DIR/low_battery.brightness" ]]; then
-            cp "$STATE_DIR/low_battery.brightness" "$STATE_DIR/charge.brightness"
+        if low_battery_active; then
+            if [[ -s "$STATE_DIR/low_battery.brightness" ]]; then
+                cp "$STATE_DIR/low_battery.brightness" "$STATE_DIR/charge.brightness"
+            else
+                save_brightness_to "$STATE_DIR/charge.brightness"
+            fi
+
+            if [[ -s "$STATE_DIR/low_battery.power_profile" ]]; then
+                cp "$STATE_DIR/low_battery.power_profile" "$STATE_DIR/charge.power_profile"
+            else
+                save_power_profile_to "$STATE_DIR/charge.power_profile"
+            fi
             clear_low_battery_state
         else
             save_brightness_to "$STATE_DIR/charge.brightness"
+            save_power_profile_to "$STATE_DIR/charge.power_profile"
         fi
 
-        save_power_profile_to "$STATE_DIR/charge.power_profile"
         date +%s > "$STATE_DIR/charge.active"
 
         set_brightness_percent "$CHARGE_BRIGHTNESS"
@@ -204,9 +221,11 @@ activate_low_battery_mode() {
 
     if ! low_battery_active; then
         save_brightness_to "$STATE_DIR/low_battery.brightness"
+        save_power_profile_to "$STATE_DIR/low_battery.power_profile"
         date +%s > "$STATE_DIR/low_battery.active"
 
         set_brightness_percent "$LOW_BRIGHTNESS"
+        set_power_profile "$LOW_POWER_PROFILE"
     fi
 }
 
@@ -214,6 +233,7 @@ deactivate_low_battery_mode() {
     low_battery_active || return 0
 
     restore_brightness_from "$STATE_DIR/low_battery.brightness"
+    restore_power_profile_from "$STATE_DIR/low_battery.power_profile"
     clear_low_battery_state
 }
 

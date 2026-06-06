@@ -167,6 +167,14 @@ Item {
         loadCacheProc.running = true;
     }
 
+    Io.FileView {
+        id: cacheWatcher
+        path: root.cacheFile
+        watchChanges: true
+        onFileChanged: if (!loadCacheProc.running)
+            loadCacheProc.running = true
+    }
+
     Io.Process {
         id: loadCacheProc
         command: ["bash", "-lc", "cat -- \"$1\" 2>/dev/null || printf '{}\\n'", "archtools-cache-load", root.cacheFile]
@@ -184,14 +192,14 @@ Item {
         id: delayedUpdatesCheckTimer
         interval: 12000
         repeat: false
-        running: true
+        running: false
         onTriggered: root.startUpdatesCheck()
     }
 
     Timer {
         interval: root.updatesRefreshIntervalMs
         repeat: true
-        running: true
+        running: false
         onTriggered: root.startUpdatesCheck()
     }
 
@@ -212,14 +220,14 @@ Item {
         id: delayedDotfilesFetchTimer
         interval: 15000
         repeat: false
-        running: true
+        running: false
         onTriggered: root.startDotfilesFetch()
     }
 
     Timer {
         interval: root.dotfilesRefreshIntervalMs
         repeat: true
-        running: true
+        running: false
         onTriggered: root.startDotfilesFetch()
     }
 

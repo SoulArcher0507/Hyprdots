@@ -18,7 +18,7 @@ start_once({
     "~/.config/hypr/scripts/quickshell/tray/trayctl.sh watch &",
     "python3 ~/.config/hypr/scripts/quickshell/archtools/focus_daemon.py",
     "python3 ~/.config/hypr/scripts/quickshell/archtools/arch-news.py --fetch",
-    "python3 ~/.config/hypr/scripts/quickshell/archtools/dotfiles-updates.py",
+    "python3 ~/.config/hypr/scripts/quickshell/archtools/updates-daemon.py &",
     "~/.config/hypr/scripts/enable-kde-filechooser-runtime.sh 20 &",
 
     -- Load wallpaper
