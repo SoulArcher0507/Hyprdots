@@ -1,4 +1,5 @@
 adwaita-fonts
+android-tools
 archlinux-xdg-menu
 awww
 bash-completion
@@ -79,6 +80,7 @@ qt6-virtualkeyboard
 qt6-wayland
 quickshell
 rsync
+scrcpy
 sddm
 slurp
 speedtest-cli
@@ -97,6 +99,7 @@ ttf-nerd-fonts-symbols-mono
 unrar
 upower
 vivaldi
+zen-browser-bin
 wireplumber
 woff2-font-awesome
 wl-clipboard

@@ -281,7 +281,7 @@ Variants {
                     }
 
                     function compFor(which) {
-                        return which === "battery" ? batteryComp : which === "connection" ? connectionComp : which === "vpn" ? vpnComp : which === "power" ? powerComp : which === "arch" ? archComp : which === "monitor" ? monitorComp : which === "wallpaper" ? wallpaperComp : which === "calendar" ? calendarComp : which === "volume" ? volumeComp : which === "notificationSound" ? notificationSoundComp : null;
+                        return which === "battery" ? batteryComp : which === "connection" ? connectionComp : which === "vpn" ? vpnComp : which === "power" ? powerComp : which === "arch" ? archComp : which === "kdeconnect" ? kdeConnectComp : which === "monitor" ? monitorComp : which === "wallpaper" ? wallpaperComp : which === "calendar" ? calendarComp : which === "volume" ? volumeComp : which === "notificationSound" ? notificationSoundComp : null;
                     }
 
                     Loader {
@@ -540,6 +540,12 @@ Variants {
                             if (activeMon && myMon && activeMon.id === myMon.id)
                                 switcher.toggle("arch");
                         }
+                        function onGlobalToggleKdeConnect() {
+                            var activeMon = Hyprland.focusedMonitor;
+                            var myMon = Hyprland.monitorFor(overlayWindow.screen);
+                            if (activeMon && myMon && activeMon.id === myMon.id)
+                                switcher.toggle("kdeconnect");
+                        }
                         function onGlobalShowArchAuth(passFile) {
                             var activeMon = Hyprland.focusedMonitor;
                             var myMon = Hyprland.monitorFor(overlayWindow.screen);
@@ -629,6 +635,14 @@ Variants {
                     moduleColor: bar.moduleColor
                     moduleBorderColor: bar.moduleBorderColor
                     moduleFontColor: bar.moduleFontColor
+                }
+            }
+
+            Component {
+                id: kdeConnectComp
+                KdeConnectPopup {
+                    anchors.fill: parent
+                    overlaySwitcher: switcher
                 }
             }
 

@@ -18,6 +18,7 @@ QtObject {
     signal globalToggleVolume
     signal globalToggleBattery
     signal globalToggleArch
+    signal globalToggleKdeConnect
     signal globalShowArchAuth(string passFile)
     signal globalApplyHyprdotsUpdates
     signal globalToggleMonitor

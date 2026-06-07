@@ -191,6 +191,13 @@ ShellRoot {
     }
 
     IpcHandler {
+        target: "kdeconnect"
+        function toggle(): void {
+            ThemePkg.Theme.globalToggleKdeConnect();
+        }
+    }
+
+    IpcHandler {
         target: "archtools"
         function hide(): void {
             ThemePkg.Theme.globalCloseShellPopups();

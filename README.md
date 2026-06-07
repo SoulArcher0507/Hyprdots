@@ -38,7 +38,14 @@ cd ~/.config/Hyprdots
 
 You also need to add an openweather api key for the weather widget to work. This can be done via the button in the Arch Tools popup. 
 
+## Phone Screen Control
+
+To control the screen phone you need to activate wireless debug from developer options and run 
+```sh
+adb pair PHONE_IP:PAIRING_PORT
+adb connect PHONE_IP:ADB_PORT
+```
+
 ## Upcoming Features
 - Mouse icon with dynamic colors
 - More battery saving for laptops with tlp
-- Better nvim esthetic

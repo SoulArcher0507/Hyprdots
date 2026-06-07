@@ -60,6 +60,7 @@ cleanup() {
         kill "$SUDO_KEEPALIVE_PID" >/dev/null 2>&1 || true
     fi
     rm -f "/tmp/quickshell_sudo_pass_$$" "/tmp/quickshell_askpass_$$" "/tmp/quickshell_auth_cancel_$$"
+    rm -rf "/tmp/archtools_sudo_path_$$"
     rm -f "$PID_FILE" "$CURRENT_CMD_PID_FILE" "$CURRENT_CMD_PGID_FILE" "$CURRENT_CMD_SID_FILE" "$CURRENT_CMD_ARGS_FILE" "$CANCEL_FILE"
 }
 trap cleanup EXIT
@@ -250,10 +251,10 @@ read_command_output() {
     : > "$tmp"
 
     while IFS= read -r -N 1 char; do
+        printf '%s' "$char" >> "$LOG_FILE"
         separator=""
         if [[ "$char" == $'\r' || "$char" == $'\n' ]]; then
             separator="$char"
-            printf '%s%s' "$record" "$separator" >> "$LOG_FILE"
             if [[ -n "$record" ]]; then
                 record_error_line "$tmp" "$record"
                 progress_from_record "$progress_stage" "$record"
@@ -262,7 +263,7 @@ read_command_output() {
         else
             record+="$char"
             if (( ${#record} >= 4096 )); then
-                printf '%s\n' "$record" >> "$LOG_FILE"
+                printf '\n' >> "$LOG_FILE"
                 record_error_line "$tmp" "$record"
                 progress_from_record "$progress_stage" "$record"
                 record=""
@@ -271,7 +272,7 @@ read_command_output() {
     done < "$fifo"
 
     if [[ -n "$record" ]]; then
-        printf '%s\n' "$record" >> "$LOG_FILE"
+        printf '\n' >> "$LOG_FILE"
         record_error_line "$tmp" "$record"
         progress_from_record "$progress_stage" "$record"
     fi
@@ -600,6 +601,12 @@ start_cancel_watcher() {
                     kill -INT "$parent_pid" >/dev/null 2>&1 || true
                     exit 0
                 else
+                    if has pgrep; then
+                        while IFS= read -r child_pid; do
+                            [[ "$child_pid" =~ ^[0-9]+$ ]] || continue
+                            kill -TERM "$child_pid" >/dev/null 2>&1 || true
+                        done < <(pgrep -P "$parent_pid" 2>/dev/null || true)
+                    fi
                     kill -INT "$parent_pid" >/dev/null 2>&1 || true
                 fi
             fi
@@ -654,11 +661,20 @@ start_sudo_keepalive() {
 }
 
 validate_sudo_with_askpass() {
-    sudo -A -v
+    printf '[auth] Validating sudo credentials...\n' >> "$LOG_FILE"
+    if has timeout; then
+        timeout 90 sudo -A -v 2>> "$LOG_FILE"
+    else
+        sudo -A -v 2>> "$LOG_FILE"
+    fi
     local status=$?
     abort_if_cancelled
     if [[ "$status" -eq 0 ]]; then
+        printf '[auth] Sudo credentials accepted.\n' >> "$LOG_FILE"
         start_sudo_keepalive
+    else
+        printf '[auth] Sudo validation failed with status %s.\n' "$status" >> "$LOG_FILE"
+        emit auth error "detail=Authentication failed"
     fi
     return "$status"
 }
@@ -709,7 +725,7 @@ open_auth_panel
 for _ in $(seq 1 300); do
     if [[ -s "$SUDO_PASS_FILE" ]]; then
         emit_state running "Authentication received, continuing..."
-        cat "$SUDO_PASS_FILE"
+        printf '%s\n' "$(cat "$SUDO_PASS_FILE")"
         rm -f "$SUDO_PASS_FILE" "$SUDO_CANCEL_FILE"
         exit 0
     fi
@@ -728,6 +744,26 @@ EOF
     chmod +x "$SUDO_ASKPASS"
     validate_sudo_with_askpass
     return $?
+}
+
+run_aur_bounded() {
+    local helper="$1"
+    shift
+    local real_sudo wrapper_dir wrapper_path
+
+    real_sudo="$(command -v sudo 2>/dev/null || true)"
+    [[ -n "$real_sudo" ]] || real_sudo="/usr/bin/sudo"
+
+    wrapper_dir="/tmp/archtools_sudo_path_$$"
+    wrapper_path="$wrapper_dir/sudo"
+    mkdir -p "$wrapper_dir"
+    cat > "$wrapper_path" << EOF
+#!/usr/bin/env bash
+exec "$real_sudo" -A "\$@"
+EOF
+    chmod +x "$wrapper_path"
+
+    PATH="$wrapper_dir:$PATH" run_bounded "$helper" "$@"
 }
 
 
@@ -756,6 +792,8 @@ run_pacman() {
     emit pacman running "detail=Updating $n_before packages..."
 
     if ! ensure_sudo "pacman"; then
+        errors+=("pacman: authentication failed")
+        emit pacman error "detail=Authentication failed"
         return 1
     fi
     abort_if_cancelled
@@ -812,17 +850,17 @@ run_aur() {
     case "$helper" in
         yay)
             CURRENT_UPDATE_STAGE="aur"
-            run_bounded "$helper" -Sua --noconfirm --sudoflags=-A --sudoloop
+            run_aur_bounded "$helper" -Sua --noconfirm --sudoflags "-A" --sudoloop
             aur_status=$?
             ;;
         paru)
             CURRENT_UPDATE_STAGE="aur"
-            run_bounded "$helper" -Sua --noconfirm --sudoflags=-A --sudoloop
+            run_aur_bounded "$helper" -Sua --noconfirm --sudoflags "-A" --sudoloop
             aur_status=$?
             ;;
         pikaur)
             CURRENT_UPDATE_STAGE="aur"
-            run_bounded "$helper" -Sua --noconfirm
+            run_aur_bounded "$helper" -Sua --noconfirm
             aur_status=$?
             ;;
     esac
@@ -910,6 +948,9 @@ case "$PROVIDER" in
                         count_pacman=$pac_n_before
                         emit pacman done "count=$pac_n_before" "detail=Updated $pac_n_before packages"
                     fi
+                else
+                    errors+=("pacman: authentication failed")
+                    emit pacman error "detail=Authentication failed"
                 fi
             fi
         fi

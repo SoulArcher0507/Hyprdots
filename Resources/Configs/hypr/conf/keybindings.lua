@@ -43,8 +43,8 @@ bind(mainMod .. " + SHIFT + N", hl.dsp.exec_cmd("qs ipc call network toggle"))
 bind(mainMod .. " + CTRL + N", hl.dsp.exec_cmd("qs ipc call notificationsound toggle"))
 -- @bind Quickshell :: SUPER + SHIFT + V :: hl.dsp.exec_cmd([[qs ipc call volume toggle]]) :: Open Volume Settings
 bind(mainMod .. " + SHIFT + V", hl.dsp.exec_cmd("qs ipc call volume toggle"))
--- @bind Quickshell :: SUPER + SHIFT + K :: hl.dsp.exec_cmd([[qs ipc call keybindings toggle]]) :: Open Keybindings List
-bind(mainMod .. " + SHIFT + K", hl.dsp.exec_cmd("qs ipc call keybindings toggle"))
+-- @bind Quickshell :: SUPER + SHIFT + K :: hl.dsp.exec_cmd([[qs ipc call kdeconnect toggle]]) :: Open KDE Connect
+bind(mainMod .. " + SHIFT + K", hl.dsp.exec_cmd("qs ipc call kdeconnect toggle"))
 
 -- Applications
 -- @bind Applications :: SUPER + RETURN :: hl.dsp.exec_cmd([[kitty]]) :: Open Terminal

@@ -77,6 +77,8 @@ Item {
     readonly property string progressFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_update.jsonl"
     readonly property string updateLogFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_update.log"
     readonly property string updateCancelFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_update.cancel"
+    readonly property string updatePidFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_update.pid"
+    readonly property string updateLockFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_update.lock"
     property int _lastProgressLineCount: 0
     property bool startupRefreshStarted: false
     property real lastCacheSaveMs: 0
@@ -669,7 +671,33 @@ Item {
     }
 
     function progressReadCommand() {
-        return "tail -n 200 " + root.shellQuote(root.progressFile) + " 2>/dev/null || echo ''";
+        var progressFile = root.shellQuote(root.progressFile);
+        var pidFile = root.shellQuote(root.updatePidFile);
+        return "progress_file=" + progressFile + "; "
+            + "pid_file=" + pidFile + "; "
+            + "runner_live=0; "
+            + "if [ -s \"$pid_file\" ]; then "
+            + "pid=$(cat \"$pid_file\" 2>/dev/null || true); "
+            + "if [ -n \"$pid\" ] && kill -0 \"$pid\" 2>/dev/null && ps -p \"$pid\" -o args= 2>/dev/null | grep -F 'update-runner.sh' >/dev/null; then runner_live=1; fi; "
+            + "fi; "
+            + "if [ -f \"$progress_file\" ]; then "
+            + "if [ \"$runner_live\" = 1 ] || tail -n 20 \"$progress_file\" 2>/dev/null | grep -q '\"stage\":\"complete\"'; then tail -n 200 \"$progress_file\" 2>/dev/null; else echo '__archtools_stale_update__'; fi; "
+            + "elif [ \"$runner_live\" = 1 ]; then echo ''; "
+            + "else echo '__archtools_stale_update__'; fi";
+    }
+
+    function clearUpdateRuntimeFiles() {
+        Quickshell.execDetached(["bash", "-lc", "rm -f "
+            + root.shellQuote(root.progressFile) + " "
+            + root.shellQuote(root.updatePidFile) + " "
+            + root.shellQuote(root.updateLockFile) + " "
+            + root.shellQuote(root.updateCancelFile)]);
+    }
+
+    function clearStaleUpdateState() {
+        updateProgressPoller.stop();
+        root.clearUpdateState();
+        root.clearUpdateRuntimeFiles();
     }
 
     function scriptRunCommand(fileName, args) {
@@ -1516,31 +1544,8 @@ Item {
             + "echo; "
             + "while [ ! -f " + logFile + " ] && [ ! -f " + progressFile + " ]; do echo 'Waiting for update output...'; sleep 1; done; "
             + "if [ -f " + logFile + " ]; then tail -n +1 -F " + logFile + "; else tail -n +1 -F " + progressFile + "; fi";
-        var safeCmd = monitorCmd.replace(/'/g, "'\\''");
-        var terminalTitle = "ArchTools Update Output";
-        var safeTitle = terminalTitle.replace(/'/g, "'\\''");
-        var terminalCmd = "(command -v kitty >/dev/null 2>&1 && kitty --title '" + safeTitle + "' bash -lc '" + safeCmd + "')"
-            + " || (command -v alacritty >/dev/null 2>&1 && alacritty --title '" + safeTitle + "' -e bash -lc '" + safeCmd + "')"
-            + " || (command -v foot >/dev/null 2>&1 && foot --title '" + safeTitle + "' -e bash -lc '" + safeCmd + "')"
-            + " || (command -v wezterm >/dev/null 2>&1 && wezterm start --always-new-process --title '" + safeTitle + "' -- bash -lc '" + safeCmd + "')"
-            + " || (command -v gnome-terminal >/dev/null 2>&1 && gnome-terminal --title='" + safeTitle + "' -- bash -lc '" + safeCmd + "')"
-            + " || (command -v xterm >/dev/null 2>&1 && xterm -T '" + safeTitle + "' -e bash -lc '" + safeCmd + "')";
-        var cacheDir = Quickshell.env("HOME") + "/.cache/quickshell";
-        var launcherPath = cacheDir + "/archtools_update_output_terminal.sh";
-        var launcherScript = "#!/bin/sh\nexec sh -lc " + root.shellQuote(terminalCmd) + "\n";
-        var prepareLauncher = "mkdir -p " + root.shellQuote(cacheDir)
-            + "; printf '%s' " + root.shellQuote(launcherScript)
-            + " > " + root.shellQuote(launcherPath)
-            + "; chmod +x " + root.shellQuote(launcherPath)
-            + "; ";
-        var floatingTarget = "[float; center; size 980 620] " + launcherPath;
-        var launchCmd = prepareLauncher
-            + "if command -v hyprctl >/dev/null 2>&1; then hyprctl dispatch exec "
-            + root.shellQuote(floatingTarget)
-            + " >/dev/null 2>&1 || " + terminalCmd
-            + "; else " + terminalCmd + "; fi";
 
-        root.runDetachedShell(launchCmd);
+        Quickshell.execDetached(["kitty", "--title", "ArchTools Update Output", "bash", "-lc", monitorCmd]);
         root.closeArchToolsPanel();
     }
 
@@ -1801,6 +1806,10 @@ Item {
             var raw = (progressPollOut.text || "").trim();
             if (!raw)
                 return;
+            if (raw === "__archtools_stale_update__") {
+                root.clearStaleUpdateState();
+                return;
+            }
             root.updateRestoredFromSwitcher = false;
             var lines = raw.split("\n");
             if (root._lastProgressLineCount > lines.length)
@@ -1854,6 +1863,10 @@ Item {
         }
         onExited: function (exitCode, exitStatus) {
             var raw = (progressInitOut.text || "").trim();
+            if (raw === "__archtools_stale_update__") {
+                root.clearStaleUpdateState();
+                return;
+            }
             if (!raw) {
                 if (root.updateRestoredFromSwitcher || (root.updateRunning && root.updateStage === "complete"))
                     root.clearUpdateState();
@@ -2453,8 +2466,12 @@ Item {
                         spacing: 6
                         anchors.right: parent.right
                         ToolBtn {
-                            icon: "WIP"
-                            tip: "WIP"
+                            icon: "󰄡"
+                            tip: "KDE Connect"
+                            isActive: root.switcher && root.switcher.shownOverlay === "kdeconnect"
+                            onBtnClicked: {
+                                Quickshell.execDetached(["qs", "ipc", "call", "kdeconnect", "toggle"]);
+                            }
                         }
                         ToolBtn {
                             icon: "󰍹"
