@@ -43,8 +43,11 @@ start_once({
     "sh -c 'command -v sunshine >/dev/null 2>&1 && exec sunshine' &",
     "sh -c 'sleep 6 && exec ~/.config/hypr/scripts/quickshell/tray/trayctl.sh launch 30 discord' &",
     "sh -c 'sleep 3 && exec ~/.config/hypr/scripts/soundboard.sh' &",
+    ""
 })
 
 hl.on("hyprland.start", function()
-    hl.exec_cmd("sh -c 'command -v zen-browser >/dev/null 2>&1 && sleep 2 && exec zen-browser' &")
+    hl.timer(function()
+        hl.exec_cmd("zen-browser", { workspace = "2" })
+    end, { timeout = 2000, type = "oneshot" })
 end)

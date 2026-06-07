@@ -831,8 +831,8 @@ Variants {
                         width: mediaContent.implicitWidth + hpad * 2
                         height: 30 * panel.scaleFactor
                         radius: 10 * panel.scaleFactor
-                        color: moduleColor
-                        border.color: moduleBorderColor
+                        color: mediaHover.hovered ? Qt.lighter(moduleColor, 1.15) : moduleColor
+                        border.color: mediaHover.hovered ? moduleFontColor : moduleBorderColor
                         border.width: 1 * panel.scaleFactor
                         anchors.centerIn: parent
 
@@ -872,6 +872,24 @@ Variants {
                             accentColor: moduleFontColor
                         }
 
+                        scale: mediaPanelMouse.pressed ? 0.95 : (mediaHover.hovered ? 1.05 : 1.0)
+                        Behavior on scale {
+                            NumberAnimation {
+                                duration: 400
+                                easing.type: Easing.OutQuart
+                            }
+                        }
+                        Behavior on color {
+                            ColorAnimation {
+                                duration: 200
+                            }
+                        }
+                        Behavior on border.color {
+                            ColorAnimation {
+                                duration: 200
+                            }
+                        }
+
                         Process {
                             id: mediaPoller
                             command: [
@@ -906,10 +924,15 @@ Variants {
                         }
 
                         MouseArea {
+                            id: mediaPanelMouse
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: mediaPanel.toggleMusicPopup()
+                        }
+
+                        HoverHandler {
+                            id: mediaHover
                         }
 
                         Row {

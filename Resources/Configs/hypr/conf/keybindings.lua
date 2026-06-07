@@ -5,6 +5,25 @@ local function bind(keys, dispatcher, flags)
     hl.bind(keys, dispatcher, flags)
 end
 
+local function move_workspace_windows(target_workspace)
+    return function()
+        local workspace = hl.get_active_workspace()
+        if not workspace then
+            return
+        end
+
+        for _, window in ipairs(hl.get_workspace_windows(workspace.id)) do
+            hl.dispatch(hl.dsp.window.move({
+                workspace = target_workspace,
+                follow = false,
+                window = window,
+            }))
+        end
+
+        hl.dispatch(hl.dsp.focus({ workspace = target_workspace }))
+    end
+end
+
 -- Quickshell
 -- @bind Quickshell :: SUPER + CTRL + space :: hl.dsp.exec_cmd([[qs ipc -p ~/.config/quickshell/launcher call launcher toggle]]) :: Open Launcher
 bind(mainMod .. " + CTRL + space", hl.dsp.exec_cmd("qs ipc -p ~/.config/quickshell/launcher call launcher toggle"))
@@ -145,19 +164,19 @@ bind(mainMod .. " + SHIFT + Tab", hl.dsp.focus({ workspace = "m-1" }))
 
 for i = 1, 10 do
     local key = i % 10
-    bind(mainMod .. " + CTRL + " .. key, hl.dsp.exec_cmd("~/.config/hypr/scripts/moveTo.sh " .. i))
+    bind(mainMod .. " + CTRL + " .. key, move_workspace_windows(i))
 end
 
--- @bind Workspaces :: SUPER + CTRL + 1 :: hl.dsp.exec_cmd([[~/.config/hypr/scripts/moveTo.sh 1]]) :: Move All Windows to Workspace 1
--- @bind Workspaces :: SUPER + CTRL + 2 :: hl.dsp.exec_cmd([[~/.config/hypr/scripts/moveTo.sh 2]]) :: Move All Windows to Workspace 2
--- @bind Workspaces :: SUPER + CTRL + 3 :: hl.dsp.exec_cmd([[~/.config/hypr/scripts/moveTo.sh 3]]) :: Move All Windows to Workspace 3
--- @bind Workspaces :: SUPER + CTRL + 4 :: hl.dsp.exec_cmd([[~/.config/hypr/scripts/moveTo.sh 4]]) :: Move All Windows to Workspace 4
--- @bind Workspaces :: SUPER + CTRL + 5 :: hl.dsp.exec_cmd([[~/.config/hypr/scripts/moveTo.sh 5]]) :: Move All Windows to Workspace 5
--- @bind Workspaces :: SUPER + CTRL + 6 :: hl.dsp.exec_cmd([[~/.config/hypr/scripts/moveTo.sh 6]]) :: Move All Windows to Workspace 6
--- @bind Workspaces :: SUPER + CTRL + 7 :: hl.dsp.exec_cmd([[~/.config/hypr/scripts/moveTo.sh 7]]) :: Move All Windows to Workspace 7
--- @bind Workspaces :: SUPER + CTRL + 8 :: hl.dsp.exec_cmd([[~/.config/hypr/scripts/moveTo.sh 8]]) :: Move All Windows to Workspace 8
--- @bind Workspaces :: SUPER + CTRL + 9 :: hl.dsp.exec_cmd([[~/.config/hypr/scripts/moveTo.sh 9]]) :: Move All Windows to Workspace 9
--- @bind Workspaces :: SUPER + CTRL + 0 :: hl.dsp.exec_cmd([[~/.config/hypr/scripts/moveTo.sh 10]]) :: Move All Windows to Workspace 10
+-- @bind Workspaces :: SUPER + CTRL + 1 :: move_workspace_windows(1) :: Move All Windows to Workspace 1
+-- @bind Workspaces :: SUPER + CTRL + 2 :: move_workspace_windows(2) :: Move All Windows to Workspace 2
+-- @bind Workspaces :: SUPER + CTRL + 3 :: move_workspace_windows(3) :: Move All Windows to Workspace 3
+-- @bind Workspaces :: SUPER + CTRL + 4 :: move_workspace_windows(4) :: Move All Windows to Workspace 4
+-- @bind Workspaces :: SUPER + CTRL + 5 :: move_workspace_windows(5) :: Move All Windows to Workspace 5
+-- @bind Workspaces :: SUPER + CTRL + 6 :: move_workspace_windows(6) :: Move All Windows to Workspace 6
+-- @bind Workspaces :: SUPER + CTRL + 7 :: move_workspace_windows(7) :: Move All Windows to Workspace 7
+-- @bind Workspaces :: SUPER + CTRL + 8 :: move_workspace_windows(8) :: Move All Windows to Workspace 8
+-- @bind Workspaces :: SUPER + CTRL + 9 :: move_workspace_windows(9) :: Move All Windows to Workspace 9
+-- @bind Workspaces :: SUPER + CTRL + 0 :: move_workspace_windows(10) :: Move All Windows to Workspace 10
 
 -- Media
 -- @bind Media :: XF86MonBrightnessUp :: hl.dsp.exec_cmd([[bash ~/.config/hypr/scripts/quickshell/brightness/brightness_control.sh inc 10]]) :: Brightness Up

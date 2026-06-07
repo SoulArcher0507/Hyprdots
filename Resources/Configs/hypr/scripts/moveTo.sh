@@ -1,48 +1,30 @@
-#!/bin/bash
-#  __  __                  _
-# |  \/  | _____   _____  | |_ ___
-# | |\/| |/ _ \ \ / / _ \ | __/ _ \
-# | |  | | (_) \ V /  __/ | || (_) |
-# |_|  |_|\___/ \_/ \___|  \__\___/
-#
+#!/usr/bin/env bash
 
-# Function to log messages (useful for debugging)
-#log_message() {
-#    # echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> ~/moveto_log.txt
-#    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
-#}
+set -euo pipefail
 
-# Get the target workspace from the argument
-target_workspace=$1
+target_workspace="${1:-}"
 
-# Check if a target workspace was provided
-if [ -z "$target_workspace" ]; then
-    log_message "Error: No target workspace provided"
-    exit 1
-fi
+case "$target_workspace" in
+    ""|*[!0-9]*)
+        printf 'Usage: %s <workspace-number>\n' "$0" >&2
+        exit 1
+        ;;
+esac
 
-# Get the current active workspace
-current_workspace=$(hyprctl activewindow -j | jq '.workspace.id')
+hyprctl eval "
+local target_workspace = ${target_workspace}
+local workspace = hl.get_active_workspace()
+if not workspace then
+    return
+end
 
-if [ -z "$current_workspace" ]; then
-    log_message "Error: Couldn't determine current workspace"
-    exit 1
-fi
+for _, window in ipairs(hl.get_workspace_windows(workspace.id)) do
+    hl.dispatch(hl.dsp.window.move({
+        workspace = target_workspace,
+        follow = false,
+        window = window,
+    }))
+end
 
-log_message "Moving from workspace $current_workspace to $target_workspace"
-
-# Get all window addresses in the current workspace
-window_addresses=$(hyprctl clients -j | jq -r ".[] | select(.workspace.id == $current_workspace) | .address")
-
-# Move each window to the target workspace
-for address in $window_addresses; do
-    log_message "Moving window $address to workspace $target_workspace"
-    hyprctl dispatch movetoworkspacesilent "$target_workspace,address:$address"
-done
-
-log_message "Finished moving windows"
-
-# Switch to the target workspace
-hyprctl dispatch workspace "$target_workspace"
-
-log_message "Switched to workspace $target_workspace"
+hl.dispatch(hl.dsp.focus({ workspace = target_workspace }))
+"
