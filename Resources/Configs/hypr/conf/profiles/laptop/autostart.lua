@@ -12,6 +12,7 @@ hl.on("hyprland.start", function()
         "python3 ~/.config/hypr/scripts/quickshell/archtools/focus_daemon.py",
         "python3 ~/.config/hypr/scripts/quickshell/archtools/arch-news.py --fetch",
         "python3 ~/.config/hypr/scripts/quickshell/archtools/updates-daemon.py &",
+        "~/.config/hypr/scripts/enable-kde-filechooser-runtime.sh 20 &",
 
         -- Wallpaper, idle, sunset and clipboard
         "awww-daemon &",
