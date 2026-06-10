@@ -43,7 +43,7 @@ start_once({
     "sh -c 'command -v sunshine >/dev/null 2>&1 && exec sunshine' &",
     "sh -c 'sleep 6 && exec ~/.config/hypr/scripts/quickshell/tray/trayctl.sh launch 30 discord' &",
     "sh -c 'sleep 3 && exec ~/.config/hypr/scripts/soundboard.sh' &",
-    ""
+    "sh -c 'command -v feishin >/dev/null 2>&1 && exec feishin' &"
 })
 
 hl.on("hyprland.start", function()

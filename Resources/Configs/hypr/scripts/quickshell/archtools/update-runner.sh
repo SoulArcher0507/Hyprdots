@@ -17,13 +17,11 @@ PROGRESS_MAX_LINES="${ARCHTOOLS_UPDATE_PROGRESS_MAX_LINES:-200}"
 PROGRESS_MAX_BYTES="${ARCHTOOLS_UPDATE_PROGRESS_MAX_BYTES:-65536}"
 AUR_BUILD_JOBS="${ARCHTOOLS_AUR_BUILD_JOBS:-}"
 PACMAN_CANCEL_GRACE_SECONDS="${ARCHTOOLS_PACMAN_CANCEL_GRACE_SECONDS:-45}"
-PROGRESS_HEARTBEAT_SECONDS="${ARCHTOOLS_UPDATE_PROGRESS_HEARTBEAT_SECONDS:-2}"
 
 [[ "$MAX_ERROR_LINES" =~ ^[0-9]+$ ]] && (( MAX_ERROR_LINES > 0 )) || MAX_ERROR_LINES=40
 [[ "$PROGRESS_MAX_LINES" =~ ^[0-9]+$ ]] && (( PROGRESS_MAX_LINES > 0 )) || PROGRESS_MAX_LINES=200
 [[ "$PROGRESS_MAX_BYTES" =~ ^[0-9]+$ ]] && (( PROGRESS_MAX_BYTES > 0 )) || PROGRESS_MAX_BYTES=65536
 [[ "$PACMAN_CANCEL_GRACE_SECONDS" =~ ^[0-9]+$ ]] && (( PACMAN_CANCEL_GRACE_SECONDS > 0 )) || PACMAN_CANCEL_GRACE_SECONDS=45
-[[ "$PROGRESS_HEARTBEAT_SECONDS" =~ ^[0-9]+$ ]] && (( PROGRESS_HEARTBEAT_SECONDS > 0 )) || PROGRESS_HEARTBEAT_SECONDS=2
 
 if [[ -z "$AUR_BUILD_JOBS" ]]; then
     cpu_count="$(nproc 2>/dev/null || echo 1)"
@@ -59,7 +57,7 @@ cleanup() {
     if [[ -n "$SUDO_KEEPALIVE_PID" ]]; then
         kill "$SUDO_KEEPALIVE_PID" >/dev/null 2>&1 || true
     fi
-    rm -f "/tmp/quickshell_sudo_pass_$$" "/tmp/quickshell_askpass_$$" "/tmp/quickshell_auth_cancel_$$"
+    rm -f "/tmp/quickshell_sudo_pass_$$" "/tmp/quickshell_sudo_cache_$$" "/tmp/quickshell_sudo_cache_ok_$$" "/tmp/quickshell_askpass_$$" "/tmp/quickshell_auth_cancel_$$"
     rm -rf "/tmp/archtools_sudo_path_$$"
     rm -f "$PID_FILE" "$CURRENT_CMD_PID_FILE" "$CURRENT_CMD_PGID_FILE" "$CURRENT_CMD_SID_FILE" "$CURRENT_CMD_ARGS_FILE" "$CANCEL_FILE"
 }
@@ -90,6 +88,11 @@ progress_pacman=0
 progress_aur=0
 progress_flatpak=0
 CURRENT_UPDATE_STAGE=""
+PACMAN_TRANSACTION_SECTION=""
+AUR_TRANSACTION_SECTION=""
+AUR_EXPECTED_COUNT=0
+AUR_BUILD_INDEX=0
+declare -A AUR_BUILD_SEEN=()
 
 clamp_percent() {
     local raw="${1:-0}"
@@ -209,16 +212,249 @@ last_percent_in_text() {
     clamp_percent "$pct"
 }
 
-progress_from_record() {
-    local stage="$1" record="$2" pct numerator denominator
-    [[ -n "$stage" ]] || return 0
+weighted_percent() {
+    local base="$1" span="$2" pct="$3" weighted
+    pct="$(clamp_percent "$pct")"
+    weighted=$(( base + (span * pct / 100) ))
+    (( weighted > 99 )) && weighted=99
+    printf '%s' "$weighted"
+}
 
-    if [[ "$stage" != "aur" && "$record" =~ \(([0-9]+)[[:space:]]*/[[:space:]]*([0-9]+)\) ]]; then
+emit_weighted_stage_progress() {
+    local stage="$1" base="$2" span="$3" pct="$4" detail="$5"
+    emit_stage_progress "$stage" "$(weighted_percent "$base" "$span" "$pct")" "$detail"
+}
+
+record_fraction_percent() {
+    local record="$1" mode="${2:-step}" numerator denominator pct completed
+    if [[ "$record" =~ \(([0-9]+)[[:space:]]*/[[:space:]]*([0-9]+)\) ]]; then
         numerator="${BASH_REMATCH[1]}"
         denominator="${BASH_REMATCH[2]}"
-        if [[ "$denominator" =~ ^[0-9]+$ ]] && (( denominator > 0 && numerator <= denominator )); then
-            pct=$(( numerator * 100 / denominator ))
-            emit_stage_progress "$stage" "$pct" "$record"
+        [[ "$denominator" =~ ^[0-9]+$ ]] && (( denominator > 0 )) || return 1
+
+        if [[ "$mode" == "item" ]] && pct="$(last_percent_in_text "$record")"; then
+            completed=$(( numerator > 0 ? numerator - 1 : 0 ))
+            printf '%s' $(( (completed * 100 + pct) / denominator ))
+            return 0
+        fi
+
+        if pct="$(last_percent_in_text "$record")"; then
+            printf '%s' "$pct"
+            return 0
+        fi
+
+        printf '%s' $(( numerator * 100 / denominator ))
+        return 0
+    fi
+    return 1
+}
+
+transaction_section_var() {
+    case "$1" in
+        pacman) printf '%s' "PACMAN_TRANSACTION_SECTION" ;;
+        aur)    printf '%s' "AUR_TRANSACTION_SECTION" ;;
+        *)      return 1 ;;
+    esac
+}
+
+get_transaction_section() {
+    local var
+    var="$(transaction_section_var "$1")" || return 1
+    printf '%s' "${!var}"
+}
+
+set_transaction_section() {
+    local var
+    var="$(transaction_section_var "$1")" || return 1
+    printf -v "$var" '%s' "$2"
+}
+
+progress_from_transaction_record() {
+    local stage="$1" record="$2" profile="$3"
+    local pct section
+    local download_base download_span keys_base keys_span integrity_base integrity_span
+    local load_base load_span conflicts_base conflicts_span disk_base disk_span
+    local pre_base pre_span package_base package_span post_base post_span
+
+    if [[ "$profile" == "aur" ]]; then
+        download_base=58; download_span=4
+        keys_base=62; keys_span=4
+        integrity_base=66; integrity_span=4
+        load_base=70; load_span=2
+        conflicts_base=72; conflicts_span=2
+        disk_base=74; disk_span=2
+        pre_base=76; pre_span=3
+        package_base=79; package_span=11
+        post_base=90; post_span=8
+    else
+        download_base=12; download_span=24
+        keys_base=36; keys_span=4
+        integrity_base=40; integrity_span=8
+        load_base=48; load_span=4
+        conflicts_base=52; conflicts_span=4
+        disk_base=56; disk_span=4
+        pre_base=60; pre_span=4
+        package_base=64; package_span=24
+        post_base=88; post_span=10
+    fi
+
+    case "$record" in
+        *":: Synchronizing package databases"*)
+            set_transaction_section "$stage" "sync"
+            emit_stage_progress "$stage" 2 "$record"
+            return 0
+            ;;
+        *":: Starting full system upgrade"*)
+            set_transaction_section "$stage" "prepare"
+            emit_stage_progress "$stage" 8 "$record"
+            return 0
+            ;;
+        *":: Retrieving packages"*|*"loading packages..."*)
+            set_transaction_section "$stage" "download"
+            emit_stage_progress "$stage" "$download_base" "$record"
+            return 0
+            ;;
+        *"resolving dependencies..."*|*"looking for conflicting packages..."*)
+            set_transaction_section "$stage" "prepare"
+            emit_stage_progress "$stage" "$(( download_base > 4 ? download_base - 2 : 4 ))" "$record"
+            return 0
+            ;;
+        *":: Running pre-transaction hooks"*)
+            set_transaction_section "$stage" "pre_hooks"
+            emit_stage_progress "$stage" "$pre_base" "$record"
+            return 0
+            ;;
+        *":: Processing package changes"*)
+            set_transaction_section "$stage" "package_changes"
+            emit_stage_progress "$stage" "$package_base" "$record"
+            return 0
+            ;;
+        *":: Running post-transaction hooks"*)
+            set_transaction_section "$stage" "post_hooks"
+            emit_stage_progress "$stage" "$post_base" "$record"
+            return 0
+            ;;
+    esac
+
+    section="$(get_transaction_section "$stage" 2>/dev/null || true)"
+
+    if [[ "$section" == "sync" && "$record" =~ [KMGT]iB && "$record" == *"%"* ]]; then
+        pct="$(last_percent_in_text "$record")" || return 1
+        emit_weighted_stage_progress "$stage" 2 6 "$pct" "$record"
+        return 0
+    fi
+
+    if [[ "$record" == *"checking keys in keyring"* ]]; then
+        pct="$(record_fraction_percent "$record")" || return 1
+        emit_weighted_stage_progress "$stage" "$keys_base" "$keys_span" "$pct" "$record"
+        return 0
+    fi
+    if [[ "$record" == *"checking package integrity"* ]]; then
+        pct="$(record_fraction_percent "$record")" || return 1
+        emit_weighted_stage_progress "$stage" "$integrity_base" "$integrity_span" "$pct" "$record"
+        return 0
+    fi
+    if [[ "$record" == *"loading package files"* ]]; then
+        pct="$(record_fraction_percent "$record")" || return 1
+        emit_weighted_stage_progress "$stage" "$load_base" "$load_span" "$pct" "$record"
+        return 0
+    fi
+    if [[ "$record" == *"checking for file conflicts"* ]]; then
+        pct="$(record_fraction_percent "$record")" || return 1
+        emit_weighted_stage_progress "$stage" "$conflicts_base" "$conflicts_span" "$pct" "$record"
+        return 0
+    fi
+    if [[ "$record" == *"checking available disk space"* ]]; then
+        pct="$(record_fraction_percent "$record")" || return 1
+        emit_weighted_stage_progress "$stage" "$disk_base" "$disk_span" "$pct" "$record"
+        return 0
+    fi
+    if [[ "$record" =~ [[:space:]](installing|upgrading|downgrading|reinstalling|removing)[[:space:]] ]]; then
+        pct="$(record_fraction_percent "$record" "item")" || return 1
+        emit_weighted_stage_progress "$stage" "$package_base" "$package_span" "$pct" "$record"
+        return 0
+    fi
+    if [[ "$section" == "pre_hooks" ]]; then
+        pct="$(record_fraction_percent "$record")" || return 1
+        emit_weighted_stage_progress "$stage" "$pre_base" "$pre_span" "$pct" "$record"
+        return 0
+    fi
+    if [[ "$section" == "post_hooks" ]]; then
+        pct="$(record_fraction_percent "$record")" || return 1
+        emit_weighted_stage_progress "$stage" "$post_base" "$post_span" "$pct" "$record"
+        return 0
+    fi
+    if [[ "$section" == "download" ]] && pct="$(record_fraction_percent "$record")"; then
+        emit_weighted_stage_progress "$stage" "$download_base" "$download_span" "$pct" "$record"
+        return 0
+    fi
+    if [[ "$section" == "download" && "$record" =~ [KMGT]iB && "$record" == *"%"* ]]; then
+        pct="$(last_percent_in_text "$record")" || return 1
+        emit_weighted_stage_progress "$stage" "$download_base" "$download_span" "$pct" "$record"
+        return 0
+    fi
+
+    return 1
+}
+
+aur_build_subprogress() {
+    local record="$1"
+    case "$record" in
+        *"Making package:"*)                  printf '2' ;;
+        *"Checking runtime dependencies"*)    printf '8' ;;
+        *"Checking buildtime dependencies"*)  printf '12' ;;
+        *"Retrieving sources"*)               printf '18' ;;
+        *"Validating source files"*)          printf '24' ;;
+        *"Extracting sources"*)               printf '30' ;;
+        *"Starting build"*)                   printf '42' ;;
+        *"Entering fakeroot environment"*)    printf '56' ;;
+        *"Starting package()"*)               printf '64' ;;
+        *"Tidying install"*)                  printf '72' ;;
+        *"Creating package"*)                 printf '86' ;;
+        *"Finished making:"*)                 printf '100' ;;
+        *)                                    return 1 ;;
+    esac
+}
+
+progress_from_aur_build_record() {
+    local record="$1" pkg="" subpct expected current_index completed_units pct
+
+    if [[ "$record" =~ Making[[:space:]]+package:[[:space:]]+([^[:space:]]+) ]]; then
+        pkg="${BASH_REMATCH[1]}"
+        pkg="${pkg//[^A-Za-z0-9@._+-]/}"
+        if [[ -n "$pkg" && -z "${AUR_BUILD_SEEN[$pkg]+x}" ]]; then
+            AUR_BUILD_SEEN[$pkg]=1
+            AUR_BUILD_INDEX=$(( AUR_BUILD_INDEX + 1 ))
+        fi
+    fi
+
+    subpct="$(aur_build_subprogress "$record")" || return 1
+
+    expected="$AUR_EXPECTED_COUNT"
+    [[ "$expected" =~ ^[0-9]+$ ]] && (( expected > 0 )) || expected=1
+    current_index="$AUR_BUILD_INDEX"
+    [[ "$current_index" =~ ^[0-9]+$ ]] && (( current_index > 0 )) || current_index=1
+    (( current_index > expected )) && current_index="$expected"
+
+    completed_units=$(( (current_index - 1) * 100 + subpct ))
+    pct=$(( completed_units / expected ))
+    emit_weighted_stage_progress "aur" 6 52 "$pct" "$record"
+    return 0
+}
+
+progress_from_record() {
+    local stage="$1" record="$2" pct
+    [[ -n "$stage" ]] || return 0
+
+    if [[ "$stage" == "pacman" ]]; then
+        if progress_from_transaction_record "pacman" "$record" "pacman"; then
+            return 0
+        fi
+    elif [[ "$stage" == "aur" ]]; then
+        if progress_from_aur_build_record "$record"; then
+            return 0
+        fi
+        if progress_from_transaction_record "aur" "$record" "aur"; then
             return 0
         fi
     fi
@@ -278,23 +514,6 @@ read_command_output() {
     fi
 }
 
-progress_heartbeat() {
-    local cmd_pid="$1" stage="$2" floor="${3:-8}" cap="${4:-92}"
-    local start now elapsed estimate detail
-    [[ -n "$stage" ]] || return 0
-    start="$(date +%s)"
-    while kill -0 "$cmd_pid" >/dev/null 2>&1; do
-        sleep "$PROGRESS_HEARTBEAT_SECONDS"
-        kill -0 "$cmd_pid" >/dev/null 2>&1 || break
-        now="$(date +%s)"
-        elapsed=$(( now - start ))
-        estimate=$(( floor + (elapsed * (cap - floor) / 120) ))
-        (( estimate > cap )) && estimate="$cap"
-        detail="Updating $stage..."
-        emit_stage_progress "$stage" "$estimate" "$detail"
-    done
-}
-
 quoted_command() {
     local quoted=""
     printf -v quoted '%q ' "$@"
@@ -306,7 +525,6 @@ run_bounded() {
     local fifo="/tmp/archtools_update_fifo_$$"
     local cmd_pid=""
     local reader_pid=""
-    local heartbeat_pid=""
     local cmd_status=0
     rm -f "$tmp"
     rm -f "$fifo"
@@ -341,15 +559,8 @@ run_bounded() {
     ps -o pgid= -p "$cmd_pid" 2>/dev/null | tr -d '[:space:]' > "$CURRENT_CMD_PGID_FILE" || true
     ps -o sid= -p "$cmd_pid" 2>/dev/null | tr -d '[:space:]' > "$CURRENT_CMD_SID_FILE" || true
 
-    progress_heartbeat "$cmd_pid" "$CURRENT_UPDATE_STAGE" &
-    heartbeat_pid=$!
-
     wait "$cmd_pid"
     cmd_status=$?
-    if [[ -n "$heartbeat_pid" ]]; then
-        kill "$heartbeat_pid" >/dev/null 2>&1 || true
-        wait "$heartbeat_pid" 2>/dev/null || true
-    fi
     wait "$reader_pid" 2>/dev/null || true
     rm -f "$fifo" "$CURRENT_CMD_PID_FILE" "$CURRENT_CMD_PGID_FILE" "$CURRENT_CMD_SID_FILE" "$CURRENT_CMD_ARGS_FILE"
 
@@ -671,8 +882,13 @@ validate_sudo_with_askpass() {
     abort_if_cancelled
     if [[ "$status" -eq 0 ]]; then
         printf '[auth] Sudo credentials accepted.\n' >> "$LOG_FILE"
+        if [[ -n "${SUDO_CACHE_FILE:-}" && -s "$SUDO_CACHE_FILE" && -n "${SUDO_CACHE_OK_FILE:-}" ]]; then
+            : > "$SUDO_CACHE_OK_FILE"
+            chmod 600 "$SUDO_CACHE_OK_FILE" 2>/dev/null || true
+        fi
         start_sudo_keepalive
     else
+        rm -f "${SUDO_CACHE_FILE:-}" "${SUDO_CACHE_OK_FILE:-}"
         printf '[auth] Sudo validation failed with status %s.\n' "$status" >> "$LOG_FILE"
         emit auth error "detail=Authentication failed"
     fi
@@ -691,6 +907,8 @@ ensure_sudo() {
     fi
 
     export SUDO_PASS_FILE="/tmp/quickshell_sudo_pass_$$"
+    export SUDO_CACHE_FILE="/tmp/quickshell_sudo_cache_$$"
+    export SUDO_CACHE_OK_FILE="/tmp/quickshell_sudo_cache_ok_$$"
     export SUDO_CANCEL_FILE="/tmp/quickshell_auth_cancel_$$"
     export SUDO_ASKPASS="/tmp/quickshell_askpass_$$"
     export CANCEL_FILE
@@ -704,6 +922,12 @@ emit_state() {
 }
 
 emit_state waiting_auth "Waiting for sudo authentication"
+
+if [[ -f "$SUDO_CACHE_OK_FILE" && -s "$SUDO_CACHE_FILE" ]]; then
+    emit_state running "Using cached sudo authentication"
+    printf '%s\n' "$(cat "$SUDO_CACHE_FILE")"
+    exit 0
+fi
 
 rm -f "$SUDO_PASS_FILE" "$SUDO_CANCEL_FILE"
 touch "$SUDO_PASS_FILE"
@@ -725,6 +949,9 @@ open_auth_panel
 for _ in $(seq 1 300); do
     if [[ -s "$SUDO_PASS_FILE" ]]; then
         emit_state running "Authentication received, continuing..."
+        umask 077
+        cp "$SUDO_PASS_FILE" "$SUDO_CACHE_FILE" 2>/dev/null || true
+        chmod 600 "$SUDO_CACHE_FILE" 2>/dev/null || true
         printf '%s\n' "$(cat "$SUDO_PASS_FILE")"
         rm -f "$SUDO_PASS_FILE" "$SUDO_CANCEL_FILE"
         exit 0
@@ -799,6 +1026,7 @@ run_pacman() {
     abort_if_cancelled
 
     CURRENT_UPDATE_STAGE="pacman"
+    PACMAN_TRANSACTION_SECTION=""
     if ! run_bounded sudo -A pacman --noconfirm -Syu; then
         CURRENT_UPDATE_STAGE=""
         err_output="$(truncate_err "$RUN_BOUNDED_OUTPUT")"
@@ -840,6 +1068,10 @@ run_aur() {
     fi
 
     emit aur running "detail=Updating $n_before AUR packages..."
+    AUR_EXPECTED_COUNT="$n_before"
+    AUR_BUILD_INDEX=0
+    AUR_BUILD_SEEN=()
+    AUR_TRANSACTION_SECTION=""
 
     if ! ensure_sudo "aur"; then
         return 1
@@ -919,41 +1151,7 @@ case "$PROVIDER" in
         run_flatpak || true
         ;;
     pacman)
-        if ! has pacman; then
-            emit pacman error "detail=pacman not found"
-            errors+=("pacman not found")
-        else
-            emit pacman starting "detail=Checking pacman updates..."
-            if has checkupdates; then
-                pac_before="$(checkupdates 2>/dev/null || true)"
-            else
-                pac_before="$(pacman -Qu --quiet 2>/dev/null || true)"
-            fi
-            pac_n_before=$(echo "$pac_before" | grep -c . 2>/dev/null || echo 0)
-            if [[ -z "$pac_before" ]]; then
-                emit pacman done "count=0" "detail=No pacman updates available"
-            else
-                emit pacman running "detail=Updating $pac_n_before packages..."
-                if ensure_sudo "pacman"; then
-                    abort_if_cancelled
-                    CURRENT_UPDATE_STAGE="pacman"
-                    if ! run_bounded sudo -A pacman --noconfirm -Syu; then
-                        CURRENT_UPDATE_STAGE=""
-                        pac_err_output="$(truncate_err "$RUN_BOUNDED_OUTPUT")"
-                        errors+=("pacman: $pac_err_output")
-                        emit pacman error "detail=$pac_err_output"
-                    fi
-                    CURRENT_UPDATE_STAGE=""
-                    if [[ ${#errors[@]} -eq 0 ]]; then
-                        count_pacman=$pac_n_before
-                        emit pacman done "count=$pac_n_before" "detail=Updated $pac_n_before packages"
-                    fi
-                else
-                    errors+=("pacman: authentication failed")
-                    emit pacman error "detail=Authentication failed"
-                fi
-            fi
-        fi
+        run_pacman || true
         ;;
     aur)
         run_aur || true

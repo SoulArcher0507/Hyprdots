@@ -201,7 +201,7 @@ Item {
         } else if (targetId > maxWorkspaceId) {
             targetId = minWorkspaceId;
         }
-        Hyprland.dispatch(`workspace ${targetId}`);
+        root.dispatchWorkspace(targetId);
     }
 
     function isSpecialWorkspace(windowData) {
@@ -250,6 +250,44 @@ Item {
         if (trimmed.startsWith("/"))
             return `file://${trimmed}`;
         return trimmed;
+    }
+
+    function luaQuote(value) {
+        return `"${String(value).replace(/\\/g, "\\\\").replace(/"/g, "\\\"")}"`;
+    }
+
+    function luaValue(value) {
+        return Number.isFinite(value) ? String(value) : luaQuote(value);
+    }
+
+    function dispatchLua(code) {
+        Quickshell.execDetached(["hyprctl", "dispatch", code]);
+    }
+
+    function dispatchWorkspace(workspaceId) {
+        dispatchLua(`hl.dsp.focus({ workspace = ${luaValue(workspaceId)} })`);
+    }
+
+    function dispatchToggleSpecialWorkspace(name) {
+        dispatchLua(`hl.dsp.workspace.toggle_special({ workspace = ${luaQuote(name)} })`);
+    }
+
+    function dispatchMoveWindowToWorkspace(address, workspace) {
+        if (!address)
+            return;
+        dispatchLua(`hl.dsp.window.move({ workspace = ${luaValue(workspace)}, follow = false, window = hl.get_window(${luaQuote(`address:${address}`)}) })`);
+    }
+
+    function dispatchFocusWindow(address) {
+        if (!address)
+            return;
+        dispatchLua(`hl.dsp.focus({ window = hl.get_window(${luaQuote(`address:${address}`)}) })`);
+    }
+
+    function dispatchCloseWindow(address) {
+        if (!address)
+            return;
+        dispatchLua(`hl.dsp.window.close({ window = hl.get_window(${luaQuote(`address:${address}`)}) })`);
     }
 
     function workspaceHasWindows(workspaceId) {
@@ -325,6 +363,36 @@ Item {
         }
 
         return false;
+    }
+
+    function workspaceAtItemHotSpot(item) {
+        if (!item || !workspaceColumnLayout)
+            return -1;
+
+        const point = item.mapToItem(workspaceColumnLayout, item.Drag.hotSpot.x, item.Drag.hotSpot.y);
+        const rowItem = workspaceColumnLayout.childAt(point.x, point.y);
+        if (!rowItem || !rowItem.visible)
+            return -1;
+
+        const workspaceItem = rowItem.childAt(point.x - rowItem.x, point.y - rowItem.y);
+        const workspaceValue = workspaceItem?.workspaceValue;
+        return Number.isFinite(workspaceValue) ? workspaceValue : -1;
+    }
+
+    function specialWorkspaceAtItemHotSpot(item) {
+        if (!item || !root.showSpecialWorkspaces || !specialWorkspaceGrid)
+            return "";
+
+        const point = item.mapToItem(specialWorkspaceGrid, item.Drag.hotSpot.x, item.Drag.hotSpot.y);
+        const tile = specialWorkspaceGrid.childAt(point.x, point.y);
+        if (!tile)
+            return "";
+
+        if (tile === createSpecialWorkspaceTile)
+            return root.createSpecialWorkspaceTarget;
+
+        const specialName = `${tile?.specialName ?? ""}`;
+        return specialName.length > 0 ? specialName : "";
     }
 
     property var rowsWithContent: {
@@ -589,7 +657,7 @@ Item {
                                 onClicked: {
                                     if (root.draggingTargetWorkspace === -1) {
                                         GlobalStates.overviewOpen = false
-                                        Hyprland.dispatch(`workspace ${workspaceValue}`)
+                                        root.dispatchWorkspace(workspaceValue)
                                     }
                                 }
                             }
@@ -725,7 +793,7 @@ Item {
                                     onClicked: {
                                         if (root.draggingTargetWorkspace === -1 && !root.draggingTargetSpecialWorkspace) {
                                             GlobalStates.overviewOpen = false;
-                                            Hyprland.dispatch(`togglespecialworkspace ${specialWorkspaceTile.specialName}`);
+                                            root.dispatchToggleSpecialWorkspace(specialWorkspaceTile.specialName);
                                         }
                                     }
                                 }
@@ -796,9 +864,9 @@ Item {
                                             z: root.specialWindowZ(windowData)
 
                                             function moveToDragLayer() {
-                                                const mapped = specialWindow.mapToItem(specialWindowDragLayer, 0, 0);
+                                                const mapped = specialWindow.mapToItem(windowDragLayer, 0, 0);
                                                 specialWindow.suspendPositionAnimation = true;
-                                                specialWindow.parent = specialWindowDragLayer;
+                                                specialWindow.parent = windowDragLayer;
                                                 specialWindow.x = mapped.x;
                                                 specialWindow.y = mapped.y;
                                                 specialWindow.z = root.windowDraggingZ + 1;
@@ -832,8 +900,10 @@ Item {
                                                     specialWindow.Drag.active = true
                                                 }
                                                 onReleased: {
-                                                    const targetWorkspace = root.draggingTargetWorkspace
-                                                    const targetSpecialWorkspace = root.draggingTargetSpecialWorkspace
+                                                    const fallbackWorkspace = root.workspaceAtItemHotSpot(specialWindow)
+                                                    const fallbackSpecialWorkspace = root.specialWorkspaceAtItemHotSpot(specialWindow)
+                                                    const targetWorkspace = root.draggingTargetWorkspace !== -1 ? root.draggingTargetWorkspace : fallbackWorkspace
+                                                    const targetSpecialWorkspace = root.draggingTargetSpecialWorkspace || fallbackSpecialWorkspace
                                                     specialWindow.pressed = false
                                                     specialWindow.Drag.active = false
                                                     specialWindow.dragInProgress = false
@@ -842,19 +912,19 @@ Item {
                                                     root.draggingTargetSpecialWorkspace = ""
                                                     if (targetSpecialWorkspace === root.createSpecialWorkspaceTarget) {
                                                         const createdName = root.nextSpecialWorkspaceName()
-                                                        Hyprland.dispatch(`movetoworkspacesilent special:${createdName}, address:${specialWindow.windowData?.address}`)
+                                                        root.dispatchMoveWindowToWorkspace(specialWindow.windowData?.address, `special:${createdName}`)
                                                         specialWindow.returnToHomeParent()
                                                         specialWindow.x = specialWindow.initX
                                                         specialWindow.y = specialWindow.initY
                                                     }
                                                     else if (targetSpecialWorkspace && targetSpecialWorkspace !== specialWorkspaceTile.specialName) {
-                                                        Hyprland.dispatch(`movetoworkspacesilent special:${targetSpecialWorkspace}, address:${specialWindow.windowData?.address}`)
+                                                        root.dispatchMoveWindowToWorkspace(specialWindow.windowData?.address, `special:${targetSpecialWorkspace}`)
                                                         specialWindow.returnToHomeParent()
                                                         specialWindow.x = specialWindow.initX
                                                         specialWindow.y = specialWindow.initY
                                                     }
                                                     else if (targetWorkspace !== -1) {
-                                                        Hyprland.dispatch(`movetoworkspacesilent ${targetWorkspace}, address:${specialWindow.windowData?.address}`)
+                                                        root.dispatchMoveWindowToWorkspace(specialWindow.windowData?.address, targetWorkspace)
                                                         specialWindow.returnToHomeParent()
                                                         specialWindow.x = specialWindow.initX
                                                         specialWindow.y = specialWindow.initY
@@ -870,10 +940,10 @@ Item {
                                                         return;
                                                     if (event.button === Qt.LeftButton) {
                                                         GlobalStates.overviewOpen = false;
-                                                        Hyprland.dispatch(`focuswindow address:${windowData.address}`);
+                                                        root.dispatchFocusWindow(windowData.address);
                                                         event.accepted = true;
                                                     } else if (event.button === Qt.MiddleButton) {
-                                                        Hyprland.dispatch(`closewindow address:${windowData.address}`);
+                                                        root.dispatchCloseWindow(windowData.address);
                                                         event.accepted = true;
                                                     }
                                                 }
@@ -891,6 +961,7 @@ Item {
                         }
                         Rectangle {
                             id: createSpecialWorkspaceTile
+                            property string specialName: root.createSpecialWorkspaceTarget
                             property bool showWallpaper: root.hasSpecialEmptyWorkspaceWallpaper
                             implicitWidth: root.specialWorkspaceTileWidth
                             implicitHeight: root.specialWorkspaceTileHeight
@@ -959,7 +1030,7 @@ Item {
                                 onClicked: {
                                     const createdName = root.nextSpecialWorkspaceName();
                                     GlobalStates.overviewOpen = false;
-                                    Hyprland.dispatch(`togglespecialworkspace ${createdName}`);
+                                    root.dispatchToggleSpecialWorkspace(createdName);
                                 }
                             }
 
@@ -1066,6 +1137,28 @@ Item {
                     z: atInitPosition ? (root.windowZ + index) : root.windowDraggingZ
                     Drag.hotSpot.x: targetWindowWidth / 2
                     Drag.hotSpot.y: targetWindowHeight / 2
+                    property Item homeParent: windowSpace
+                    property bool dragMoved: false
+                    property real pressWindowX: 0
+                    property real pressWindowY: 0
+
+                    function moveToDragLayer() {
+                        const mapped = window.mapToItem(windowDragLayer, 0, 0);
+                        window.suspendPositionAnimation = true;
+                        window.parent = windowDragLayer;
+                        window.x = mapped.x;
+                        window.y = mapped.y;
+                        window.dragInProgress = true;
+                        Qt.callLater(() => window.suspendPositionAnimation = false);
+                    }
+
+                    function returnToHomeParent() {
+                        window.suspendPositionAnimation = true;
+                        window.parent = homeParent;
+                        window.dragInProgress = false;
+                        Qt.callLater(() => window.suspendPositionAnimation = false);
+                    }
+
                     MouseArea {
                         id: dragArea
                         anchors.fill: parent
@@ -1076,16 +1169,29 @@ Item {
                         drag.target: parent
                         onPressed: (mouse) => {
                             root.draggingFromWorkspace = windowData?.workspace.id
+                            root.draggingTargetWorkspace = -1
                             root.draggingTargetSpecialWorkspace = ""
+                            window.dragMoved = false
+                            window.pressWindowX = window.x
+                            window.pressWindowY = window.y
                             window.pressed = true
-                            window.Drag.active = true
                             window.Drag.source = window
                             window.Drag.hotSpot.x = mouse.x
                             window.Drag.hotSpot.y = mouse.y
+                            window.moveToDragLayer()
+                            window.Drag.active = true
+                        }
+                        onPositionChanged: {
+                            if (!window.pressed)
+                                return;
+                            if (Math.abs(window.x - window.pressWindowX) > 4 || Math.abs(window.y - window.pressWindowY) > 4)
+                                window.dragMoved = true;
                         }
                         onReleased: {
-                            const targetWorkspace = root.draggingTargetWorkspace
-                            const targetSpecialWorkspace = root.draggingTargetSpecialWorkspace
+                            const fallbackWorkspace = root.workspaceAtItemHotSpot(window)
+                            const fallbackSpecialWorkspace = root.specialWorkspaceAtItemHotSpot(window)
+                            const targetWorkspace = root.draggingTargetWorkspace !== -1 ? root.draggingTargetWorkspace : fallbackWorkspace
+                            const targetSpecialWorkspace = root.draggingTargetSpecialWorkspace || fallbackSpecialWorkspace
                             window.pressed = false
                             window.Drag.active = false
                             root.draggingFromWorkspace = -1
@@ -1093,31 +1199,39 @@ Item {
                             root.draggingTargetSpecialWorkspace = ""
                             if (targetSpecialWorkspace === root.createSpecialWorkspaceTarget) {
                                 const createdName = root.nextSpecialWorkspaceName()
-                                Hyprland.dispatch(`movetoworkspacesilent special:${createdName}, address:${window.windowData?.address}`)
+                                root.dispatchMoveWindowToWorkspace(window.windowData?.address, `special:${createdName}`)
+                                window.returnToHomeParent()
                                 updateWindowPosition.restart()
                             }
                             else if (targetSpecialWorkspace && targetSpecialWorkspace !== root.specialWorkspaceName(windowData)) {
-                                Hyprland.dispatch(`movetoworkspacesilent special:${targetSpecialWorkspace}, address:${window.windowData?.address}`)
+                                root.dispatchMoveWindowToWorkspace(window.windowData?.address, `special:${targetSpecialWorkspace}`)
+                                window.returnToHomeParent()
                                 updateWindowPosition.restart()
                             }
                             else if (targetWorkspace !== -1 && targetWorkspace !== windowData?.workspace.id) {
-                                Hyprland.dispatch(`movetoworkspacesilent ${targetWorkspace}, address:${window.windowData?.address}`)
+                                root.dispatchMoveWindowToWorkspace(window.windowData?.address, targetWorkspace)
+                                window.returnToHomeParent()
                                 updateWindowPosition.restart()
                             }
                             else {
+                                window.returnToHomeParent()
                                 window.x = window.initX
                                 window.y = window.initY
                             }
                         }
                         onClicked: (event) => {
                             if (!windowData) return;
+                            if (window.dragMoved) {
+                                event.accepted = true;
+                                return;
+                            }
 
                             if (event.button === Qt.LeftButton) {
                                 GlobalStates.overviewOpen = false
-                                Hyprland.dispatch(`focuswindow address:${windowData.address}`)
+                                root.dispatchFocusWindow(windowData.address)
                                 event.accepted = true
                             } else if (event.button === Qt.MiddleButton) {
-                                Hyprland.dispatch(`closewindow address:${windowData.address}`)
+                                root.dispatchCloseWindow(windowData.address)
                                 event.accepted = true
                             }
                         }
@@ -1154,7 +1268,7 @@ Item {
         }
 
         Item {
-            id: specialWindowDragLayer
+            id: windowDragLayer
             anchors.fill: parent
             z: root.windowDraggingZ + 1
         }

@@ -12,6 +12,7 @@ hl.window_rule({ match = { title = "Typst Preview — Mozilla Firefox" }, opacit
 hl.window_rule({ match = { title = "^(Picture-in-Picture)$" }, float = true })
 hl.window_rule({ match = { title = "^(Picture-in-Picture)$" }, pin = true })
 hl.window_rule({ match = { title = "^(Picture-in-Picture)$" }, move = "69.5% 4%" })
+hl.window_rule({ match = { title = "^(Picture-in-Picture)$" }, opacity = "1.2" })
 
 -- idleinhibit
 hl.window_rule({ match = { class = ".*" }, idle_inhibit = "fullscreen" })

@@ -13,10 +13,17 @@ resolve_icon() {
         return
     fi
 
+    local icon_names=("$icon")
+    case "$icon" in
+        *.svg|*.png|*.xpm) ;;
+        *) icon_names+=("$icon.svg" "$icon.png" "$icon.xpm") ;;
+    esac
+
     local dirs=()
     if [[ "$icon" == steam_icon_* ]]; then
         dirs+=(
             "$HOME/.local/share/icons/hicolor/scalable/apps"
+            "$HOME/.local/share/icons/hicolor/512x512/apps"
             "$HOME/.local/share/icons/hicolor/256x256/apps"
             "$HOME/.local/share/icons/hicolor/128x128/apps"
             "$HOME/.local/share/icons/hicolor/64x64/apps"
@@ -39,6 +46,7 @@ resolve_icon() {
         "/usr/share/icons/kora/apps/scalable"
         "/usr/share/icons/kora-pgrey/apps/scalable"
         "/usr/share/icons/hicolor/scalable/apps"
+        "/usr/share/icons/hicolor/512x512/apps"
         "/usr/share/icons/hicolor/256x256/apps"
         "/usr/share/icons/hicolor/128x128/apps"
         "/usr/share/icons/hicolor/64x64/apps"
@@ -48,6 +56,7 @@ resolve_icon() {
         "/usr/share/icons/hicolor/22x22/apps"
         "/usr/share/icons/hicolor/16x16/apps"
         "/var/lib/flatpak/exports/share/icons/hicolor/scalable/apps"
+        "/var/lib/flatpak/exports/share/icons/hicolor/512x512/apps"
         "/var/lib/flatpak/exports/share/icons/hicolor/256x256/apps"
         "/var/lib/flatpak/exports/share/icons/hicolor/128x128/apps"
         "/var/lib/flatpak/exports/share/icons/hicolor/64x64/apps"
@@ -56,7 +65,18 @@ resolve_icon() {
         "/var/lib/flatpak/exports/share/icons/hicolor/24x24/apps"
         "/var/lib/flatpak/exports/share/icons/hicolor/22x22/apps"
         "/var/lib/flatpak/exports/share/icons/hicolor/16x16/apps"
+        "$HOME/.local/share/flatpak/exports/share/icons/hicolor/scalable/apps"
+        "$HOME/.local/share/flatpak/exports/share/icons/hicolor/512x512/apps"
+        "$HOME/.local/share/flatpak/exports/share/icons/hicolor/256x256/apps"
+        "$HOME/.local/share/flatpak/exports/share/icons/hicolor/128x128/apps"
+        "$HOME/.local/share/flatpak/exports/share/icons/hicolor/64x64/apps"
+        "$HOME/.local/share/flatpak/exports/share/icons/hicolor/48x48/apps"
+        "$HOME/.local/share/flatpak/exports/share/icons/hicolor/32x32/apps"
+        "$HOME/.local/share/flatpak/exports/share/icons/hicolor/24x24/apps"
+        "$HOME/.local/share/flatpak/exports/share/icons/hicolor/22x22/apps"
+        "$HOME/.local/share/flatpak/exports/share/icons/hicolor/16x16/apps"
         "$HOME/.local/share/icons/hicolor/scalable/apps"
+        "$HOME/.local/share/icons/hicolor/512x512/apps"
         "$HOME/.local/share/icons/hicolor/256x256/apps"
         "$HOME/.local/share/icons/hicolor/128x128/apps"
         "$HOME/.local/share/icons/hicolor/64x64/apps"
@@ -69,8 +89,8 @@ resolve_icon() {
     )
 
     for d in "${dirs[@]}"; do
-        for ext in svg png xpm; do
-            [[ -f "$d/$icon.$ext" ]] && echo "$d/$icon.$ext" && return
+        for name in "${icon_names[@]}"; do
+            [[ -f "$d/$name" ]] && echo "$d/$name" && return
         done
     done
 }

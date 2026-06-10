@@ -53,6 +53,25 @@ Item {
             cache[normalized] = iconPath;
     }
 
+    function cacheKnownTrayAliases(cache, app, iconPath) {
+        const iconName = normalizeIconKey(app.iconName);
+        const desktop = normalizeIconKey(app.desktop);
+        const name = normalizeIconKey(app.name);
+
+        if (iconName === "orgtelegramdesktop" || desktop === "orgtelegramdesktopdesktop" || name === "telegram") {
+            cacheLauncherIcon(cache, "TelegramDesktop", iconPath);
+            cacheLauncherIcon(cache, "telegram-desktop", iconPath);
+            cacheLauncherIcon(cache, "telegram", iconPath);
+        }
+
+        if (iconName === "kwalletmanager" || desktop === "orgkdekwalletmanager" || name === "kwalletmanager") {
+            cacheLauncherIcon(cache, "kwallet", iconPath);
+            cacheLauncherIcon(cache, "kwalletd", iconPath);
+            cacheLauncherIcon(cache, "org.kde.kwalletd", iconPath);
+            cacheLauncherIcon(cache, "org.kde.kwalletmanager", iconPath);
+        }
+    }
+
     function trayIconSource(trayItem, revision) {
         revision;
 
@@ -69,6 +88,18 @@ Item {
             const iconPath = key !== "" ? launcherIconCache[key] : "";
             if (iconPath)
                 return iconPath.startsWith("file://") ? iconPath : "file://" + iconPath;
+
+            if (key.includes("kwallet") || key.includes("kdewallet")) {
+                const kwalletIcon = launcherIconCache["kwalletmanager"];
+                if (kwalletIcon)
+                    return kwalletIcon.startsWith("file://") ? kwalletIcon : "file://" + kwalletIcon;
+            }
+
+            if (key.includes("telegram")) {
+                const telegramIcon = launcherIconCache["orgtelegramdesktop"] || launcherIconCache["telegram"] || launcherIconCache["telegramdesktop"];
+                if (telegramIcon)
+                    return telegramIcon.startsWith("file://") ? telegramIcon : "file://" + telegramIcon;
+            }
         }
 
         return nativeIcon;
@@ -93,6 +124,7 @@ Item {
                         systemTrayWidget.cacheLauncherIcon(cache, app.name, app.icon);
                         systemTrayWidget.cacheLauncherIcon(cache, app.desktop, app.icon);
                         systemTrayWidget.cacheLauncherIcon(cache, app.iconName, app.icon);
+                        systemTrayWidget.cacheKnownTrayAliases(cache, app, app.icon);
                     }
                     systemTrayWidget.launcherIconCache = cache;
                     systemTrayWidget.launcherIconCacheRevision += 1;
@@ -123,14 +155,6 @@ Item {
                 height: iconSize
                 acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
                 hoverEnabled: true
-
-                scale: trayMouseArea.pressed ? 0.95 : (trayMouseArea.containsMouse ? 1.05 : 1.0)
-                Behavior on scale {
-                    NumberAnimation {
-                        duration: 400
-                        easing.type: Easing.OutQuart
-                    }
-                }
 
                 property real _anchorX: 0
                 property real _anchorY: 0
@@ -230,7 +254,15 @@ Item {
                     anchors.fill: parent
                     color: trayMouseArea.containsMouse ? hoverColor : "transparent"
                     radius: 4
+                    transformOrigin: Item.Center
+                    scale: trayMouseArea.pressed ? 0.95 : (trayMouseArea.containsMouse ? 1.05 : 1.0)
 
+                    Behavior on scale {
+                        NumberAnimation {
+                            duration: 400
+                            easing.type: Easing.OutQuart
+                        }
+                    }
                     Behavior on color {
                         ColorAnimation {
                             duration: 200
@@ -254,6 +286,7 @@ Item {
                         color: textPrimary
                         font.pixelSize: 12 * scaleFactor
                         font.bold: true
+                        renderType: Text.NativeRendering
                         visible: parent.status === Image.Error || parent.status === Image.Null
                     }
                 }
@@ -294,6 +327,7 @@ Item {
                             color: ThemePkg.Theme.accent
                             font.pixelSize: Math.round(13 * systemTrayWidget.scaleFactor)
                             font.family: "Fira Sans Semibold"
+                            renderType: Text.NativeRendering
                             wrapMode: Text.NoWrap
                         }
                     }

@@ -53,6 +53,54 @@ Variants {
     readonly property color workspaceActiveFontColor: ThemePkg.Theme.accent
     readonly property color workspaceInactiveFontColor: moduleFontColor
 
+    component BarButtonSurface: Rectangle {
+        id: buttonSurface
+
+        property bool hovered: false
+        property bool pressed: false
+        property real scaleFactor: 1.0
+        property color idleColor: bar.moduleColor
+        property color hoverColor: Qt.lighter(bar.moduleColor, 1.15)
+        property color idleBorderColor: bar.moduleBorderColor
+        property color hoverBorderColor: bar.moduleFontColor
+        property color accentColor: bar.moduleFontColor
+        property real borderWidth: 1 * scaleFactor
+        property int animatedBorderZ: 0
+
+        anchors.fill: parent
+        radius: 10 * scaleFactor
+        color: hovered ? hoverColor : idleColor
+        border.color: hovered ? hoverBorderColor : idleBorderColor
+        border.width: borderWidth
+        transformOrigin: Item.Center
+        scale: pressed ? 0.95 : (hovered ? 1.05 : 1.0)
+
+        AnimatedBorder {
+            anchors.fill: parent
+            radius: parent.radius
+            borderWidth: parent.border.width
+            accentColor: buttonSurface.accentColor
+            visualZ: buttonSurface.animatedBorderZ
+        }
+
+        Behavior on scale {
+            NumberAnimation {
+                duration: 400
+                easing.type: Easing.OutQuart
+            }
+        }
+        Behavior on color {
+            ColorAnimation {
+                duration: 200
+            }
+        }
+        Behavior on border.color {
+            ColorAnimation {
+                duration: 200
+            }
+        }
+    }
+
     delegate: Component {
         Item {
             id: delegateRoot
@@ -793,33 +841,24 @@ Variants {
                                 width: 30 * panel.scaleFactor
                                 height: 30 * panel.scaleFactor
                                 radius: 10 * panel.scaleFactor
-                                color: (panel.panelMonitor && panel.panelMonitor.activeWorkspace && panel.panelMonitor.activeWorkspace.id === modelData.id) ? workspaceActiveColor : workspaceInactiveColor
-                                border.color: wsMa.containsMouse ? moduleFontColor : moduleBorderColor
-                                border.width: 1 * panel.scaleFactor
+                                color: "transparent"
+                                border.width: 0
 
-                                AnimatedBorder {
-                                    anchors.fill: parent
-                                    radius: parent.radius
-                                    borderWidth: parent.border.width
+                                BarButtonSurface {
+                                    hovered: wsMa.containsMouse
+                                    pressed: wsMa.pressed
+                                    scaleFactor: panel.scaleFactor
+                                    idleColor: (panel.panelMonitor && panel.panelMonitor.activeWorkspace && panel.panelMonitor.activeWorkspace.id === modelData.id) ? workspaceActiveColor : workspaceInactiveColor
+                                    hoverColor: idleColor
+                                    idleBorderColor: moduleBorderColor
+                                    hoverBorderColor: moduleFontColor
                                     accentColor: (panel.panelMonitor && panel.panelMonitor.activeWorkspace && panel.panelMonitor.activeWorkspace.id === modelData.id) ? workspaceActiveFontColor : workspaceInactiveFontColor
-                                }
-
-                                scale: wsMa.pressed ? 0.95 : (wsMa.containsMouse ? 1.05 : 1.0)
-                                Behavior on scale {
-                                    NumberAnimation {
-                                        duration: 400
-                                        easing.type: Easing.OutQuart
-                                    }
-                                }
-                                Behavior on border.color {
-                                    ColorAnimation {
-                                        duration: 200
-                                    }
                                 }
 
                                 MouseArea {
                                     id: wsMa
                                     anchors.fill: parent
+                                    z: 2
                                     hoverEnabled: true
                                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                                     cursorShape: Qt.PointingHandCursor
@@ -835,7 +874,9 @@ Variants {
                                 Text {
                                     text: modelData.id
                                     anchors.centerIn: parent
+                                    z: 1
                                     color: (panel.panelMonitor && panel.panelMonitor.activeWorkspace && panel.panelMonitor.activeWorkspace.id === modelData.id) ? workspaceActiveFontColor : workspaceInactiveFontColor
+                                    renderType: Text.NativeRendering
                                     font.pixelSize: 13 * panel.scaleFactor
                                     font.family: "Fira Sans Semibold"
                                 }
@@ -869,9 +910,8 @@ Variants {
                         width: mediaContent.implicitWidth + hpad * 2
                         height: 30 * panel.scaleFactor
                         radius: 10 * panel.scaleFactor
-                        color: mediaHover.hovered ? Qt.lighter(moduleColor, 1.15) : moduleColor
-                        border.color: mediaHover.hovered ? moduleFontColor : moduleBorderColor
-                        border.width: 1 * panel.scaleFactor
+                        color: "transparent"
+                        border.width: 0
                         anchors.centerIn: parent
 
                         function refresh() {
@@ -903,29 +943,10 @@ Variants {
                             Quickshell.execDetached(["qs", "ipc", "call", "music", "toggle"]);
                         }
 
-                        AnimatedBorder {
-                            anchors.fill: parent
-                            radius: parent.radius
-                            borderWidth: parent.border.width
-                            accentColor: moduleFontColor
-                        }
-
-                        scale: mediaPanelMouse.pressed ? 0.95 : (mediaHover.hovered ? 1.05 : 1.0)
-                        Behavior on scale {
-                            NumberAnimation {
-                                duration: 400
-                                easing.type: Easing.OutQuart
-                            }
-                        }
-                        Behavior on color {
-                            ColorAnimation {
-                                duration: 200
-                            }
-                        }
-                        Behavior on border.color {
-                            ColorAnimation {
-                                duration: 200
-                            }
+                        BarButtonSurface {
+                            hovered: mediaHover.hovered
+                            pressed: mediaPanelMouse.pressed
+                            scaleFactor: panel.scaleFactor
                         }
 
                         Process {
@@ -964,6 +985,7 @@ Variants {
                         MouseArea {
                             id: mediaPanelMouse
                             anchors.fill: parent
+                            z: 0
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: mediaPanel.toggleMusicPopup()
@@ -975,7 +997,7 @@ Variants {
 
                         Row {
                             id: mediaContent
-                            z: 1
+                            z: 2
                             anchors.centerIn: parent
                             spacing: 8 * panel.scaleFactor
 
@@ -983,6 +1005,7 @@ Variants {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: "󰎆"
                                 color: moduleFontColor
+                                renderType: Text.NativeRendering
                                 font.pixelSize: 15 * panel.scaleFactor
                                 font.family: "CaskaydiaMono Nerd Font"
                             }
@@ -1000,6 +1023,7 @@ Variants {
                                         : "Nessun media"
                                     color: moduleFontColor
                                     elide: Text.ElideRight
+                                    renderType: Text.NativeRendering
                                     font.pixelSize: 13 * panel.scaleFactor
                                     font.family: "Fira Sans Semibold"
                                 }
@@ -1025,6 +1049,7 @@ Variants {
                                     anchors.centerIn: parent
                                     text: "󰒮"
                                     color: mediaPrevious.containsMouse ? ThemePkg.Theme.foreground : moduleFontColor
+                                    renderType: Text.NativeRendering
                                     font.pixelSize: 16 * panel.scaleFactor
                                     font.family: "CaskaydiaMono Nerd Font"
                                     scale: mediaPrevious.pressed ? 0.85 : 1.0
@@ -1045,6 +1070,7 @@ Variants {
                                     anchors.centerIn: parent
                                     text: mediaPanel.mediaData.status === "Playing" ? "󰏤" : "󰐊"
                                     color: mediaPlayPause.containsMouse ? ThemePkg.Theme.foreground : moduleFontColor
+                                    renderType: Text.NativeRendering
                                     font.pixelSize: 16 * panel.scaleFactor
                                     font.family: "CaskaydiaMono Nerd Font"
                                     scale: mediaPlayPause.pressed ? 0.85 : 1.0
@@ -1065,6 +1091,7 @@ Variants {
                                     anchors.centerIn: parent
                                     text: "󰒭"
                                     color: mediaNext.containsMouse ? ThemePkg.Theme.foreground : moduleFontColor
+                                    renderType: Text.NativeRendering
                                     font.pixelSize: 16 * panel.scaleFactor
                                     font.family: "CaskaydiaMono Nerd Font"
                                     scale: mediaNext.pressed ? 0.85 : 1.0
@@ -1109,44 +1136,25 @@ Variants {
                         width: 35 * panel.scaleFactor
                         height: 30 * panel.scaleFactor
                         radius: 10 * panel.scaleFactor
-                        color: maNotify.containsMouse ? Qt.lighter(moduleColor, 1.15) : moduleColor
-                        border.color: maNotify.containsMouse ? moduleFontColor : moduleBorderColor
-                        border.width: 1 * panel.scaleFactor
+                        color: "transparent"
+                        border.width: 0
                         anchors {
                             right: rightsidebarButton.left
                             verticalCenter: parent.verticalCenter
                             rightMargin: 8 * panel.scaleFactor
                         }
 
-                        AnimatedBorder {
-                            anchors.fill: parent
-                            radius: parent.radius
-                            borderWidth: parent.border.width
-                            accentColor: moduleFontColor
-                            visualZ: 0
-                        }
-
-                        scale: maNotify.pressed ? 0.95 : (maNotify.containsMouse ? 1.05 : 1.0)
-                        Behavior on scale {
-                            NumberAnimation {
-                                duration: 400
-                                easing.type: Easing.OutQuart
-                            }
-                        }
-                        Behavior on color {
-                            ColorAnimation {
-                                duration: 200
-                            }
-                        }
-                        Behavior on border.color {
-                            ColorAnimation {
-                                duration: 200
-                            }
+                        BarButtonSurface {
+                            hovered: maNotify.containsMouse
+                            pressed: maNotify.pressed
+                            scaleFactor: panel.scaleFactor
+                            animatedBorderZ: 0
                         }
 
                         MouseArea {
                             id: maNotify
                             anchors.fill: parent
+                            z: 2
                             hoverEnabled: true
                             acceptedButtons: Qt.LeftButton | Qt.RightButton
                             cursorShape: Qt.PointingHandCursor
@@ -1163,6 +1171,7 @@ Variants {
                             anchors.centerIn: parent
                             text: bar.notificationBarIcon
                             color: moduleFontColor
+                            renderType: Text.NativeRendering
                             font.pixelSize: 15 * panel.scaleFactor
                             font.family: "CaskaydiaMono Nerd Font"
                         }
@@ -1206,20 +1215,18 @@ Variants {
                         width: rsbContent.implicitWidth + hpad * 2
                         height: 30 * panel.scaleFactor
                         radius: 10 * panel.scaleFactor
-                        color: maRsb.containsMouse ? Qt.lighter(moduleColor, 1.15) : moduleColor
-                        border.color: maRsb.containsMouse ? moduleFontColor : moduleBorderColor
-                        border.width: 1 * panel.scaleFactor
+                        color: "transparent"
+                        border.width: 0
                         anchors {
                             right: volumeButton.left
                             verticalCenter: parent.verticalCenter
                             rightMargin: 8 * panel.scaleFactor
                         }
 
-                        AnimatedBorder {
-                            anchors.fill: parent
-                            radius: parent.radius
-                            borderWidth: parent.border.width
-                            accentColor: moduleFontColor
+                        BarButtonSurface {
+                            hovered: maRsb.containsMouse
+                            pressed: maRsb.pressed
+                            scaleFactor: panel.scaleFactor
                         }
 
                         property var ethData: null
@@ -1299,6 +1306,7 @@ Variants {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: rightsidebarButton.networkIcon
                                 color: moduleFontColor
+                                renderType: Text.NativeRendering
                                 font.pixelSize: 15 * panel.scaleFactor
                                 font.family: "CaskaydiaMono Nerd Font"
                             }
@@ -1307,32 +1315,16 @@ Variants {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: rightsidebarButton.bluetoothIcon
                                 color: moduleFontColor
+                                renderType: Text.NativeRendering
                                 font.pixelSize: 15 * panel.scaleFactor
                                 font.family: "CaskaydiaMono Nerd Font"
-                            }
-                        }
-
-                        scale: maRsb.pressed ? 0.95 : (maRsb.containsMouse ? 1.05 : 1.0)
-                        Behavior on scale {
-                            NumberAnimation {
-                                duration: 400
-                                easing.type: Easing.OutQuart
-                            }
-                        }
-                        Behavior on color {
-                            ColorAnimation {
-                                duration: 200
-                            }
-                        }
-                        Behavior on border.color {
-                            ColorAnimation {
-                                duration: 200
                             }
                         }
 
                         MouseArea {
                             id: maRsb
                             anchors.fill: parent
+                            z: 2
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
 
@@ -1436,20 +1428,18 @@ Variants {
                         height: 30 * panel.scaleFactor
                         radius: 10 * panel.scaleFactor
                         readonly property string scriptsDir: Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/volume"
-                        color: maVolume.containsMouse ? Qt.lighter(moduleColor, 1.15) : moduleColor
-                        border.color: maVolume.containsMouse ? moduleFontColor : moduleBorderColor
-                        border.width: 1 * panel.scaleFactor
+                        color: "transparent"
+                        border.width: 0
                         anchors {
                             right: batteryButton.visible ? batteryButton.left : logoutButton.left
                             verticalCenter: parent.verticalCenter
                             rightMargin: 8 * panel.scaleFactor
                         }
 
-                        AnimatedBorder {
-                            anchors.fill: parent
-                            radius: parent.radius
-                            borderWidth: parent.border.width
-                            accentColor: moduleFontColor
+                        BarButtonSurface {
+                            hovered: maVolume.containsMouse
+                            pressed: maVolume.pressed
+                            scaleFactor: panel.scaleFactor
                         }
 
                         PwObjectTracker {
@@ -1578,27 +1568,10 @@ Variants {
                             return "󰖀";
                         }
 
-                        scale: maVolume.pressed ? 0.95 : (maVolume.containsMouse ? 1.05 : 1.0)
-                        Behavior on scale {
-                            NumberAnimation {
-                                duration: 400
-                                easing.type: Easing.OutQuart
-                            }
-                        }
-                        Behavior on color {
-                            ColorAnimation {
-                                duration: 200
-                            }
-                        }
-                        Behavior on border.color {
-                            ColorAnimation {
-                                duration: 200
-                            }
-                        }
-
                         MouseArea {
                             id: maVolume
                             anchors.fill: parent
+                            z: 2
                             hoverEnabled: true
                             acceptedButtons: Qt.LeftButton | Qt.RightButton
                             cursorShape: Qt.PointingHandCursor
@@ -1683,6 +1656,7 @@ Variants {
                                         return nameStr ? (volStr + " - " + nameStr) : volStr;
                                     }
                                     color: moduleFontColor
+                                    renderType: Text.NativeRendering
                                     font.pixelSize: Math.round(13 * panel.scaleFactor)
                                     font.family: "Fira Sans Semibold"
                                     wrapMode: Text.NoWrap
@@ -1694,6 +1668,7 @@ Variants {
                             anchors.centerIn: parent
                             text: volumeButton.volumeIcon
                             color: moduleFontColor
+                            renderType: Text.NativeRendering
                             font.pixelSize: 16 * panel.scaleFactor
                             font.family: "CaskaydiaMono Nerd Font"
                         }
@@ -1707,29 +1682,18 @@ Variants {
 
                         height: 30 * panel.scaleFactor
                         radius: 10 * panel.scaleFactor
-                        color: maBatt.containsMouse ? Qt.lighter(moduleColor, 1.15) : moduleColor
-                        border.color: maBatt.containsMouse ? moduleFontColor : moduleBorderColor
-                        border.width: visible ? 1 * panel.scaleFactor : 0
-                        Behavior on color {
-                            ColorAnimation {
-                                duration: 200
-                            }
-                        }
-                        Behavior on border.color {
-                            ColorAnimation {
-                                duration: 200
-                            }
-                        }
+                        color: "transparent"
+                        border.width: 0
                         anchors {
                             right: logoutButton.left
                             verticalCenter: parent.verticalCenter
                             rightMargin: 8 * panel.scaleFactor
                         }
 
-                        AnimatedBorder {
-                            anchors.fill: parent
-                            radius: parent.radius
-                            borderWidth: parent.border.width
+                        BarButtonSurface {
+                            hovered: maBatt.containsMouse
+                            pressed: maBatt.pressed
+                            scaleFactor: panel.scaleFactor
                             accentColor: contentRow.low ? ThemePkg.Theme.danger : moduleFontColor
                         }
 
@@ -1800,6 +1764,7 @@ Variants {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: batteryButton.glyphFor(batteryButton.shownPct, batteryButton.charging)
                                 color: contentRow.low ? ThemePkg.Theme.danger : moduleFontColor
+                                renderType: Text.NativeRendering
                                 font.pixelSize: 16 * panel.scaleFactor
                                 font.family: "CaskaydiaMono Nerd Font"
                             }
@@ -1807,22 +1772,16 @@ Variants {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: batteryButton.shownPct + "%"
                                 color: contentRow.low ? ThemePkg.Theme.danger : moduleFontColor
+                                renderType: Text.NativeRendering
                                 font.pixelSize: 14 * panel.scaleFactor
                                 font.family: "Fira Sans Semibold"
-                            }
-                        }
-
-                        scale: maBatt.pressed ? 0.95 : (maBatt.containsMouse ? 1.05 : 1.0)
-                        Behavior on scale {
-                            NumberAnimation {
-                                duration: 400
-                                easing.type: Easing.OutQuart
                             }
                         }
 
                         MouseArea {
                             id: maBatt
                             anchors.fill: parent
+                            z: 2
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
 
@@ -1977,43 +1936,24 @@ Variants {
                         width: 35 * panel.scaleFactor
                         height: 30 * panel.scaleFactor
                         radius: 10 * panel.scaleFactor
-                        color: maLogout.containsMouse ? Qt.lighter(moduleColor, 1.15) : moduleColor
-                        border.color: maLogout.containsMouse ? moduleFontColor : moduleBorderColor
-                        border.width: 1 * panel.scaleFactor
+                        color: "transparent"
+                        border.width: 0
                         anchors {
                             right: archButton.left
                             verticalCenter: parent.verticalCenter
                             rightMargin: 8 * panel.scaleFactor
                         }
 
-                        AnimatedBorder {
-                            anchors.fill: parent
-                            radius: parent.radius
-                            borderWidth: parent.border.width
-                            accentColor: moduleFontColor
-                        }
-
-                        scale: maLogout.pressed ? 0.95 : (maLogout.containsMouse ? 1.05 : 1.0)
-                        Behavior on scale {
-                            NumberAnimation {
-                                duration: 400
-                                easing.type: Easing.OutQuart
-                            }
-                        }
-                        Behavior on color {
-                            ColorAnimation {
-                                duration: 200
-                            }
-                        }
-                        Behavior on border.color {
-                            ColorAnimation {
-                                duration: 200
-                            }
+                        BarButtonSurface {
+                            hovered: maLogout.containsMouse
+                            pressed: maLogout.pressed
+                            scaleFactor: panel.scaleFactor
                         }
 
                         MouseArea {
                             id: maLogout
                             anchors.fill: parent
+                            z: 2
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
@@ -2031,6 +1971,7 @@ Variants {
                             anchors.centerIn: parent
                             text: ""
                             color: moduleFontColor
+                            renderType: Text.NativeRendering
                             font.pixelSize: 15 * panel.scaleFactor
                             font.family: "Fira Sans Semibold"
                         }
@@ -2041,44 +1982,25 @@ Variants {
                         width: 35 * panel.scaleFactor
                         height: 30 * panel.scaleFactor
                         radius: 10 * panel.scaleFactor
-                        color: maArch.containsMouse ? Qt.lighter(moduleColor, 1.15) : moduleColor
-                        border.color: maArch.containsMouse ? moduleFontColor : moduleBorderColor
-                        border.width: 1 * panel.scaleFactor
+                        color: "transparent"
+                        border.width: 0
                         anchors {
                             right: timeButton.left
                             verticalCenter: parent.verticalCenter
                             rightMargin: 8 * panel.scaleFactor
                         }
 
-                        AnimatedBorder {
-                            anchors.fill: parent
-                            radius: parent.radius
-                            borderWidth: parent.border.width
-                            accentColor: moduleFontColor
-                            visualZ: 0
-                        }
-
-                        scale: maArch.pressed ? 0.95 : (maArch.containsMouse ? 1.05 : 1.0)
-                        Behavior on scale {
-                            NumberAnimation {
-                                duration: 400
-                                easing.type: Easing.OutQuart
-                            }
-                        }
-                        Behavior on color {
-                            ColorAnimation {
-                                duration: 200
-                            }
-                        }
-                        Behavior on border.color {
-                            ColorAnimation {
-                                duration: 200
-                            }
+                        BarButtonSurface {
+                            hovered: maArch.containsMouse
+                            pressed: maArch.pressed
+                            scaleFactor: panel.scaleFactor
+                            animatedBorderZ: 0
                         }
 
                         MouseArea {
                             id: maArch
                             anchors.fill: parent
+                            z: 2
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
@@ -2096,6 +2018,7 @@ Variants {
                             anchors.centerIn: parent
                             text: ""
                             color: moduleFontColor
+                            renderType: Text.NativeRendering
                             font.pixelSize: 16 * panel.scaleFactor
                             font.family: "CaskaydiaMono Nerd Font"
                         }
@@ -2141,43 +2064,24 @@ Variants {
 
                         height: 30 * panel.scaleFactor
                         radius: 10 * panel.scaleFactor
-                        color: maTime.containsMouse ? Qt.lighter(moduleColor, 1.15) : moduleColor
-                        border.color: maTime.containsMouse ? moduleFontColor : moduleBorderColor
-                        border.width: 1 * panel.scaleFactor
+                        color: "transparent"
+                        border.width: 0
                         anchors {
                             right: parent.right
                             verticalCenter: parent.verticalCenter
                             rightMargin: 16 * panel.scaleFactor
                         }
 
-                        AnimatedBorder {
-                            anchors.fill: parent
-                            radius: parent.radius
-                            borderWidth: parent.border.width
-                            accentColor: moduleFontColor
-                        }
-
-                        scale: maTime.pressed ? 0.95 : (maTime.containsMouse ? 1.05 : 1.0)
-                        Behavior on scale {
-                            NumberAnimation {
-                                duration: 400
-                                easing.type: Easing.OutQuart
-                            }
-                        }
-                        Behavior on color {
-                            ColorAnimation {
-                                duration: 200
-                            }
-                        }
-                        Behavior on border.color {
-                            ColorAnimation {
-                                duration: 200
-                            }
+                        BarButtonSurface {
+                            hovered: maTime.containsMouse
+                            pressed: maTime.pressed
+                            scaleFactor: panel.scaleFactor
                         }
 
                         MouseArea {
                             id: maTime
                             anchors.fill: parent
+                            z: 2
                             onClicked: switcher.toggle("calendar")
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
@@ -2193,6 +2097,7 @@ Variants {
                             property string currentTime: ""
                             text: currentTime
                             color: moduleFontColor
+                            renderType: Text.NativeRendering
                             font.pixelSize: 14 * panel.scaleFactor
                             font.family: "Fira Sans Semibold"
 

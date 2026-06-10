@@ -40,6 +40,16 @@ return {
         end,
         config = function()
             local lsp_defaults = require('lspconfig').util.default_config
+            local lspconfig = require('lspconfig')
+            local format_augroup = vim.api.nvim_create_augroup('LspFormatOnSave', { clear = true })
+            local format_on_save_disabled = {
+                typst = true,
+                markdown = true,
+                c = true,
+                cpp = true,
+                objc = true,
+                objcpp = true,
+            }
 
             -- Add cmp_nvim_lsp capabilities settings to lspconfig
             -- This should be executed before you configure any language server
@@ -80,14 +90,15 @@ return {
                     vim.keymap.set('n', '<leader>vd', '<cmd>lua vim.diagnostic.open_float()<cr>')
 
                     -- Format on save
-                    local disabled = {
-                        typst = true,
-                        markdown = true,
-                    }
+                    vim.api.nvim_clear_autocmds({
+                        group = format_augroup,
+                        buffer = event.buf,
+                    })
                     vim.api.nvim_create_autocmd('BufWritePre', {
+                        group = format_augroup,
                         buffer = event.buf,
                         callback = function()
-                            if disabled[vim.bo[event.buf].filetype] then
+                            if format_on_save_disabled[vim.bo[event.buf].filetype] then
                                 return
                             end
 
@@ -105,7 +116,15 @@ return {
                     -- this first function is the "default handler"
                     -- it applies to every language server without a "custom handler"
                     function(server_name)
-                        require('lspconfig')[server_name].setup({})
+                        lspconfig[server_name].setup({})
+                    end,
+                    clangd = function()
+                        lspconfig.clangd.setup({
+                            cmd = {
+                                'clangd',
+                                '--fallback-style={BasedOnStyle: LLVM, IndentWidth: 4, TabWidth: 4, UseTab: Never}',
+                            },
+                        })
                     end,
                 }
             })

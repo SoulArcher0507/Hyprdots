@@ -297,7 +297,7 @@ Item {
         window.closePicker();
     }
 
-    property string listCmd: "find \"$HOME/Pictures/Wallpapers\" -follow -regextype posix-extended -type f -iregex \".*\\\\.(jpe?g|png|webp|bmp|gif|avif|heic|mp4|mkv|mov|webm|avi|m4v|ogv|ogg|flv|wmv|mpg|mpeg|apng)$\" -printf \"%f\\t%p\\n\" | LC_ALL=C sort"
+    property string listCmd: "find \"$HOME/Pictures/Wallpapers\" -path \"$HOME/Pictures/Wallpapers/active\" -prune -o -follow -regextype posix-extended -type f -iregex \".*\\\\.(jpe?g|png|webp|bmp|gif|avif|heic|mp4|mkv|mov|webm|avi|m4v|ogv|ogg|flv|wmv|mpg|mpeg|apng)$\" -printf \"%f\\t%p\\n\" | LC_ALL=C sort"
 
     property var _rawFilesBuffer: []
     Process {

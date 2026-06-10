@@ -404,6 +404,93 @@ reload_kitty_config() {
   fi
 }
 
+reload_hyprland_config() {
+  if [[ -x "$HOME/.config/hypr/scripts/reload.sh" ]]; then
+    "$HOME/.config/hypr/scripts/reload.sh"
+  fi
+}
+
+update_dynamic_icon_theme() {
+  KORA_SOURCE="$(find_kora_source || true)"
+  if [[ -n "$KORA_SOURCE" ]]; then
+    echo "[INFO] Sorgente Kora trovata in: $KORA_SOURCE"
+
+    mkdir -p "$ICON_THEME_BASE_DIR" "$ICON_THEME_CACHE_DIR"
+    cleanup_legacy_icon_theme_dirs
+
+    palette_hash="$({
+      printf '%s\n' "$ICON_THEME_NAME"
+      sha256sum "$QS_JSON"
+      printf '%s\n' "$KORA_SOURCE"
+    } | sha256sum | awk '{print $1}')"
+
+    palette_cache_dir="$ICON_THEME_CACHE_DIR/$palette_hash"
+    staged_theme_dir="$(mktemp -d "$ICON_THEME_CACHE_DIR/.${ICON_THEME_NAME}.stage.XXXXXX")"
+    backup_theme_dir="$(mktemp -d "$ICON_THEME_CACHE_DIR/.${ICON_THEME_NAME}.bak.XXXXXX")"
+
+    cleanup_icon_stage() {
+      rm -rf "$staged_theme_dir" "$backup_theme_dir" 2>/dev/null || true
+    }
+    trap 'cleanup_icon_stage; cleanup' EXIT
+
+    if [[ -d "$palette_cache_dir" ]]; then
+      echo "[INFO] Cache tema icone trovata: riuso snapshot già generata"
+      rm -rf "$staged_theme_dir"
+      if command -v rsync >/dev/null 2>&1; then
+        rsync -a --delete "$palette_cache_dir/" "$staged_theme_dir/"
+      else
+        mkdir -p "$staged_theme_dir"
+        cp -a "$palette_cache_dir/." "$staged_theme_dir/"
+      fi
+    else
+      rm -rf "$staged_theme_dir"
+      mkdir -p "$staged_theme_dir"
+
+      if command -v rsync >/dev/null 2>&1; then
+        rsync -aL --delete --exclude 'icon-theme.cache' "$KORA_SOURCE/" "$staged_theme_dir/"
+      else
+        cp -aL "$KORA_SOURCE/." "$staged_theme_dir/"
+        rm -f "$staged_theme_dir/icon-theme.cache"
+      fi
+
+      if [[ -f "$staged_theme_dir/index.theme" ]]; then
+        python3 "$SCRIPT_DIR/update_index_theme.py" "$staged_theme_dir/index.theme" "$ICON_THEME_NAME"
+      fi
+
+      export DYNAMIC_PALETTE_SOURCE="$QS_JSON"
+      export DYNAMIC_THEME_DIR="$staged_theme_dir"
+      export DYNAMIC_THEME_NAME="$ICON_THEME_NAME"
+
+      python3 "$SCRIPT_DIR/recolor_icon_theme.py"
+
+      refresh_icon_caches "$staged_theme_dir"
+
+      rm -rf "$palette_cache_dir"
+      if command -v rsync >/dev/null 2>&1; then
+        rsync -a --delete "$staged_theme_dir/" "$palette_cache_dir/"
+      else
+        mkdir -p "$palette_cache_dir"
+        cp -a "$staged_theme_dir/." "$palette_cache_dir/"
+      fi
+    fi
+
+    rm -rf "$backup_theme_dir"
+    if [[ -d "$ICON_THEME_DIR" ]]; then
+      mv "$ICON_THEME_DIR" "$backup_theme_dir"
+    fi
+    mv "$staged_theme_dir" "$ICON_THEME_DIR"
+    rm -rf "$backup_theme_dir"
+    cleanup_legacy_icon_theme_dirs
+
+    refresh_icon_caches "$ICON_THEME_DIR"
+    apply_icon_theme
+    refresh_system_icon_indices
+    echo "[OK] Tema icone dinamico creato e applicato: $ICON_THEME_NAME"
+  else
+    echo "[WARN] Tema Kora non trovato in ~/.local/share/icons, ~/.icons o /usr/share/icons. Salto la parte icone."
+  fi
+}
+
 python3 "$SCRIPT_DIR/render_templates.py" \
   "$WAL_CACHE_JSON" \
   "$SCRIPT_DIR/templates" \
@@ -417,6 +504,8 @@ echo "[OK] Hyprland Lua palette scritta in: $HYPR_LUA"
 echo "[OK] Quickshell palette scritta in: $QS_JSON"
 echo "[OK] Kitty palette scritta in: $KITTY_COLORS"
 echo "[OK] KDE color scheme scritto in: $KDE_COLORS"
+
+reload_hyprland_config
 
 notify_zsh_prompt_refresh() {
   local pid="$PPID"
@@ -472,85 +561,6 @@ fi
 set_generic_ini_key "$QT6CT_CONF" "Appearance" "color_scheme_path" "$KDE_COLORS"
 echo "[OK] qt6ct aggiornato: $QT6CT_CONF"
 
-KORA_SOURCE="$(find_kora_source || true)"
-if [[ -n "$KORA_SOURCE" ]]; then
-  echo "[INFO] Sorgente Kora trovata in: $KORA_SOURCE"
-
-  mkdir -p "$ICON_THEME_BASE_DIR" "$ICON_THEME_CACHE_DIR"
-  cleanup_legacy_icon_theme_dirs
-
-  palette_hash="$({
-    printf '%s\n' "$ICON_THEME_NAME"
-    sha256sum "$QS_JSON"
-    printf '%s\n' "$KORA_SOURCE"
-  } | sha256sum | awk '{print $1}')"
-
-  palette_cache_dir="$ICON_THEME_CACHE_DIR/$palette_hash"
-  staged_theme_dir="$(mktemp -d "$ICON_THEME_CACHE_DIR/.${ICON_THEME_NAME}.stage.XXXXXX")"
-  backup_theme_dir="$(mktemp -d "$ICON_THEME_CACHE_DIR/.${ICON_THEME_NAME}.bak.XXXXXX")"
-
-  cleanup_icon_stage() {
-    rm -rf "$staged_theme_dir" "$backup_theme_dir" 2>/dev/null || true
-  }
-  trap cleanup_icon_stage EXIT
-
-  if [[ -d "$palette_cache_dir" ]]; then
-    echo "[INFO] Cache tema icone trovata: riuso snapshot già generata"
-    rm -rf "$staged_theme_dir"
-    if command -v rsync >/dev/null 2>&1; then
-      rsync -a --delete "$palette_cache_dir/" "$staged_theme_dir/"
-    else
-      mkdir -p "$staged_theme_dir"
-      cp -a "$palette_cache_dir/." "$staged_theme_dir/"
-    fi
-  else
-    rm -rf "$staged_theme_dir"
-    mkdir -p "$staged_theme_dir"
-
-    if command -v rsync >/dev/null 2>&1; then
-      rsync -aL --delete --exclude 'icon-theme.cache' "$KORA_SOURCE/" "$staged_theme_dir/"
-    else
-      cp -aL "$KORA_SOURCE/." "$staged_theme_dir/"
-      rm -f "$staged_theme_dir/icon-theme.cache"
-    fi
-
-    if [[ -f "$staged_theme_dir/index.theme" ]]; then
-      python3 "$SCRIPT_DIR/update_index_theme.py" "$staged_theme_dir/index.theme" "$ICON_THEME_NAME"
-    fi
-
-    export DYNAMIC_PALETTE_SOURCE="$QS_JSON"
-    export DYNAMIC_THEME_DIR="$staged_theme_dir"
-    export DYNAMIC_THEME_NAME="$ICON_THEME_NAME"
-
-    python3 "$SCRIPT_DIR/recolor_icon_theme.py"
-
-    refresh_icon_caches "$staged_theme_dir"
-
-    rm -rf "$palette_cache_dir"
-    if command -v rsync >/dev/null 2>&1; then
-      rsync -a --delete "$staged_theme_dir/" "$palette_cache_dir/"
-    else
-      mkdir -p "$palette_cache_dir"
-      cp -a "$staged_theme_dir/." "$palette_cache_dir/"
-    fi
-  fi
-
-  rm -rf "$backup_theme_dir"
-  if [[ -d "$ICON_THEME_DIR" ]]; then
-    mv "$ICON_THEME_DIR" "$backup_theme_dir"
-  fi
-  mv "$staged_theme_dir" "$ICON_THEME_DIR"
-  rm -rf "$backup_theme_dir"
-  cleanup_legacy_icon_theme_dirs
-
-  refresh_icon_caches "$ICON_THEME_DIR"
-  apply_icon_theme
-  refresh_system_icon_indices
-  echo "[OK] Tema icone dinamico creato e applicato: $ICON_THEME_NAME"
-else
-  echo "[WARN] Tema Kora non trovato in ~/.local/share/icons, ~/.icons o /usr/share/icons. Salto la parte icone."
-fi
-
 apply_gtk_dark_theme
 reapply_plasma_theme
 notify_kglobalsettings
@@ -558,10 +568,7 @@ reconfigure_kwin
 hard_reload_plasmashell
 notify_kglobalsettings
 
-if [[ -x "$HOME/.config/hypr/scripts/reload.sh" ]]; then
-  "$HOME/.config/hypr/scripts/reload.sh"
-fi
-
 reload_kitty_config
+update_dynamic_icon_theme
 
 echo "[colors.sh] Aggiornamento completato."

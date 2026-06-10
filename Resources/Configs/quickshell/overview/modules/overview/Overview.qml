@@ -20,6 +20,18 @@ Scope {
             required property var modelData
             readonly property HyprlandMonitor monitor: Hyprland.monitorFor(root.screen)
             property bool monitorIsFocused: (Hyprland.focusedMonitor?.id == monitor?.id)
+            property bool isOverviewTarget: {
+                if (!monitor)
+                    return false;
+
+                if (GlobalStates.overviewTargetMonitorId >= 0)
+                    return monitor.id === GlobalStates.overviewTargetMonitorId;
+
+                if (GlobalStates.overviewTargetMonitorName.length > 0)
+                    return monitor.name === GlobalStates.overviewTargetMonitorName;
+
+                return monitorIsFocused;
+            }
             property bool blurEnabled: Config.options.overview.effects.enableBlur
             property bool popupMounted: false
             property bool popupTargetVisible: false
@@ -30,7 +42,7 @@ Scope {
             property real popupHeightFactor: 0.24
             property real popupLift: 8.5
             screen: modelData
-            visible: popupMounted
+            visible: popupMounted && isOverviewTarget
 
             WlrLayershell.namespace: blurEnabled ? "quickshell:overview-blur" : "quickshell:overview"
             WlrLayershell.layer: WlrLayer.Overlay
@@ -47,7 +59,7 @@ Scope {
             HyprlandFocusGrab {
                 id: grab
                 windows: [root]
-                property bool canBeActive: root.monitorIsFocused
+                property bool canBeActive: root.isOverviewTarget
                 active: false
                 onCleared: () => {
                     if (!active)
@@ -59,12 +71,29 @@ Scope {
                 target: GlobalStates
                 function onOverviewOpenChanged() {
                     if (GlobalStates.overviewOpen) {
-                        root.showOverviewPopup();
-                        delayedGrabTimer.start();
+                        if (root.isOverviewTarget) {
+                            root.showOverviewPopup();
+                            delayedGrabTimer.start();
+                        } else {
+                            root.closeInstant();
+                        }
                     } else {
                         root.hideOverviewPopup();
                         grab.active = false;
                     }
+                }
+            }
+
+            onIsOverviewTargetChanged: {
+                if (!GlobalStates.overviewOpen)
+                    return;
+
+                if (isOverviewTarget) {
+                    root.showOverviewPopup();
+                    delayedGrabTimer.start();
+                } else {
+                    grab.active = false;
+                    root.closeInstant();
                 }
             }
 
@@ -117,6 +146,10 @@ Scope {
                 popupWidthFactor = 0.42;
                 popupHeightFactor = 0.24;
                 popupLift = 8.5;
+            }
+
+            function dispatchWorkspace(workspaceId) {
+                Quickshell.execDetached(["hyprctl", "dispatch", `hl.dsp.focus({ workspace = ${workspaceId} })`]);
             }
 
             Timer {
@@ -278,7 +311,7 @@ Scope {
 
                     if (targetId !== null) {
                         const clampedTarget = Math.max(minWorkspaceId, Math.min(maxWorkspaceId, targetId));
-                        Hyprland.dispatch("workspace " + clampedTarget);
+                        root.dispatchWorkspace(clampedTarget);
                         event.accepted = true;
                     }
                 }
@@ -321,7 +354,7 @@ Scope {
                     Loader {
                         id: overviewLoader
                         anchors.fill: parent
-                        active: root.popupMounted && (Config?.options.overview.enable ?? true)
+                        active: root.popupMounted && root.isOverviewTarget && (Config?.options.overview.enable ?? true)
                         sourceComponent: OverviewWidget {
                             panelWindow: root
                             visible: true
@@ -335,13 +368,25 @@ Scope {
     IpcHandler {
         target: "overview"
 
+        function setTargetMonitorFromFocus() {
+            const monitor = Hyprland.focusedMonitor;
+            GlobalStates.overviewTargetMonitorId = monitor?.id ?? -1;
+            GlobalStates.overviewTargetMonitorName = monitor?.name ?? "";
+        }
+
         function toggle() {
-            GlobalStates.overviewOpen = !GlobalStates.overviewOpen;
+            if (GlobalStates.overviewOpen) {
+                GlobalStates.overviewOpen = false;
+            } else {
+                setTargetMonitorFromFocus();
+                GlobalStates.overviewOpen = true;
+            }
         }
         function close() {
             GlobalStates.overviewOpen = false;
         }
         function open() {
+            setTargetMonitorFromFocus();
             GlobalStates.overviewOpen = true;
         }
     }
