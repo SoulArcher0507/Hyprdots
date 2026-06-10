@@ -968,9 +968,6 @@ Item {
             }
             newNetworks.sort((a, b) => a.id.localeCompare(b.id));
 
-            if (window.tailscaleActive && window.activeMode === "wifi")
-                newNetworks.push(window.tailscaleOrbitNode(-1));
-
             if (window.activeMode === "wifi") {
                 newNetworks.push({
                     id: "action_refresh",
@@ -1990,6 +1987,7 @@ Item {
                                     font.pixelSize: 48 - (16 * coreContainer.multiShift)
                                     color: window.currentPower ? window.overlay0 : window.surface2
                                     text: window.activeMode === "wifi" ? (window.isEthConn && !window.isWifiConn ? "󰈀" : "󰤮") : "󰂲"
+                                    renderType: Text.NativeRendering
                                 }
                                 Text {
                                     Layout.alignment: Qt.AlignHCenter
@@ -1998,6 +1996,7 @@ Item {
                                     font.pixelSize: 14 - (3 * coreContainer.multiShift)
                                     color: window.overlay0
                                     text: window.currentPowerPending ? ((window.activeMode === "wifi" ? window.expectedWifiPower : window.expectedBtPower) === "on" ? "Powering On..." : "Powering Off...") : (!window.currentPower ? "Radio Offline" : "Scanning...")
+                                    renderType: Text.NativeRendering
                                 }
                             }
 
@@ -2020,6 +2019,7 @@ Item {
                                         font.pixelSize: 48 - (16 * coreContainer.multiShift)
                                         color: isMyDisconnecting ? window.overlay1 : window.crust
                                         text: isMyDisconnecting ? "" : (coreMa.containsMouse && !centralCore.isEthOnly ? (window.activeMode === "wifi" ? "󰖪" : "󰂲") : (coreContainer.myDevice ? coreContainer.myDevice.icon : ""))
+                                        renderType: Text.NativeRendering
                                         Behavior on color {
                                             ColorAnimation {
                                                 duration: 200
@@ -2041,6 +2041,7 @@ Item {
                                         color: isMyDisconnecting ? window.overlay1 : window.crust
                                         text: coreContainer.myDevice ? (window.activeMode === "wifi" ? (coreContainer.myDevice.ssid || "Connecting...") : (coreContainer.myDevice.name || "Unknown Device")) : ""
                                         elide: Text.ElideRight
+                                        renderType: Text.NativeRendering
                                         Behavior on color {
                                             ColorAnimation {
                                                 duration: 200
@@ -2054,6 +2055,7 @@ Item {
                                         font.pixelSize: 11
                                         color: isMyDisconnecting ? window.overlay1 : (coreMa.containsMouse ? window.crust : "#99000000")
                                         text: isMyDisconnecting ? "Disconnecting..." : (centralCore.disconnectFill > 0.01 ? "Hold..." : "Connected")
+                                        renderType: Text.NativeRendering
                                         Behavior on color {
                                             ColorAnimation {
                                                 duration: 200
@@ -2080,6 +2082,7 @@ Item {
                                             font.pixelSize: 48 - (16 * coreContainer.multiShift)
                                             color: window.text
                                             text: isMyDisconnecting ? "" : (coreMa.containsMouse ? (window.activeMode === "wifi" ? "󰖪" : "󰂲") : (coreContainer.myDevice ? coreContainer.myDevice.icon : ""))
+                                            renderType: Text.NativeRendering
                                         }
                                         LoadingDots {
                                             Layout.alignment: Qt.AlignHCenter
@@ -2096,6 +2099,7 @@ Item {
                                             color: window.text
                                             text: coreContainer.myDevice ? (window.activeMode === "wifi" ? (coreContainer.myDevice.ssid || "Connecting...") : (coreContainer.myDevice.name || "Unknown Device")) : ""
                                             elide: Text.ElideRight
+                                            renderType: Text.NativeRendering
                                         }
                                         Text {
                                             Layout.alignment: Qt.AlignHCenter
@@ -2104,6 +2108,7 @@ Item {
                                             font.pixelSize: 11
                                             color: window.text
                                             text: isMyDisconnecting ? "Disconnecting..." : (centralCore.disconnectFill > 0.01 ? "Hold..." : "Connected")
+                                            renderType: Text.NativeRendering
                                         }
 
                                     }
@@ -2200,7 +2205,7 @@ Item {
                                     easing.type: Easing.OutBack
                                 }
                             }
-                            layer.enabled: opacity > 0 && opacity < 1 || entryAnim < 1.0 || (floatMa && floatMa.containsMouse)
+                            layer.enabled: opacity > 0 && opacity < 1 || entryAnim < 1.0
                             layer.smooth: true
                             Timer {
                                 running: true
@@ -2306,7 +2311,7 @@ Item {
                             property real liveBob: myParentIdx === -1 && isInfoNode ? Math.sin(window.globalOrbitAngle * 6) * 12 * (1 - unifiedRatio) : 0
                             x: Math.round(targetX)
                             y: Math.round(targetY + liveBob)
-                            scale: (!isLoaded ? 0.0 : (floatMa.pressed ? dynamicScale * 0.95 : (floatCard.locksList ? dynamicScale * 1.08 : dynamicScale))) * floatCard.bumpScale
+                            scale: (!isLoaded ? 0.0 : (floatMa.pressed ? dynamicScale * 0.95 : dynamicScale)) * floatCard.bumpScale
                             Behavior on scale {
                                 NumberAnimation {
                                     duration: 400
@@ -2421,10 +2426,12 @@ Item {
                                     if (!isCurrentlyConnected && fillLevel > 0)
                                         drainAnim.start();
                                 }
-                                color: false ? "#2affffff" : "#0effffff"
-                                Behavior on color {
-                                    ColorAnimation {
-                                        duration: 200
+                                color: "transparent"
+                                property real visualScale: locksList ? 1.08 : 1.0
+                                Behavior on visualScale {
+                                    NumberAnimation {
+                                        duration: 400
+                                        easing.type: Easing.OutQuart
                                     }
                                 }
 
@@ -2440,9 +2447,23 @@ Item {
                                 Rectangle {
                                     anchors.fill: parent
                                     radius: 14
+                                    color: false ? "#2affffff" : "#0effffff"
+                                    transformOrigin: Item.Center
+                                    scale: floatCard.visualScale
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: 200
+                                        }
+                                    }
+                                }
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: 14
                                     color: "transparent"
                                     border.width: 1
                                     border.color: window.panelBorderColor
+                                    transformOrigin: Item.Center
+                                    scale: floatCard.visualScale
                                     visible: !cardMa.containsMouse && !false
                                 }
                                 Rectangle {
@@ -2451,6 +2472,8 @@ Item {
                                     opacity: false || cardMa.containsMouse ? 1.0 : 0.0
                                     color: "transparent"
                                     border.width: cardMa.containsMouse && !false ? 1 : 2
+                                    transformOrigin: Item.Center
+                                    scale: floatCard.visualScale
                                     Behavior on opacity {
                                         NumberAnimation {
                                             duration: 250
@@ -2481,6 +2504,8 @@ Item {
                                     radius: 14
                                     color: "#ffffff"
                                     opacity: floatCard.flashOpacity
+                                    transformOrigin: Item.Center
+                                    scale: floatCard.visualScale
                                     z: 5
                                     PropertyAnimation on opacity {
                                         id: cardFlashAnim
@@ -2493,6 +2518,8 @@ Item {
                                 Canvas {
                                     id: waveCanvas
                                     anchors.fill: parent
+                                    transformOrigin: Item.Center
+                                    scale: floatCard.visualScale
                                     property real wavePhase: 0.0
                                     NumberAnimation on wavePhase {
                                         running: floatCard.renderFill > 0.0 && floatCard.renderFill < 1.0 && ThemePkg.Theme.edgeAnimationsEnabled
@@ -2560,8 +2587,11 @@ Item {
                                     color: "transparent"
                                     border.color: window.activeColor
                                     border.width: 2
+                                    transformOrigin: Item.Center
+                                    property real pulseScale: 1.0
+                                    scale: floatCard.visualScale * pulseScale
                                     visible: parent.isHighlighted && !parent.isMyBusy && !parent.isCurrentlyConnected
-                                    SequentialAnimation on scale {
+                                    SequentialAnimation on pulseScale {
                                         loops: Animation.Infinite
                                         running: parent.visible && ThemePkg.Theme.edgeAnimationsEnabled
                                         NumberAnimation {
@@ -2604,6 +2634,7 @@ Item {
                                         font.pixelSize: 20
                                         color: floatCard.isMyBusy ? window.text : window.activeColor
                                         text: icon
+                                        renderType: Text.NativeRendering
                                         Behavior on color {
                                             ColorAnimation {
                                                 duration: 200
@@ -2631,6 +2662,7 @@ Item {
                                                 font.pixelSize: (floatCard.isTrafficInfoCard || floatCard.isSpeedtestDone || floatCard.isTailscaleInfoCard) ? 11 : 13
                                                 color: floatCard.isHighlighted ? window.activeColor : window.text
                                                 elide: Text.ElideRight
+                                                renderType: Text.NativeRendering
                                             }
                                             Text {
                                                 anchors.left: baseNameText.right
@@ -2642,6 +2674,7 @@ Item {
                                                 font.weight: Font.Bold
                                                 font.pixelSize: 13
                                                 color: floatCard.isHighlighted ? window.activeColor : window.text
+                                                renderType: Text.NativeRendering
                                             }
                                         }
                                         Item {
@@ -2658,6 +2691,7 @@ Item {
                                                     font.weight: Font.Bold
                                                     font.pixelSize: 13
                                                     color: window.activeColor
+                                                    renderType: Text.NativeRendering
                                                 }
                                                 LoadingDots {
                                                     anchors.verticalCenter: parent.verticalCenter
@@ -2674,6 +2708,7 @@ Item {
                                             text: floatCard.connectionFailed ? "Wrong Password" : (floatCard.isMyBusy ? "Connecting..." : (floatCard.renderFill > 0.1 && floatCard.renderFill < 1.0 ? "Hold..." : action))
                                             elide: Text.ElideRight
                                             maximumLineCount: 1
+                                            renderType: Text.NativeRendering
                                             Behavior on color {
                                                 ColorAnimation {
                                                     duration: 200
@@ -2702,6 +2737,7 @@ Item {
                                             font.pixelSize: 20
                                             color: window.crust
                                             text: icon
+                                            renderType: Text.NativeRendering
                                         }
                                         ColumnLayout {
                                             Layout.fillWidth: true
@@ -2723,6 +2759,7 @@ Item {
                                                     font.pixelSize: (floatCard.isTrafficInfoCard || floatCard.isSpeedtestDone || floatCard.isTailscaleInfoCard) ? 11 : 13
                                                     color: window.crust
                                                     elide: Text.ElideRight
+                                                    renderType: Text.NativeRendering
                                                 }
                                                 Text {
                                                     anchors.left: filledNameText.right
@@ -2734,6 +2771,7 @@ Item {
                                                     font.weight: Font.Bold
                                                     font.pixelSize: 13
                                                     color: window.crust
+                                                    renderType: Text.NativeRendering
                                                 }
                                             }
                                             Item {
@@ -2750,6 +2788,7 @@ Item {
                                                         font.weight: Font.Bold
                                                         font.pixelSize: 13
                                                         color: window.crust
+                                                        renderType: Text.NativeRendering
                                                     }
                                                     LoadingDots {
                                                         anchors.verticalCenter: parent.verticalCenter
@@ -2766,6 +2805,7 @@ Item {
                                                 text: floatCard.connectionFailed ? "Wrong Password" : (floatCard.isMyBusy ? "Connecting..." : (floatCard.renderFill > 0.1 && floatCard.renderFill < 1.0 ? "Hold..." : action))
                                                 elide: Text.ElideRight
                                                 maximumLineCount: 1
+                                                renderType: Text.NativeRendering
                                             }
                                         }
                                     }
@@ -2817,6 +2857,7 @@ Item {
                                             text: "󰆴"
                                             color: forgetBtnRect.forgetFill > 0.5 ? window.crust : (forgetMa.containsMouse ? window.red : window.subtext0)
                                             font.pixelSize: 16
+                                            renderType: Text.NativeRendering
                                         }
                                         MouseArea {
                                             id: forgetMa
@@ -2971,6 +3012,7 @@ Item {
                                                 text: "󰄾"
                                                 color: pwdSubmitMa.containsMouse ? window.crust : window.text
                                                 font.pixelSize: 16
+                                                renderType: Text.NativeRendering
                                             }
                                             MouseArea {
                                                 id: pwdSubmitMa
@@ -3140,6 +3182,7 @@ Item {
                                 font.pixelSize: 18
                                 color: window.activeMode === "wifi" ? window.crust : window.text
                                 text: "󰛳"
+                                renderType: Text.NativeRendering
                                 Behavior on color {
                                     ColorAnimation {
                                         duration: 200
@@ -3152,6 +3195,7 @@ Item {
                                 font.pixelSize: 13
                                 color: window.activeMode === "wifi" ? window.crust : window.text
                                 text: "Network"
+                                renderType: Text.NativeRendering
                                 Behavior on color {
                                     ColorAnimation {
                                         duration: 200
@@ -3216,6 +3260,7 @@ Item {
                                 font.pixelSize: 18
                                 color: window.activeMode === "bt" ? window.crust : window.text
                                 text: "󰂯"
+                                renderType: Text.NativeRendering
                                 Behavior on color {
                                     ColorAnimation {
                                         duration: 200
@@ -3228,6 +3273,7 @@ Item {
                                 font.pixelSize: 13
                                 color: window.activeMode === "bt" ? window.crust : window.text
                                 text: "Bluetooth"
+                                renderType: Text.NativeRendering
                                 Behavior on color {
                                     ColorAnimation {
                                         duration: 200
@@ -3259,6 +3305,7 @@ Item {
                         Layout.fillHeight: true
                         radius: 10
                         color: "transparent"
+                        border.width: 0
 
                         property bool buttonDisabled: window.activeMode === "wifi" && window.isEthConn
                         opacity: buttonDisabled ? 0.42 : 1.0
@@ -3271,38 +3318,47 @@ Item {
                              : (window.currentPower ? "Turn off" : "Turn on")
 
                         Rectangle {
+                            id: pwrBtnVisual
                             anchors.fill: parent
                             radius: 10
-                            opacity: window.currentPower ? 1.0 : 0.0
-                            Behavior on opacity {
-                                NumberAnimation {
+                            color: "transparent"
+                            border.width: 2
+                            border.color: window.currentPowerPending ? window.activeColor : (window.currentPower ? "transparent" : window.panelBorderColor)
+                            transformOrigin: Item.Center
+                            scale: pwrMa.pressed ? 0.9 : (pwrMa.containsMouse ? 1.05 : 1.0)
+
+                            Behavior on border.color {
+                                ColorAnimation {
                                     duration: 300
                                 }
                             }
-                            gradient: Gradient {
-                                orientation: Gradient.Horizontal
-                                GradientStop {
-                                    position: 0.0
-                                    color: Qt.lighter(window.activeColor, 1.15)
-                                }
-                                GradientStop {
-                                    position: 1.0
-                                    color: window.activeColor
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: 200
+                                    easing.type: Easing.OutBack
                                 }
                             }
-                        }
-                        border.width: 2
-                        border.color: window.currentPowerPending ? window.activeColor : (window.currentPower ? "transparent" : window.panelBorderColor)
-                        Behavior on border.color {
-                            ColorAnimation {
-                                duration: 300
-                            }
-                        }
-                        scale: pwrMa.pressed ? 0.9 : (pwrMa.containsMouse ? 1.05 : 1.0)
-                        Behavior on scale {
-                            NumberAnimation {
-                                duration: 200
-                                easing.type: Easing.OutBack
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: 10
+                                opacity: window.currentPower ? 1.0 : 0.0
+                                Behavior on opacity {
+                                    NumberAnimation {
+                                        duration: 300
+                                    }
+                                }
+                                gradient: Gradient {
+                                    orientation: Gradient.Horizontal
+                                    GradientStop {
+                                        position: 0.0
+                                        color: Qt.lighter(window.activeColor, 1.15)
+                                    }
+                                    GradientStop {
+                                        position: 1.0
+                                        color: window.activeColor
+                                    }
+                                }
                             }
                         }
                         Text {
@@ -3312,6 +3368,7 @@ Item {
                             font.pixelSize: 20
                             color: window.currentPower ? window.crust : window.text
                             text: window.currentPowerPending ? "󰑮" : "󰐥"
+                            renderType: Text.NativeRendering
                             Behavior on color {
                                 ColorAnimation {
                                     duration: 300

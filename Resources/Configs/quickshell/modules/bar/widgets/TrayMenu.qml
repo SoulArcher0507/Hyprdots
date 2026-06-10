@@ -16,12 +16,15 @@ PopupWindow {
     readonly property real popupOpenHeight: contentColumn.implicitHeight + (24 * scaleFactor)
     readonly property real popupClosedWidth: Math.max(120 * scaleFactor, popupOpenWidth - (28 * scaleFactor))
     readonly property real popupClosedHeight: Math.max(42 * scaleFactor, popupOpenHeight - (20 * scaleFactor))
+    readonly property real popupOvershootWidth: 14 * scaleFactor
+    readonly property real popupHorizontalPad: 10 * scaleFactor
+    readonly property real popupSlotWidth: popupOpenWidth + popupOvershootWidth
 
     property real popupCardOpacity: 0.0
     property real popupCardScaleX: 0.42
     property real popupCardScaleY: 0.24
-    property real popupCardWidth: popupOpenWidth
-    property real popupCardHeight: popupOpenHeight
+    property real popupCardWidth: popupClosedWidth
+    property real popupCardHeight: popupClosedHeight
     property real popupCardRadius: 17 * scaleFactor
     property real popupCardLift: 8.5 * scaleFactor
 
@@ -73,15 +76,15 @@ PopupWindow {
 
     color: "transparent"
 
-    implicitWidth: popupOpenWidth
+    implicitWidth: popupSlotWidth + (popupHorizontalPad * 2)
     implicitHeight: popupOpenHeight
 
     function resetClosedMorph() {
         popupCardOpacity = 0.0;
         popupCardScaleX = 0.42;
         popupCardScaleY = 0.24;
-        popupCardWidth = popupOpenWidth;
-        popupCardHeight = popupOpenHeight;
+        popupCardWidth = popupClosedWidth;
+        popupCardHeight = popupClosedHeight;
         popupCardRadius = 17 * scaleFactor;
         popupCardLift = 8.5 * scaleFactor;
     }
@@ -175,6 +178,8 @@ PopupWindow {
         popupCardOpacity = 1.0;
         popupCardScaleX = 1.0;
         popupCardScaleY = 1.0;
+        popupCardWidth = popupOpenWidth;
+        popupCardHeight = popupOpenHeight;
         popupCardRadius = 10 * root.scaleFactor;
         popupCardLift = 0;
     }
@@ -231,16 +236,21 @@ PopupWindow {
     }
 
     Rectangle {
-        anchors.fill: parent
+        id: popupShell
+        width: root.popupCardWidth
+        height: root.popupCardHeight
+        x: root.popupHorizontalPad + ((root.popupSlotWidth - width) / 2)
+        y: 0
         radius: popupCardRadius
         color: ThemePkg.Theme.surface(0.10)
         border.color: ThemePkg.Theme.mix(ThemePkg.Theme.background, ThemePkg.Theme.foreground, 0.35)
         border.width: 1 * scaleFactor
+        clip: true
         opacity: popupCardOpacity
         transform: [
             Scale {
-                origin.x: root.width / 2
-                origin.y: root.height / 2
+                origin.x: popupShell.width / 2
+                origin.y: popupShell.height / 2
                 xScale: popupCardScaleX
                 yScale: popupCardScaleY
             },
@@ -355,7 +365,7 @@ PopupWindow {
                 return root.activeSubMenuY;
             });
             item.anchor.rect.width = Qt.binding(function () {
-                return root.width;
+                return root.popupOpenWidth;
             });
             item.anchor.rect.height = Qt.binding(function () {
                 return 30 * root.scaleFactor;
@@ -375,6 +385,8 @@ PopupWindow {
             NumberAnimation { target: root; property: "popupCardOpacity"; to: 0.82; duration: 210; easing.type: Easing.OutCubic }
             NumberAnimation { target: root; property: "popupCardScaleX"; to: 0.985; duration: 280; easing.type: Easing.OutCubic }
             NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.94; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "popupCardWidth"; to: root.popupOpenWidth - (18 * root.scaleFactor); duration: 285; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "popupCardHeight"; to: root.popupOpenHeight - (18 * root.scaleFactor); duration: 300; easing.type: Easing.OutCubic }
             NumberAnimation { target: root; property: "popupCardRadius"; to: 14 * root.scaleFactor; duration: 270; easing.type: Easing.OutQuad }
             NumberAnimation { target: root; property: "popupCardLift"; to: 8 * root.scaleFactor; duration: 300; easing.type: Easing.OutCubic }
         }
@@ -383,6 +395,8 @@ PopupWindow {
             NumberAnimation { target: root; property: "popupCardOpacity"; to: 1.0; duration: 175; easing.type: Easing.OutCubic }
             NumberAnimation { target: root; property: "popupCardScaleX"; to: 1.0; duration: 205; easing.type: Easing.OutCubic }
             NumberAnimation { target: root; property: "popupCardScaleY"; to: 1.0; duration: 205; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "popupCardWidth"; to: root.popupOpenWidth; duration: 205; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "popupCardHeight"; to: root.popupOpenHeight; duration: 215; easing.type: Easing.OutCubic }
             NumberAnimation { target: root; property: "popupCardRadius"; to: 10 * root.scaleFactor; duration: 195; easing.type: Easing.InOutQuad }
             NumberAnimation { target: root; property: "popupCardLift"; to: 0; duration: 205; easing.type: Easing.OutCubic }
         }
@@ -400,6 +414,8 @@ PopupWindow {
         ParallelAnimation {
             NumberAnimation { target: root; property: "popupCardScaleX"; to: 1.04; duration: 85; easing.type: Easing.OutQuad }
             NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.95; duration: 85; easing.type: Easing.OutQuad }
+            NumberAnimation { target: root; property: "popupCardWidth"; to: root.popupOpenWidth + (14 * root.scaleFactor); duration: 95; easing.type: Easing.OutQuad }
+            NumberAnimation { target: root; property: "popupCardHeight"; to: root.popupOpenHeight - (16 * root.scaleFactor); duration: 95; easing.type: Easing.OutQuad }
             NumberAnimation { target: root; property: "popupCardRadius"; to: 15 * root.scaleFactor; duration: 95; easing.type: Easing.OutQuad }
             NumberAnimation { target: root; property: "popupCardLift"; to: 5 * root.scaleFactor; duration: 95; easing.type: Easing.OutQuad }
             NumberAnimation { target: root; property: "popupCardOpacity"; to: 0.88; duration: 80; easing.type: Easing.OutQuad }
@@ -409,6 +425,8 @@ PopupWindow {
             NumberAnimation { target: root; property: "popupCardOpacity"; to: 0.0; duration: 180; easing.type: Easing.InCubic }
             NumberAnimation { target: root; property: "popupCardScaleX"; to: 0.42; duration: 260; easing.type: Easing.InCubic }
             NumberAnimation { target: root; property: "popupCardScaleY"; to: 0.24; duration: 280; easing.type: Easing.InCubic }
+            NumberAnimation { target: root; property: "popupCardWidth"; to: root.popupClosedWidth; duration: 200; easing.type: Easing.InCubic }
+            NumberAnimation { target: root; property: "popupCardHeight"; to: root.popupClosedHeight; duration: 210; easing.type: Easing.InCubic }
             NumberAnimation { target: root; property: "popupCardRadius"; to: 17 * root.scaleFactor; duration: 200; easing.type: Easing.InQuad }
             NumberAnimation { target: root; property: "popupCardLift"; to: 8.5 * root.scaleFactor; duration: 280; easing.type: Easing.InCubic }
         }
