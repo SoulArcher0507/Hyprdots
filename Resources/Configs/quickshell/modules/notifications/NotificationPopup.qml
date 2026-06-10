@@ -112,6 +112,16 @@ Item {
         popupExitAnim.stop();
         popupResizeAnim.stop();
         root.schedulePopupLayoutRefresh();
+        if (!ThemePkg.Theme.popupAnimationsEnabled) {
+            root.syncNotificationCount(true);
+            Qt.callLater(function() {
+                if (!root.popupTargetVisible)
+                    return;
+                root.openInstant();
+                card.forceActiveFocus();
+            });
+            return;
+        }
         if (!popupEnterAnim.running && popupCardOpacity >= 0.999) {
             Qt.callLater(function() {
                 root.schedulePopupLayoutRefresh();
@@ -137,7 +147,40 @@ Item {
         if (!popupMounted && popupCardOpacity <= 0.001)
             return;
         popupExitAnim.stop();
-        popupExitAnim.start();
+        if (ThemePkg.Theme.popupAnimationsEnabled)
+            popupExitAnim.start();
+        else
+            root.closeInstant();
+    }
+
+    function openInstant() {
+        popupExitAnim.stop();
+        popupEnterAnim.stop();
+        popupResizeAnim.stop();
+        popupTargetVisible = true;
+        popupMounted = true;
+        popupCardOpacity = 1.0;
+        popupCardScaleX = 1.0;
+        popupCardScaleY = 1.0;
+        popupCardWidth = Math.max(root.minCardWidth, Math.min(root.maxCardWidth, content.implicitWidth + 50));
+        popupCardHeight = Math.min(root.maxCardHeight, content.implicitHeight + 50);
+        popupCardRadius = root.popupOpenRadius;
+        popupCardLift = 0;
+    }
+
+    function closeInstant() {
+        popupEnterAnim.stop();
+        popupExitAnim.stop();
+        popupResizeAnim.stop();
+        popupTargetVisible = false;
+        popupMounted = false;
+        popupCardOpacity = 0.0;
+        popupCardScaleX = 0.42;
+        popupCardScaleY = 0.24;
+        popupCardWidth = root.popupClosedWidth;
+        popupCardHeight = root.popupClosedHeight;
+        popupCardRadius = root.popupClosedRadius;
+        popupCardLift = root.popupOriginLift();
     }
 
     function syncNotificationCount(force) {
@@ -846,6 +889,31 @@ Item {
         }
     }
 
+    component HoverToolTip: ToolTip {
+        id: hoverToolTipRoot
+
+        x: parent ? Math.round((parent.width - implicitWidth) / 2) : 0
+        y: -implicitHeight - 3
+        margins: 6
+        horizontalPadding: 8
+        verticalPadding: 6
+
+        background: Rectangle {
+            radius: 10
+            color: root.base
+            border.width: 1
+            border.color: root.moduleBorderColor
+        }
+
+        contentItem: Text {
+            text: hoverToolTipRoot.text
+            color: root.accent
+            font.pixelSize: 13
+            font.family: "Fira Sans Semibold"
+            wrapMode: Text.Wrap
+        }
+    }
+
     component HoldOrbButton: Item {
         id: orb
         width: 57
@@ -857,6 +925,8 @@ Item {
         property bool active: false
         property bool buttonEnabled: true
         property color activeColor: root.accent
+        property real iconXOffset: 0
+        property real iconYOffset: 0
         property real fillLevel: 0.0
         property bool triggered: false
         property real flashOpacity: 0.0
@@ -970,6 +1040,8 @@ Item {
 
         Text {
             anchors.centerIn: parent
+            anchors.horizontalCenterOffset: orb.iconXOffset
+            anchors.verticalCenterOffset: orb.iconYOffset
             text: orb.active ? orb.activeIcon : orb.inactiveIcon
             color: orb.active ? root.crust : (orb.hovered ? root.text : root.overlay1)
             font.pixelSize: 22
@@ -986,7 +1058,8 @@ Item {
 
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
-                y: (orb.height / 2) - (height / 2) - (orb.height - parent.height)
+                anchors.horizontalCenterOffset: orb.iconXOffset
+                y: (orb.height / 2) - (height / 2) - (orb.height - parent.height) + orb.iconYOffset
                 text: orb.active ? orb.activeIcon : orb.inactiveIcon
                 color: root.text
                 font.pixelSize: 22
@@ -1028,9 +1101,11 @@ Item {
             }
         }
 
-        ToolTip.visible: orbMa.containsMouse
-        ToolTip.delay: 250
-        ToolTip.text: tip
+        HoverToolTip {
+            visible: orbMa.containsMouse && tip !== ""
+            delay: 250
+            text: tip
+        }
 
         NumberAnimation {
             id: orbFill
@@ -1276,9 +1351,11 @@ Item {
             }
         }
 
-        ToolTip.visible: cardMouse.containsMouse && tip !== ""
-        ToolTip.delay: 250
-        ToolTip.text: tip
+        HoverToolTip {
+            visible: cardMouse.containsMouse && tip !== ""
+            delay: 250
+            text: tip
+        }
 
         NumberAnimation {
             id: cardFill
@@ -1609,6 +1686,7 @@ Item {
                         active: root.doNotDisturb
                         activeIcon: "󰂛"
                         inactiveIcon: "󰂚"
+                        iconXOffset: -1
                         tip: root.doNotDisturb ? "Hold to disable Do Not Disturb" : "Hold to enable Do Not Disturb"
                         onActivated: {
                             DndMod.DndState.dnd = !DndMod.DndState.dnd

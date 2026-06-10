@@ -98,7 +98,10 @@ Item {
         root._resetPopupMorphState();
         popupExitAnim.stop();
         popupEnterAnim.stop();
-        popupEnterAnim.start();
+        if (ThemePkg.Theme.popupAnimationsEnabled)
+            popupEnterAnim.start();
+        else
+            root.openInstant();
     }
 
     function _hidePopup() {
@@ -107,7 +110,26 @@ Item {
         if (!popupMounted && popupCardOpacity <= 0.001)
             return;
         popupExitAnim.stop();
-        popupExitAnim.start();
+        if (ThemePkg.Theme.popupAnimationsEnabled)
+            popupExitAnim.start();
+        else
+            root.closeInstant();
+    }
+
+    function openInstant() {
+        popupExitAnim.stop();
+        popupEnterAnim.stop();
+        popupTargetVisible = true;
+        popupMounted = true;
+        ThemePkg.Theme.setPopupCardOpen(root);
+    }
+
+    function closeInstant() {
+        popupEnterAnim.stop();
+        popupExitAnim.stop();
+        popupTargetVisible = false;
+        popupMounted = false;
+        ThemePkg.Theme.setPopupCardClosed(root);
     }
 
     Io.IpcHandler {

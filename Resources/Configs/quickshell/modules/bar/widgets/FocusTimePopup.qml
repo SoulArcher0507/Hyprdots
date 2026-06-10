@@ -251,7 +251,10 @@ Item {
         if (!popupEnterAnim.running && popupCardOpacity >= 0.999)
             return;
         popupEnterAnim.stop();
-        popupEnterAnim.start();
+        if (ThemePkg.Theme.popupAnimationsEnabled)
+            popupEnterAnim.start();
+        else
+            root.openInstant();
         win.forceActiveFocus();
     }
 
@@ -261,7 +264,26 @@ Item {
         if (!popupMounted && popupCardOpacity <= 0.001)
             return;
         popupExitAnim.stop();
-        popupExitAnim.start();
+        if (ThemePkg.Theme.popupAnimationsEnabled)
+            popupExitAnim.start();
+        else
+            root.closeInstant();
+    }
+
+    function openInstant() {
+        popupExitAnim.stop();
+        popupEnterAnim.stop();
+        popupTargetVisible = true;
+        popupMounted = true;
+        ThemePkg.Theme.setPopupCardOpen(root);
+    }
+
+    function closeInstant() {
+        popupEnterAnim.stop();
+        popupExitAnim.stop();
+        popupTargetVisible = false;
+        popupMounted = false;
+        ThemePkg.Theme.setPopupCardClosed(root);
     }
 
     function markChartAnimationPending(resetProgress) {

@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Shapes
 import Quickshell
 import "../../theme" as ThemePkg
 import "kdeconnect" as Kde
@@ -63,7 +62,10 @@ Item {
         popupTargetVisible = true;
         introProgress = 1.0;
         Kde.KDEConnect.checkDaemon();
-        popupEnterAnim.start();
+        if (ThemePkg.Theme.popupAnimationsEnabled)
+            popupEnterAnim.start();
+        else
+            root.openInstant();
         root.forceActiveFocus();
     }
 
@@ -71,6 +73,11 @@ Item {
         if (hostLoaderOpacity < lastHostLoaderOpacity - 0.001 && popupTargetVisible) {
             popupTargetVisible = false;
             popupEnterAnim.stop();
+            if (!ThemePkg.Theme.popupAnimationsEnabled) {
+                root.closeInstant();
+                lastHostLoaderOpacity = hostLoaderOpacity;
+                return;
+            }
             if (!popupExitAnim.running)
                 popupExitAnim.start();
         }
@@ -86,6 +93,10 @@ Item {
             return;
         popupTargetVisible = false;
         popupEnterAnim.stop();
+        if (!ThemePkg.Theme.popupAnimationsEnabled) {
+            root.closeInstant();
+            return;
+        }
         if (!popupExitAnim.running)
             popupExitAnim.start();
     }
@@ -94,7 +105,25 @@ Item {
         popupTargetVisible = true;
         popupExitAnim.stop();
         popupEnterAnim.stop();
+        if (!ThemePkg.Theme.popupAnimationsEnabled) {
+            root.openInstant();
+            return;
+        }
         popupEnterAnim.start();
+    }
+
+    function openInstant() {
+        popupExitAnim.stop();
+        popupEnterAnim.stop();
+        popupTargetVisible = true;
+        ThemePkg.Theme.setPopupCardOpen(root);
+    }
+
+    function closeInstant() {
+        popupEnterAnim.stop();
+        popupExitAnim.stop();
+        popupTargetVisible = false;
+        ThemePkg.Theme.setPopupCardClosed(root);
     }
 
     function handleEscape() {
@@ -186,18 +215,6 @@ Item {
             return "Unknown";
         const labels = ["Very weak", "Weak", "Fair", "Good", "Excellent"];
         return labels[Math.max(0, Math.min(labels.length - 1, device.cellularNetworkStrength))];
-    }
-
-    function remoteInputText(device) {
-        if (!device || !device.paired)
-            return "Input off";
-        return device.remoteInputReady ? "Input ready" : "Input locked";
-    }
-
-    function remoteInputColor(device) {
-        if (!device || !device.paired)
-            return root.overlay0;
-        return device.remoteInputReady ? root.green : root.yellow;
     }
 
     function notificationsText(device) {
@@ -622,11 +639,6 @@ Item {
                     PhoneFrame {
                         Layout.preferredWidth: 104
                         Layout.preferredHeight: 174
-                        enabled: root.selectedDevice && root.selectedDevice.reachable && root.selectedDevice.paired && root.selectedDevice.remoteInputReady
-                        onActivated: {
-                            if (root.selectedDevice)
-                                Kde.KDEConnect.wakeUpDevice(root.selectedDevice.id);
-                        }
                     }
 
                     ColumnLayout {
@@ -655,11 +667,6 @@ Item {
                             StatusPill {
                                 label: root.batteryText(root.selectedDevice)
                                 accentColor: root.selectedDevice && root.selectedDevice.charging ? root.green : root.accent
-                            }
-
-                            StatusPill {
-                                label: root.remoteInputText(root.selectedDevice)
-                                accentColor: root.remoteInputColor(root.selectedDevice)
                             }
                         }
 
@@ -748,16 +755,6 @@ Item {
                         label: "Ring"
                         onActivated: {
                             Kde.KDEConnect.triggerFindMyPhone(root.selectedDevice.id);
-                        }
-                    }
-
-                    ActionButton {
-                        Layout.fillWidth: true
-                        icon: "󰤄"
-                        label: "Tap"
-                        enabled: root.selectedDevice && root.selectedDevice.remoteInputReady
-                        onActivated: {
-                            Kde.KDEConnect.wakeUpDevice(root.selectedDevice.id);
                         }
                     }
                 }
@@ -948,18 +945,10 @@ Item {
     component PhoneFrame: Rectangle {
         id: phoneFrame
 
-        signal activated()
-
         radius: 22
-        color: phoneHover.hovered && enabled ? "#111724" : "#0b0d12"
-        border.color: phoneHover.hovered && enabled ? root.accent : "#36ffffff"
+        color: "#0b0d12"
+        border.color: "#36ffffff"
         border.width: 1
-        opacity: enabled ? 1.0 : 0.52
-        scale: phoneTap.pressed && enabled ? 0.98 : 1.0
-
-        Behavior on color { ColorAnimation { duration: 150 } }
-        Behavior on border.color { ColorAnimation { duration: 150 } }
-        Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutQuad } }
 
         Rectangle {
             anchors.fill: parent
@@ -995,18 +984,6 @@ Item {
                 radius: 2
                 color: "#70ffffff"
             }
-        }
-
-        HoverHandler {
-            id: phoneHover
-            cursorShape: phoneFrame.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-        }
-
-        TapHandler {
-            id: phoneTap
-            acceptedButtons: Qt.LeftButton
-            enabled: phoneFrame.enabled
-            onTapped: phoneFrame.activated()
         }
     }
 
@@ -1114,12 +1091,11 @@ Item {
                 Layout.preferredWidth: 18
                 Layout.preferredHeight: 18
 
-                RefreshIcon {
+                RefreshGlyph {
                     anchors.centerIn: parent
-                    width: 18
-                    height: 18
                     visible: actionBtn.refreshIcon
                     iconColor: actionHover.hovered && actionBtn.enabled ? root.accent : root.text
+                    spinning: actionBtn.busy && actionBtn.refreshIcon && ThemePkg.Theme.edgeAnimationsEnabled
                 }
 
                 Text {
@@ -1131,13 +1107,6 @@ Item {
                     font.pixelSize: 16
                 }
 
-                RotationAnimation on rotation {
-                    from: 0
-                    to: 360
-                    duration: 900
-                    loops: Animation.Infinite
-                    running: busy && actionBtn.refreshIcon && ThemePkg.Theme.edgeAnimationsEnabled
-                }
             }
 
             Text {
@@ -1184,21 +1153,11 @@ Item {
         scale: refreshTap.pressed && enabled ? 0.96 : 1.0
         Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutBack } }
 
-        RefreshIcon {
-            id: refreshIcon
+        RefreshGlyph {
             anchors.centerIn: parent
-            width: 20
-            height: 20
             iconColor: refreshHover.hovered && refreshBtn.enabled ? root.accent : root.text
             opacity: refreshHover.hovered && refreshBtn.enabled ? 1.0 : 0.82
-
-            RotationAnimation on rotation {
-                from: 0
-                to: 360
-                duration: 900
-                loops: Animation.Infinite
-                running: refreshBtn.busy && ThemePkg.Theme.edgeAnimationsEnabled
-            }
+            spinning: refreshBtn.busy && ThemePkg.Theme.edgeAnimationsEnabled
         }
 
         HoverHandler {
@@ -1214,52 +1173,46 @@ Item {
         }
     }
 
-    component RefreshIcon: Shape {
-        id: refreshIconShape
+    component RefreshGlyph: Item {
+        id: refreshGlyph
 
         property color iconColor: root.text
+        property bool spinning: false
 
-        implicitWidth: 20
-        implicitHeight: 20
-        preferredRendererType: Shape.CurveRenderer
+        implicitWidth: 18
+        implicitHeight: 18
+        width: 18
+        height: 18
 
-        ShapePath {
-            fillColor: "transparent"
-            strokeColor: refreshIconShape.iconColor
-            strokeWidth: 2
-            capStyle: ShapePath.RoundCap
-            joinStyle: ShapePath.RoundJoin
-            startX: refreshIconShape.width * 0.79
-            startY: refreshIconShape.height * 0.27
+        onSpinningChanged: if (!spinning)
+            refreshGlyphText.rotation = 0
 
-            PathAngleArc {
-                centerX: refreshIconShape.width * 0.5
-                centerY: refreshIconShape.height * 0.5
-                radiusX: refreshIconShape.width * 0.34
-                radiusY: refreshIconShape.height * 0.34
-                startAngle: -46
-                sweepAngle: 286
-            }
-        }
+        Text {
+            id: refreshGlyphText
 
-        ShapePath {
-            fillColor: "transparent"
-            strokeColor: refreshIconShape.iconColor
-            strokeWidth: 2
-            capStyle: ShapePath.RoundCap
-            joinStyle: ShapePath.RoundJoin
-            startX: refreshIconShape.width * 0.70
-            startY: refreshIconShape.height * 0.19
+            width: parent.width
+            height: parent.height
+            anchors.centerIn: parent
+            text: "󰑐"
+            color: refreshGlyph.iconColor
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            font.family: "Iosevka Nerd Font"
+            font.pixelSize: 16
+            font.hintingPreference: Font.PreferNoHinting
+            renderType: Text.QtRendering
+            layer.enabled: true
+            layer.smooth: true
+            layer.mipmap: true
 
-            PathLine {
-                x: refreshIconShape.width * 0.88
-                y: refreshIconShape.height * 0.18
-            }
-
-            PathLine {
-                x: refreshIconShape.width * 0.82
-                y: refreshIconShape.height * 0.36
+            RotationAnimation on rotation {
+                from: 0
+                to: 360
+                duration: 900
+                loops: Animation.Infinite
+                running: refreshGlyph.spinning
             }
         }
     }
+
 }

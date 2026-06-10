@@ -165,7 +165,10 @@ Item {
             return;
         }
         window.beginOverlayClose();
-        popupCloseFinalize.restart();
+        if (ThemePkg.Theme.popupAnimationsEnabled)
+            popupCloseFinalize.restart();
+        else
+            Qt.callLater(window._finalizeClosePicker);
     }
 
     function beginOverlayClose() {
@@ -175,6 +178,10 @@ Item {
         window.popupTargetVisible = false;
         popupEnterAnim.stop();
         popupExitAnim.stop();
+        if (!ThemePkg.Theme.popupAnimationsEnabled) {
+            window.closeInstant();
+            return;
+        }
         popupExitAnim.start();
     }
 
@@ -194,7 +201,10 @@ Item {
         if (!popupEnterAnim.running && window.popupContentOpacity >= 0.999)
             return;
         popupEnterAnim.stop();
-        popupEnterAnim.start();
+        if (ThemePkg.Theme.popupAnimationsEnabled)
+            popupEnterAnim.start();
+        else
+            window.openInstant();
     }
 
     function cancelOverlayClose() {
@@ -203,7 +213,25 @@ Item {
         popupCloseFinalize.stop();
         popupExitAnim.stop();
         popupEnterAnim.stop();
-        popupEnterAnim.start();
+        if (ThemePkg.Theme.popupAnimationsEnabled)
+            popupEnterAnim.start();
+        else
+            window.openInstant();
+    }
+
+    function openInstant() {
+        popupExitAnim.stop();
+        popupEnterAnim.stop();
+        window.popupClosing = false;
+        window.popupTargetVisible = true;
+        ThemePkg.Theme.setPopupContentOpen(window);
+    }
+
+    function closeInstant() {
+        popupEnterAnim.stop();
+        popupExitAnim.stop();
+        window.popupTargetVisible = false;
+        ThemePkg.Theme.setPopupContentClosed(window);
     }
 
     function applyWallpaper(absPath) {
@@ -314,6 +342,11 @@ Item {
             window.popupTargetVisible = false;
             popupCloseFinalize.stop();
             popupEnterAnim.stop();
+            if (!ThemePkg.Theme.popupAnimationsEnabled) {
+                window.closeInstant();
+                lastHostLoaderOpacity = hostLoaderOpacity;
+                return;
+            }
             if (!popupExitAnim.running)
                 popupExitAnim.start();
         }

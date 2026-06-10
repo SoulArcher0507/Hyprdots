@@ -96,6 +96,7 @@ Item {
     property real screenLight: 0.0
     property bool applyHovered: false
     property bool applyPressed: false
+    property bool monitorDragActive: false
     property real applyFillLevel: 0.0
     property bool applyTriggered: false
     property real applyFlashOpacity: 0.0
@@ -110,7 +111,10 @@ Item {
         root.forceActiveFocus();
         root.popupTargetVisible = true;
         startupAnim.start();
-        popupEnterAnim.start();
+        if (ThemePkg.Theme.popupAnimationsEnabled)
+            popupEnterAnim.start();
+        else
+            root.openInstant();
     }
 
     function canHandleMonitorArrowKeys() {
@@ -177,6 +181,11 @@ Item {
         if (hostLoaderOpacity < lastHostLoaderOpacity - 0.001 && popupTargetVisible) {
             popupTargetVisible = false;
             popupEnterAnim.stop();
+            if (!ThemePkg.Theme.popupAnimationsEnabled) {
+                root.closeInstant();
+                lastHostLoaderOpacity = hostLoaderOpacity;
+                return;
+            }
             if (!popupExitAnim.running)
                 popupExitAnim.start();
         }
@@ -188,6 +197,10 @@ Item {
             return;
         popupTargetVisible = false;
         popupEnterAnim.stop();
+        if (!ThemePkg.Theme.popupAnimationsEnabled) {
+            root.closeInstant();
+            return;
+        }
         if (!popupExitAnim.running)
             popupExitAnim.start();
     }
@@ -196,11 +209,29 @@ Item {
         popupTargetVisible = true;
         popupExitAnim.stop();
         popupEnterAnim.stop();
+        if (!ThemePkg.Theme.popupAnimationsEnabled) {
+            root.openInstant();
+            return;
+        }
         popupEnterAnim.start();
     }
 
     function popupOriginLift() {
         return root.barPanelCenterY - (root.popupClosedHeight / 2);
+    }
+
+    function openInstant() {
+        popupExitAnim.stop();
+        popupEnterAnim.stop();
+        popupTargetVisible = true;
+        ThemePkg.Theme.setPopupCardOpen(root);
+    }
+
+    function closeInstant() {
+        popupEnterAnim.stop();
+        popupExitAnim.stop();
+        popupTargetVisible = false;
+        ThemePkg.Theme.setPopupCardClosed(root);
     }
 
     SequentialAnimation {
@@ -881,22 +912,34 @@ Item {
                                         scale: 1.0 / singleMonitorZoom.scale
                                         ColumnLayout {
                                             anchors.centerIn: parent; spacing: 4
+                                            width: Math.max(90, Math.min(180, (screenBezel.width - 24) * singleMonitorZoom.scale))
                                             Text {
                                                 Layout.alignment: Qt.AlignHCenter
                                                 font.family: "CaskaydiaMono Nerd Font"; font.pixelSize: 38
                                                 color: root.selectedResAccent; text: "󰍹"
+                                                renderType: Text.NativeRendering
                                                 Behavior on color { ColorAnimation { duration: 400 } }
                                             }
                                             Text {
                                                 Layout.alignment: Qt.AlignHCenter
+                                                Layout.fillWidth: true
                                                 font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: 16
                                                 color: root.text
                                                 text: monitorsModel.count > 0 ? monitorsModel.get(0).name : "Unknown"
+                                                horizontalAlignment: Text.AlignHCenter
+                                                elide: Text.ElideRight
+                                                maximumLineCount: 1
+                                                renderType: Text.NativeRendering
                                             }
                                             Text {
                                                 Layout.alignment: Qt.AlignHCenter
+                                                Layout.fillWidth: true
                                                 font.family: "JetBrains Mono"; font.pixelSize: 12; color: root.subtext0
                                                 text: root.currentSimW + "x" + root.currentSimH + " @ " + (monitorsModel.count > 0 ? monitorsModel.get(0).rate : "60") + "Hz"
+                                                horizontalAlignment: Text.AlignHCenter
+                                                elide: Text.ElideRight
+                                                maximumLineCount: 1
+                                                renderType: Text.NativeRendering
                                             }
                                         }
                                     }
@@ -988,37 +1031,6 @@ Item {
                                         Behavior on color { ColorAnimation { duration: 300 } }
                                         Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
                                         Behavior on height { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
-
-                                        Item {
-                                            anchors.centerIn: parent; width: 110; height: 80
-                                            property real idealScale: Math.min(1.2, parent.width / 110, parent.height / 80) / transformNode.scale
-                                            property real maxPhysicalScale: Math.min((parent.width * 0.9) / width, (parent.height * 0.9) / height)
-                                            scale: Math.min(idealScale, maxPhysicalScale)
-                                            layer.enabled: true
-                                            layer.smooth: true
-                                            layer.mipmap: true
-                                            layer.textureSize: Qt.size(width * 2, height * 2)
-
-                                            ColumnLayout {
-                                                anchors.centerIn: parent; spacing: 2
-                                                Text {
-                                                    Layout.alignment: Qt.AlignHCenter
-                                                    font.family: "CaskaydiaMono Nerd Font"; font.pixelSize: 32
-                                                    color: isActive ? root.selectedResAccent : root.text; text: "󰍹"
-                                                    Behavior on color { ColorAnimation { duration: 300 } }
-                                                }
-                                                Text {
-                                                    Layout.alignment: Qt.AlignHCenter
-                                                    font.family: "JetBrains Mono"; font.weight: Font.Black; font.pixelSize: 13
-                                                    color: root.text; text: model.name
-                                                }
-                                                Text {
-                                                    Layout.alignment: Qt.AlignHCenter
-                                                    font.family: "JetBrains Mono"; font.pixelSize: 10; color: root.subtext0
-                                                    text: model.resW + "x" + model.resH + " @ " + model.rate + "Hz"
-                                                }
-                                            }
-                                        }
                                     }
 
                                     Item {
@@ -1035,6 +1047,7 @@ Item {
                                             drag.threshold: 0
                                             drag.smoothed: false
                                             onPressed: {
+                                                root.monitorDragActive = true;
                                                 root.selectMonitor(index);
                                                 root.forceActiveFocus();
                                                 ghostDrag.x = model.uiX;
@@ -1059,10 +1072,76 @@ Item {
                                                 }
                                             }
                                             onReleased: {
+                                                root.monitorDragActive = false;
                                                 ghostDrag.x = model.uiX;
                                                 ghostDrag.y = model.uiY;
                                             }
+                                            onCanceled: root.monitorDragActive = false
                                         }
+                                    }
+                                }
+                            }
+                        }
+
+                        Repeater {
+                            model: monitorsModel
+
+                            Item {
+                                property bool isActive: root.activeEditIndex === index
+                                property real monitorW: (root.displayW(model) / model.sysScale) * root.uiScale
+                                property real monitorH: (root.displayH(model) / model.sysScale) * root.uiScale
+
+                                x: Math.round(multiMonitorView.offsetX + (model.uiX * multiMonitorView.targetScale))
+                                y: Math.round(multiMonitorView.offsetY + (model.uiY * multiMonitorView.targetScale))
+                                width: Math.round(monitorW * multiMonitorView.targetScale)
+                                height: Math.round(monitorH * multiMonitorView.targetScale)
+                                z: isActive ? 20 : 12
+                                clip: true
+                                visible: width >= 58 && height >= 42
+
+                                Behavior on x { enabled: !root.monitorDragActive; NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
+                                Behavior on y { enabled: !root.monitorDragActive; NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
+                                Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
+                                Behavior on height { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
+
+                                ColumnLayout {
+                                    anchors.centerIn: parent
+                                    width: Math.max(0, parent.width - 12)
+                                    spacing: parent.height < 64 ? 0 : 2
+
+                                    Text {
+                                        Layout.alignment: Qt.AlignHCenter
+                                        font.family: "CaskaydiaMono Nerd Font"
+                                        font.pixelSize: Math.max(14, Math.min(28, parent.parent.height * 0.28))
+                                        color: isActive ? root.selectedResAccent : root.text
+                                        text: "󰍹"
+                                        renderType: Text.NativeRendering
+                                        Behavior on color { ColorAnimation { duration: 300 } }
+                                    }
+                                    Text {
+                                        Layout.alignment: Qt.AlignHCenter
+                                        Layout.fillWidth: true
+                                        font.family: "JetBrains Mono"
+                                        font.weight: Font.Black
+                                        font.pixelSize: Math.max(8, Math.min(13, parent.parent.height * 0.14))
+                                        color: root.text
+                                        text: model.name
+                                        horizontalAlignment: Text.AlignHCenter
+                                        elide: Text.ElideRight
+                                        maximumLineCount: 1
+                                        renderType: Text.NativeRendering
+                                    }
+                                    Text {
+                                        Layout.alignment: Qt.AlignHCenter
+                                        Layout.fillWidth: true
+                                        font.family: "JetBrains Mono"
+                                        font.pixelSize: Math.max(7, Math.min(10, parent.parent.height * 0.11))
+                                        color: root.subtext0
+                                        text: model.resW + "x" + model.resH + " @ " + model.rate + "Hz"
+                                        horizontalAlignment: Text.AlignHCenter
+                                        elide: Text.ElideRight
+                                        maximumLineCount: 1
+                                        renderType: Text.NativeRendering
                                     }
                                 }
                             }

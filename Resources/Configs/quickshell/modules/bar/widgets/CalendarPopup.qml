@@ -41,7 +41,7 @@ Item {
         sequence: "Left"
         onActivated: {
             if (calHover.hovered) {
-                window.setMonthOffset(window.targetMonthOffset - 1);
+                window.navigateCalendar(-1);
             } else {
                 window.setWeatherView(window.targetWeatherView - 1);
             }
@@ -52,7 +52,7 @@ Item {
         sequence: "Right"
         onActivated: {
             if (calHover.hovered) {
-                window.setMonthOffset(window.targetMonthOffset + 1);
+                window.navigateCalendar(1);
             } else {
                 window.setWeatherView(window.targetWeatherView + 1);
             }
@@ -83,6 +83,9 @@ Item {
     readonly property color teal: ThemePkg.Theme.c6
     readonly property color green: ThemePkg.Theme.success
     readonly property string textFont: "Fira Sans"
+    readonly property string weatherIconFont: "CaskaydiaMono Nerd Font"
+    readonly property real weatherBackgroundIconYOffset: 0
+    readonly property real weatherOrbitIconXOffset: -3
     readonly property int panelMargin: 16
     readonly property int sidePanelWidth: 308
     readonly property int sidePanelHeight: 538
@@ -91,6 +94,7 @@ Item {
     readonly property real centralHubScale: 1.0
     readonly property real orbitRadiusScale: 1.15
     readonly property bool animationsEnabled: ThemePkg.Theme.edgeAnimationsEnabled
+    readonly property bool rotationalAnimationsEnabled: ThemePkg.Theme.rotationalAnimationsEnabled
     readonly property real snappedWeatherTextOffset: Math.round(window.weatherContentOffset)
     readonly property real snappedCalendarTextOffset: Math.round(window.calendarContentOffset)
 
@@ -124,7 +128,7 @@ Item {
 
     property real globalOrbitAngle: 0
     NumberAnimation on globalOrbitAngle {
-        from: 0; to: Math.PI * 2; duration: 90000; loops: Animation.Infinite; running: window.animationsEnabled
+        from: 0; to: Math.PI * 2; duration: 90000; loops: Animation.Infinite; running: window.rotationalAnimationsEnabled
     }
 
     property var currentTime: new Date()
@@ -194,7 +198,7 @@ Item {
             NumberAnimation { target: window; property: "weatherContentOpacity"; to: 0.0; duration: 250; easing.type: Easing.InSine }
             NumberAnimation { target: window; property: "weatherContentOffset"; to: -40 * weatherAnimDirection; duration: 250; easing.type: Easing.InSine }
             
-            NumberAnimation { target: window; property: "transitionSpin"; to: 180 * weatherAnimDirection; duration: 300; easing.type: Easing.InBack }
+            NumberAnimation { target: window; property: "transitionSpin"; to: window.rotationalAnimationsEnabled ? (180 * weatherAnimDirection) : 0; duration: 300; easing.type: Easing.InBack }
             NumberAnimation { target: window; property: "transitionScale"; to: 0.8; duration: 300; easing.type: Easing.InCubic }
         }
         ScriptAction { 
@@ -202,7 +206,7 @@ Item {
                 window.weatherView = window.targetWeatherView; 
                 window.weatherContentOffset = 40 * weatherAnimDirection; 
                 
-                window.transitionSpin = -180 * weatherAnimDirection;
+                window.transitionSpin = window.rotationalAnimationsEnabled ? (-180 * weatherAnimDirection) : 0;
             } 
         }
         ParallelAnimation {
@@ -269,6 +273,7 @@ Item {
     property int monthOffset: 0
     property int targetMonthOffset: 0
     property string targetMonthName: ""
+    property bool monthPickerVisible: false
     ListModel { id: calendarModel }
 
     property real calendarContentOpacity: 1.0
@@ -313,6 +318,21 @@ Item {
         window.calendarAnimDirection = newOffset > window.targetMonthOffset ? 1 : -1;
         window.targetMonthOffset = newOffset;
         calendarTransitionAnim.start();
+    }
+
+    function navigateCalendar(direction) {
+        window.setMonthOffset(window.targetMonthOffset + (window.monthPickerVisible ? 12 : 1) * direction);
+    }
+
+    function selectCalendarMonth(monthIndex) {
+        let now = new Date(window.currentTime.getTime());
+        let displayed = new Date(window.currentTime.getTime());
+        displayed.setDate(1);
+        displayed.setMonth(displayed.getMonth() + window.targetMonthOffset);
+
+        let newOffset = (displayed.getFullYear() - now.getFullYear()) * 12 + (monthIndex - now.getMonth());
+        window.monthPickerVisible = false;
+        window.setMonthOffset(newOffset);
     }
 
     function updateCalendarGrid() {
@@ -393,13 +413,21 @@ Item {
             window.introWeather = 1.0;
             window.startupComplete = true;
         }
-        popupEnterAnim.start();
+        if (ThemePkg.Theme.popupAnimationsEnabled)
+            popupEnterAnim.start();
+        else
+            window.openInstant();
     }
 
     onHostLoaderOpacityChanged: {
         if (hostLoaderOpacity < lastHostLoaderOpacity - 0.001 && popupTargetVisible) {
             popupTargetVisible = false;
             popupEnterAnim.stop();
+            if (!ThemePkg.Theme.popupAnimationsEnabled) {
+                window.closeInstant();
+                lastHostLoaderOpacity = hostLoaderOpacity;
+                return;
+            }
             if (!popupExitAnim.running)
                 popupExitAnim.start();
         }
@@ -411,6 +439,10 @@ Item {
             return;
         popupTargetVisible = false;
         popupEnterAnim.stop();
+        if (!ThemePkg.Theme.popupAnimationsEnabled) {
+            window.closeInstant();
+            return;
+        }
         if (!popupExitAnim.running)
             popupExitAnim.start();
     }
@@ -419,7 +451,25 @@ Item {
         popupTargetVisible = true;
         popupExitAnim.stop();
         popupEnterAnim.stop();
+        if (!ThemePkg.Theme.popupAnimationsEnabled) {
+            window.openInstant();
+            return;
+        }
         popupEnterAnim.start();
+    }
+
+    function openInstant() {
+        popupExitAnim.stop();
+        popupEnterAnim.stop();
+        popupTargetVisible = true;
+        ThemePkg.Theme.setPopupCardOpen(window);
+    }
+
+    function closeInstant() {
+        popupEnterAnim.stop();
+        popupExitAnim.stop();
+        popupTargetVisible = false;
+        ThemePkg.Theme.setPopupCardClosed(window);
     }
 
     function popupOriginLift() {
@@ -544,9 +594,9 @@ Item {
 
             Text {
                 anchors.centerIn: parent
-                anchors.verticalCenterOffset: -45
+                anchors.verticalCenterOffset: window.weatherBackgroundIconYOffset
                 text: window.weatherData && window.weatherData.forecast[window.weatherView] ? window.weatherData.forecast[window.weatherView].icon : ""
-                font.family: "Iosevka Nerd Font"
+                font.family: window.weatherIconFont
                 font.pixelSize: 400
                 color: window.activeWeatherHex
                 opacity: (0.03 + (0.01 * Math.sin(window.globalOrbitAngle * 4))) * window.introAmbient * window.weatherContentOpacity
@@ -581,7 +631,7 @@ Item {
                 property real levitation: 0
                 SequentialAnimation on levitation {
                     loops: Animation.Infinite
-                    running: window.animationsEnabled
+                    running: window.rotationalAnimationsEnabled
                     NumberAnimation { to: -6; duration: 4000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: 0; duration: 4000; easing.type: Easing.InOutSine }
                 }
@@ -589,28 +639,28 @@ Item {
                 property real orbitBreath: 1.0
                 SequentialAnimation on orbitBreath {
                     loops: Animation.Infinite
-                    running: window.animationsEnabled
+                    running: window.rotationalAnimationsEnabled
                     NumberAnimation { to: 1.035; duration: 3500; easing.type: Easing.InOutSine }
                     NumberAnimation { to: 1.0; duration: 3500; easing.type: Easing.InOutSine }
                 }
 
                 property real pitchBreath: 0
                 SequentialAnimation on pitchBreath {
-                    loops: Animation.Infinite; running: window.animationsEnabled
+                    loops: Animation.Infinite; running: window.rotationalAnimationsEnabled
                     NumberAnimation { to: 3.5; duration: 4200; easing.type: Easing.InOutSine }
                     NumberAnimation { to: -3.5; duration: 4200; easing.type: Easing.InOutSine }
                 }
 
                 property real yawBreath: 0
                 SequentialAnimation on yawBreath {
-                    loops: Animation.Infinite; running: window.animationsEnabled
+                    loops: Animation.Infinite; running: window.rotationalAnimationsEnabled
                     NumberAnimation { to: 2.5; duration: 5100; easing.type: Easing.InOutSine }
                     NumberAnimation { to: -2.5; duration: 5100; easing.type: Easing.InOutSine }
                 }
 
                 property real rollBreath: 0
                 SequentialAnimation on rollBreath {
-                    loops: Animation.Infinite; running: window.animationsEnabled
+                    loops: Animation.Infinite; running: window.rotationalAnimationsEnabled
                     NumberAnimation { to: 1.5; duration: 5800; easing.type: Easing.InOutSine }
                     NumberAnimation { to: -1.5; duration: 5800; easing.type: Easing.InOutSine }
                 }
@@ -775,8 +825,8 @@ Item {
                             
                             property real targetAngleDeg: isToday ? (65 + (relIdx * 30)) : (index * (360 / Math.max(1, mCount)))
                             
-                            property real orbitOffset: isToday ? 0 : (window.globalOrbitAngle * (180 / Math.PI) * -1.5)
-                            property real osc: isToday ? (Math.sin(window.globalOrbitAngle * 10 + index) * 5) : 0 
+                            property real orbitOffset: (!window.rotationalAnimationsEnabled || isToday) ? 0 : (window.globalOrbitAngle * (180 / Math.PI) * -1.5)
+                            property real osc: (!window.rotationalAnimationsEnabled || isToday) ? 0 : (Math.sin(window.globalOrbitAngle * 10 + index) * 5)
                             
                             property real rad: (targetAngleDeg + orbitOffset + osc + window.transitionSpin) * (Math.PI / 180)
 
@@ -784,56 +834,85 @@ Item {
                             y: Math.round(Math.sin(rad) * ry - height/2)
                             z: Math.sin(rad) * 100 
                             
-                            scale: hrMa.containsMouse ? 1.08 : 1.0
                             opacity: isHighlighted ? 1.0 : (isToday ? (0.7 + 0.3 * ((Math.sin(rad) + 1) / 2)) : (0.65 + 0.35 * ((Math.sin(rad) + 1) / 2)))
-                            layer.enabled: Math.abs(window.transitionScale - 1.0) > 0.001 || hrMa.containsMouse
+                            layer.enabled: Math.abs(window.transitionScale - 1.0) > 0.001
                             layer.smooth: true
-                            Behavior on scale {
-                                enabled: window.animationsEnabled
-                                NumberAnimation { duration: 250; easing.type: Easing.OutBack }
-                            }
 
                             width: isHighlighted ? 70 : 50
                             height: isHighlighted ? 115 : 82
                             
                             Rectangle {
+                                id: hourCardVisual
                                 anchors.fill: parent
                                 radius: width / 2
                                 color: isHighlighted ? window.textAccent : (hrMa.containsMouse ? window.surface2 : window.surface0)
                                 border.color: isHighlighted ? "transparent" : (hrMa.containsMouse ? window.textAccent : window.surface1)
                                 border.width: 1
+                                scale: hrMa.containsMouse ? 1.08 : 1.0
                                 
                                 Behavior on color { ColorAnimation { duration: 200 } }
+                                Behavior on scale {
+                                    enabled: window.animationsEnabled
+                                    NumberAnimation { duration: 250; easing.type: Easing.OutBack }
+                                }
+                            }
                                 
-                                ColumnLayout {
-                                    anchors.centerIn: parent 
-                                    spacing: 2
+                            ColumnLayout {
+                                anchors.centerIn: parent 
+                                width: parent.width - 8
+                                spacing: 2
                                     
-                                    Text { 
-                                        Layout.alignment: Qt.AlignHCenter
-                                        text: modelData.time
-                                        font.family: window.textFont; font.weight: Font.Bold; font.pixelSize: isHighlighted ? 15 : 11
-                                        color: isHighlighted ? window.base : (hrMa.containsMouse ? window.text : window.overlay1)
-                                    }
+                                Text { 
+                                    Layout.alignment: Qt.AlignHCenter
+                                    Layout.fillWidth: true
+                                    text: modelData.time
+                                    font.family: window.textFont; font.weight: Font.Bold; font.pixelSize: isHighlighted ? 15 : 11
+                                    color: isHighlighted ? window.base : (hrMa.containsMouse ? window.text : window.overlay1)
+                                    horizontalAlignment: Text.AlignHCenter
+                                    elide: Text.ElideRight
+                                    maximumLineCount: 1
+                                    renderType: Text.NativeRendering
+                                }
                                     
-                                    Text { 
-                                        Layout.alignment: Qt.AlignHCenter
+                                Item {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: isHighlighted ? 30 : 22
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        width: parent.width
+                                        height: parent.height
                                         text: modelData.icon || (window.weatherData && window.weatherData.forecast[window.weatherView] ? window.weatherData.forecast[window.weatherView].icon : "")
-                                        font.family: "Iosevka Nerd Font"; font.pixelSize: isHighlighted ? 25 : 18
+                                        font.family: window.weatherIconFont
+                                        font.pixelSize: isHighlighted ? 25 : 18
                                         color: isHighlighted ? window.base : (modelData.hex || window.text)
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                        maximumLineCount: 1
+                                        renderType: Text.QtRendering
                                         
-                                        transform: Translate { y: hrMa.containsMouse ? -2 : 0 }
+                                        transform: Translate {
+                                            x: Math.round(window.weatherOrbitIconXOffset * (isHighlighted ? 1.25 : 1.0))
+                                            y: hrMa.containsMouse ? -2 : 0
+                                        }
                                         Behavior on transform {
                                             enabled: window.animationsEnabled
                                             NumberAnimation { duration: 200; easing.type: Easing.OutBack }
                                         }
                                     }
+                                }
                                     
-                                    Text { 
-                                        Layout.alignment: Qt.AlignHCenter; text: modelData.temp + "°"
-                                        font.family: window.textFont; font.weight: Font.Black; font.pixelSize: isHighlighted ? 18 : 13
-                                        color: isHighlighted ? window.base : window.text 
-                                    }
+                                Text { 
+                                    Layout.alignment: Qt.AlignHCenter
+                                    Layout.fillWidth: true
+                                    text: modelData.temp + "°"
+                                    font.family: window.textFont; font.weight: Font.Black; font.pixelSize: isHighlighted ? 18 : 13
+                                    color: isHighlighted ? window.base : window.text
+                                    horizontalAlignment: Text.AlignHCenter
+                                    elide: Text.ElideRight
+                                    maximumLineCount: 1
+                                    renderType: Text.NativeRendering
                                 }
                             }
                             MouseArea { id: hrMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor }
@@ -873,27 +952,47 @@ Item {
                             width: 30; height: 30; radius: 15
                             color: prevMa.containsMouse ? window.surface1 : "transparent"
                             Text { anchors.centerIn: parent; text: ""; font.family: "Iosevka Nerd Font"; color: window.text; font.pixelSize: 15 }
-                            MouseArea { id: prevMa; anchors.fill: parent; hoverEnabled: true; onClicked: window.setMonthOffset(window.targetMonthOffset - 1) }
+                            MouseArea { id: prevMa; anchors.fill: parent; hoverEnabled: true; onClicked: window.navigateCalendar(-1) }
                         }
                         
-                        Text {
+                        Item {
                             Layout.fillWidth: true
-                            text: window.targetMonthName.toUpperCase()
-                            font.family: window.textFont
-                            font.weight: Font.Black
-                            font.pixelSize: 16
-                            color: window.text
-                            horizontalAlignment: Text.AlignHCenter
-                            
-                            opacity: window.calendarContentOpacity
-                            transform: Translate { x: window.snappedCalendarTextOffset }
+                            Layout.preferredHeight: 30
+
+                            Text {
+                                anchors.centerIn: parent
+                                width: parent.width
+                                text: window.monthPickerVisible ? Qt.formatDateTime(new Date(window.currentTime.getFullYear(), window.currentTime.getMonth() + window.targetMonthOffset, 1), "yyyy") : window.targetMonthName.toUpperCase()
+                                font.family: window.textFont
+                                font.weight: Font.Black
+                                font.pixelSize: 16
+                                color: headerMa.containsMouse ? window.textAccent : window.text
+                                horizontalAlignment: Text.AlignHCenter
+                                elide: Text.ElideRight
+
+                                opacity: window.calendarContentOpacity
+                                transform: Translate { x: window.snappedCalendarTextOffset }
+
+                                Behavior on color {
+                                    enabled: window.animationsEnabled
+                                    ColorAnimation { duration: 150 }
+                                }
+                            }
+
+                            MouseArea {
+                                id: headerMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: window.monthPickerVisible = !window.monthPickerVisible
+                            }
                         }
 
                         Rectangle {
                             width: 30; height: 30; radius: 15
                             color: nextMa.containsMouse ? window.surface1 : "transparent"
                             Text { anchors.centerIn: parent; text: ""; font.family: "Iosevka Nerd Font"; color: window.text; font.pixelSize: 15 }
-                            MouseArea { id: nextMa; anchors.fill: parent; hoverEnabled: true; onClicked: window.setMonthOffset(window.targetMonthOffset + 1) }
+                            MouseArea { id: nextMa; anchors.fill: parent; hoverEnabled: true; onClicked: window.navigateCalendar(1) }
                         }
 
                         
@@ -901,6 +1000,8 @@ Item {
 
                     RowLayout {
                         Layout.fillWidth: true
+                        visible: !window.monthPickerVisible
+                        opacity: window.monthPickerVisible ? 0.0 : 1.0
                         Repeater {
                             model: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
                             Text {
@@ -918,6 +1019,7 @@ Item {
                     GridLayout {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
+                        visible: !window.monthPickerVisible
                         columns: 7
                         rowSpacing: 5
                         columnSpacing: 5
@@ -968,6 +1070,81 @@ Item {
                                 }
 
                                 MouseArea { id: dayMa; anchors.fill: parent; hoverEnabled: true }
+                            }
+                        }
+                    }
+
+                    GridLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        visible: window.monthPickerVisible
+                        columns: 3
+                        rowSpacing: 8
+                        columnSpacing: 8
+
+                        opacity: window.calendarContentOpacity
+                        transform: Translate { x: window.calendarContentOffset }
+
+                        Repeater {
+                            model: 12
+                            Item {
+                                id: monthCell
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+
+                                readonly property bool isSelectedMonth: {
+                                    let d = new Date(window.currentTime.getTime());
+                                    d.setDate(1);
+                                    d.setMonth(d.getMonth() + window.targetMonthOffset);
+                                    return d.getMonth() === index;
+                                }
+
+                                Rectangle {
+                                    id: monthBackground
+                                    anchors.fill: parent
+                                    radius: 12
+                                    color: monthCell.isSelectedMonth ? window.textAccent : (monthMa.containsMouse ? Qt.alpha(window.surface2, 0.4) : "transparent")
+                                    border.color: monthCell.isSelectedMonth ? window.surface0 : (monthMa.containsMouse ? window.overlay0 : "transparent")
+                                    border.width: monthCell.isSelectedMonth || monthMa.containsMouse ? 1 : 0
+                                    transformOrigin: Item.Center
+                                    scale: monthMa.containsMouse ? 1.04 : 1.0
+
+                                    Behavior on color {
+                                        enabled: window.animationsEnabled
+                                        ColorAnimation { duration: 150 }
+                                    }
+                                    Behavior on scale {
+                                        enabled: window.animationsEnabled
+                                        NumberAnimation { duration: 200; easing.type: Easing.OutBack }
+                                    }
+                                }
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    width: parent.width - 10
+                                    text: Qt.formatDateTime(new Date(2000, index, 1), "MMM").toUpperCase()
+                                    font.family: window.textFont
+                                    font.weight: Font.Black
+                                    font.pixelSize: 14
+                                    color: monthCell.isSelectedMonth ? window.base : window.text
+                                    horizontalAlignment: Text.AlignHCenter
+                                    elide: Text.ElideRight
+                                    maximumLineCount: 1
+                                    renderType: Text.NativeRendering
+
+                                    Behavior on color {
+                                        enabled: window.animationsEnabled
+                                        ColorAnimation { duration: 150 }
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: monthMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: window.selectCalendarMonth(index)
+                                }
                             }
                         }
                     }
@@ -1099,11 +1276,6 @@ Item {
                             Item {
                                 width: 62
                                 height: 90
-                                scale: gaugeMa.containsMouse ? 1.08 : 1.0
-                                Behavior on scale {
-                                    enabled: window.animationsEnabled
-                                    NumberAnimation { duration: 250; easing.type: Easing.OutBack }
-                                }
 
                                 property var forecast: window.weatherData && window.weatherData.forecast[window.targetWeatherView] ? window.weatherData.forecast[window.targetWeatherView] : null
 
@@ -1124,30 +1296,35 @@ Item {
                                     Math.max(0.0, Math.min(1.0, (forecast.feels_like + 15) / 55.0))
                                 ) : 0.0
                                 
-                                Rectangle {
-                                    anchors.top: parent.top
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    width: 60; height: 60; radius: 30
-                                    color: window.textAccent
-                                    opacity: gaugeMa.containsMouse ? 0.3 : 0.0
-                                    Behavior on opacity {
-                                        enabled: window.animationsEnabled
-                                        NumberAnimation { duration: 200 }
-                                    }
-                                }
-
                                 Item {
-                                    id: circleItem
-                                    width: 60; height: 60
+                                    id: gaugeVisual
                                     anchors.top: parent.top
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    
+                                    width: 60
+                                    height: 60
+                                    scale: gaugeMa.containsMouse ? 1.08 : 1.0
+                                    Behavior on scale {
+                                        enabled: window.animationsEnabled
+                                        NumberAnimation { duration: 250; easing.type: Easing.OutBack }
+                                    }
+
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        radius: width / 2
+                                        color: window.textAccent
+                                        opacity: gaugeMa.containsMouse ? 0.3 : 0.0
+                                        Behavior on opacity {
+                                            enabled: window.animationsEnabled
+                                            NumberAnimation { duration: 200 }
+                                        }
+                                    }
+
                                     Canvas {
                                         id: gaugeCanvas
                                         anchors.fill: parent
                                         rotation: -90 
                                         
-                                        property real animProgress: parent.parent.gaugeFill
+                                        property real animProgress: gaugeVisual.parent.gaugeFill
                                         
                                         Behavior on animProgress {
                                             enabled: window.animationsEnabled
@@ -1180,15 +1357,20 @@ Item {
                                             }
                                         }
                                     }
-                                    
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: parent.parent.gaugeVal
-                                        font.family: window.textFont
-                                        font.weight: Font.Black
-                                        font.pixelSize: 12
-                                        color: window.text
-                                    }
+                                }
+                                
+                                Text {
+                                    anchors.centerIn: gaugeVisual
+                                    width: parent.width
+                                    text: parent.gaugeVal
+                                    font.family: window.textFont
+                                    font.weight: Font.Black
+                                    font.pixelSize: 12
+                                    color: window.text
+                                    horizontalAlignment: Text.AlignHCenter
+                                    elide: Text.ElideRight
+                                    maximumLineCount: 1
+                                    renderType: Text.NativeRendering
                                 }
                                 
                                 RowLayout {
@@ -1202,6 +1384,7 @@ Item {
                                         font.family: "Iosevka Nerd Font"
                                         font.pixelSize: 13
                                         color: gaugeMa.containsMouse ? window.textAccent : window.overlay0
+                                        renderType: Text.NativeRendering
                                         Behavior on color {
                                             enabled: window.animationsEnabled
                                             ColorAnimation { duration: 200 }
@@ -1213,6 +1396,7 @@ Item {
                                         font.weight: Font.Bold
                                         font.pixelSize: 11
                                         color: window.overlay0 
+                                        renderType: Text.NativeRendering
                                     }
                                 }
                                 

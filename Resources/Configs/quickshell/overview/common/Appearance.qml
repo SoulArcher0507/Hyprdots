@@ -58,6 +58,7 @@ Singleton {
     }
 
     property bool edgeAnimationsEnabled: true
+    property bool borderAnimationsEnabled: true
 
     property FileView _animStateFile: FileView {
         path: Quickshell.env("HOME") + "/.cache/quickshell/state.ini"
@@ -71,6 +72,8 @@ Singleton {
         if (!txt || txt === "") return;
         var lines = txt.split("\n");
         var inSection = false;
+        var legacyValue = undefined;
+        var foundBorderValue = false;
         for (var i = 0; i < lines.length; i++) {
             var line = lines[i].trim();
             if (line === "[quickshell.theme]") {
@@ -79,13 +82,21 @@ Singleton {
             }
             if (inSection) {
                 if (line.startsWith("[")) break;
-                if (line.startsWith("edgeAnimationsEnabled=")) {
+                if (line.startsWith("borderAnimationsEnabled=")) {
                     var val = line.split("=")[1].trim().toLowerCase();
-                    root.edgeAnimationsEnabled = (val === "true");
-                    return;
+                    root.borderAnimationsEnabled = (val === "true");
+                    foundBorderValue = true;
+                    continue;
+                }
+                if (line.startsWith("edgeAnimationsEnabled=")) {
+                    legacyValue = (line.split("=")[1].trim().toLowerCase() === "true");
                 }
             }
         }
+        if (!foundBorderValue && legacyValue !== undefined)
+            root.borderAnimationsEnabled = legacyValue;
+        if (legacyValue !== undefined)
+            root.edgeAnimationsEnabled = legacyValue;
     }
 
     function _applyFromText(txt) {

@@ -112,11 +112,6 @@ QtObject {
         proc.running = true;
     }
 
-    function wakeUpDevice(deviceId) {
-        const proc = wakeUpDeviceComponent.createObject(root, { deviceId: String(deviceId || "") });
-        proc.running = true;
-    }
-
     function busctlCall(obj, itf, method, params) {
         if (root.busctlCmd === "")
             return ["false"];
@@ -386,7 +381,6 @@ QtObject {
                 battery: -1,
                 cellularNetworkType: "",
                 cellularNetworkStrength: -1,
-                remoteInputReady: false,
                 notificationIds: []
             })
 
@@ -458,26 +452,13 @@ QtObject {
                     onStreamFinished: {
                         loader.deviceData.paired = !!root.busctlData(text);
                         if (loader.deviceData.paired)
-                            remoteInputStateProc.running = true;
+                            activeNotificationsProc.running = true;
                         else
                             finalize();
                     }
                 }
                 onExited: if (exitCode !== 0)
                     finalize()
-            }
-
-            property Process remoteInputStateProc: Process {
-                command: root.busctlGet("/modules/kdeconnect/devices/" + loader.deviceId + "/remotekeyboard", "org.kde.kdeconnect.device.remotekeyboard", "remoteState")
-                stdout: StdioCollector {
-                    waitForEnd: true
-                    onStreamFinished: {
-                        loader.deviceData.remoteInputReady = !!root.busctlData(text);
-                        activeNotificationsProc.running = true;
-                    }
-                }
-                onExited: if (exitCode !== 0)
-                    activeNotificationsProc.running = true
             }
 
             property Process activeNotificationsProc: Process {
@@ -633,25 +614,6 @@ QtObject {
             onExited: {
                 root.refreshDevices();
                 proc.destroy();
-            }
-        }
-    }
-
-    property Component wakeUpDeviceComponent: Component {
-        Process {
-            id: moveProc
-            property string deviceId: ""
-            command: root.busctlCall("/modules/kdeconnect/devices/" + deviceId + "/remotecontrol", "org.kde.kdeconnect.device.remotecontrol", "moveCursor", ["(ii)", "1", "0"])
-            stdout: StdioCollector { waitForEnd: true }
-            onExited: clickProc.running = true
-
-            property Process clickProc: Process {
-                command: root.busctlCall("/modules/kdeconnect/devices/" + moveProc.deviceId + "/remotecontrol", "org.kde.kdeconnect.device.remotecontrol", "sendCommand", ["a{sv}", "1", "singleclick", "b", "true"])
-                stdout: StdioCollector { waitForEnd: true }
-                onExited: {
-                    refreshAfterAction.restart();
-                    moveProc.destroy();
-                }
             }
         }
     }

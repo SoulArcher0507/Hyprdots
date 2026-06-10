@@ -34,16 +34,25 @@ QtObject {
     signal notify(string summary, string body, string appName, string iconHint, var payload)
 
     property bool edgeAnimationsEnabled: true
+    property bool borderAnimationsEnabled: true
+    property bool rotationalAnimationsEnabled: true
+    property bool popupAnimationsEnabled: true
     property bool _hydratingAnimations: true
 
     readonly property Settings _animationSettings: Settings {
         location: "file://" + Quickshell.env("HOME") + "/.cache/quickshell/state.ini"
         category: "quickshell.theme"
         property bool edgeAnimationsEnabled: true
+        property bool borderAnimationsEnabled: true
+        property bool rotationalAnimationsEnabled: true
+        property bool popupAnimationsEnabled: true
     }
 
     Component.onCompleted: {
         t.edgeAnimationsEnabled = _animationSettings.edgeAnimationsEnabled;
+        t.borderAnimationsEnabled = _animationSettings.borderAnimationsEnabled;
+        t.rotationalAnimationsEnabled = _animationSettings.rotationalAnimationsEnabled;
+        t.popupAnimationsEnabled = _animationSettings.popupAnimationsEnabled;
         t._hydratingAnimations = false;
     }
 
@@ -51,6 +60,114 @@ QtObject {
         if (!t._hydratingAnimations && _animationSettings.edgeAnimationsEnabled !== t.edgeAnimationsEnabled) {
             _animationSettings.edgeAnimationsEnabled = t.edgeAnimationsEnabled;
         }
+    }
+
+    onBorderAnimationsEnabledChanged: {
+        if (!t._hydratingAnimations && _animationSettings.borderAnimationsEnabled !== t.borderAnimationsEnabled) {
+            _animationSettings.borderAnimationsEnabled = t.borderAnimationsEnabled;
+        }
+    }
+
+    onRotationalAnimationsEnabledChanged: {
+        if (!t._hydratingAnimations && _animationSettings.rotationalAnimationsEnabled !== t.rotationalAnimationsEnabled) {
+            _animationSettings.rotationalAnimationsEnabled = t.rotationalAnimationsEnabled;
+        }
+    }
+
+    onPopupAnimationsEnabledChanged: {
+        if (!t._hydratingAnimations && _animationSettings.popupAnimationsEnabled !== t.popupAnimationsEnabled) {
+            _animationSettings.popupAnimationsEnabled = t.popupAnimationsEnabled;
+        }
+    }
+
+    function setPopupCardOpen(target) {
+        if (!target)
+            return;
+        if (target.popupCardOpacity !== undefined)
+            target.popupCardOpacity = 1.0;
+        if (target.popupCardScaleX !== undefined)
+            target.popupCardScaleX = 1.0;
+        if (target.popupCardScaleY !== undefined)
+            target.popupCardScaleY = 1.0;
+        if (target.popupCardWidth !== undefined && target.popupOpenWidth !== undefined)
+            target.popupCardWidth = target.popupOpenWidth;
+        if (target.popupCardHeight !== undefined && target.popupOpenHeight !== undefined)
+            target.popupCardHeight = target.popupOpenHeight;
+        if (target.popupCardRadius !== undefined && target.popupOpenRadius !== undefined)
+            target.popupCardRadius = target.popupOpenRadius;
+        if (target.popupCardLift !== undefined)
+            target.popupCardLift = 0;
+        if (target.popupCardY !== undefined && target.popupOpenY !== undefined)
+            target.popupCardY = target.popupOpenY;
+        if (target.parallaxReveal !== undefined)
+            target.parallaxReveal = 1.0;
+    }
+
+    function setPopupCardClosed(target) {
+        if (!target)
+            return;
+        if (target.popupCardOpacity !== undefined)
+            target.popupCardOpacity = 0.0;
+        if (target.popupCardScaleX !== undefined)
+            target.popupCardScaleX = 0.42;
+        if (target.popupCardScaleY !== undefined)
+            target.popupCardScaleY = 0.24;
+        if (target.popupCardWidth !== undefined && target.popupClosedWidth !== undefined)
+            target.popupCardWidth = target.popupClosedWidth;
+        if (target.popupCardHeight !== undefined && target.popupClosedHeight !== undefined)
+            target.popupCardHeight = target.popupClosedHeight;
+        if (target.popupCardRadius !== undefined && target.popupClosedRadius !== undefined)
+            target.popupCardRadius = target.popupClosedRadius;
+        if (target.popupCardLift !== undefined) {
+            if (target.popupOriginLift !== undefined)
+                target.popupCardLift = target.popupOriginLift();
+            else if (target.popupClosedLift !== undefined)
+                target.popupCardLift = target.popupClosedLift;
+            else
+                target.popupCardLift = 0;
+        }
+        if (target.popupCardY !== undefined) {
+            if (target.popupOriginY !== undefined)
+                target.popupCardY = target.popupOriginY();
+            else if (target.popupClosedY !== undefined)
+                target.popupCardY = target.popupClosedY;
+        }
+        if (target.parallaxReveal !== undefined)
+            target.parallaxReveal = 0.0;
+    }
+
+    function setPopupContentOpen(target) {
+        if (!target)
+            return;
+        if (target.popupContentOpacity !== undefined)
+            target.popupContentOpacity = 1.0;
+        if (target.popupContentScaleX !== undefined)
+            target.popupContentScaleX = 1.0;
+        if (target.popupContentScaleY !== undefined)
+            target.popupContentScaleY = 1.0;
+        if (target.popupContentInsetX !== undefined)
+            target.popupContentInsetX = 0;
+        if (target.popupContentInsetY !== undefined)
+            target.popupContentInsetY = 0;
+        if (target.popupContentLift !== undefined)
+            target.popupContentLift = 0;
+    }
+
+    function setPopupContentClosed(target) {
+        if (!target)
+            return;
+        if (target.popupContentOpacity !== undefined)
+            target.popupContentOpacity = 0.0;
+        if (target.popupContentScaleX !== undefined)
+            target.popupContentScaleX = 0.42;
+        if (target.popupContentScaleY !== undefined)
+            target.popupContentScaleY = 0.24;
+        if (target.popupContentInsetX !== undefined)
+            target.popupContentInsetX = 132;
+        if (target.popupContentInsetY !== undefined)
+            target.popupContentInsetY = 88;
+        if (target.popupContentLift !== undefined)
+            target.popupContentLift = 8.5;
     }
 
     readonly property string jsonPath: StandardPaths.writableLocation(StandardPaths.ConfigLocation) + "/quickshell/colors.json"

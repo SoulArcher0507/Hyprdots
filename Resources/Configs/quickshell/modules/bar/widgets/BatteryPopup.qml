@@ -340,7 +340,10 @@ Item {
         Qt.callLater(positionPopup);
         batTteProc.exec(["bash", "-lc", window._tteCmd]);
         batTtfProc.exec(["bash", "-lc", window._ttfCmd]);
-        popupEnterAnim.start();
+        if (ThemePkg.Theme.popupAnimationsEnabled)
+            popupEnterAnim.start();
+        else
+            window.openInstant();
     }
     Behavior on introState {
         NumberAnimation {
@@ -354,6 +357,10 @@ Item {
             return;
         popupTargetVisible = false;
         popupEnterAnim.stop();
+        if (!ThemePkg.Theme.popupAnimationsEnabled) {
+            window.closeInstant();
+            return;
+        }
         if (!popupExitAnim.running)
             popupExitAnim.start();
     }
@@ -362,11 +369,29 @@ Item {
         popupTargetVisible = true;
         popupExitAnim.stop();
         popupEnterAnim.stop();
+        if (!ThemePkg.Theme.popupAnimationsEnabled) {
+            window.openInstant();
+            return;
+        }
         popupEnterAnim.start();
     }
 
     function popupOriginLift() {
         return window.barPanelCenterY - (window.popupClosedHeight / 2);
+    }
+
+    function openInstant() {
+        popupExitAnim.stop();
+        popupEnterAnim.stop();
+        popupTargetVisible = true;
+        ThemePkg.Theme.setPopupCardOpen(window);
+    }
+
+    function closeInstant() {
+        popupEnterAnim.stop();
+        popupExitAnim.stop();
+        popupTargetVisible = false;
+        ThemePkg.Theme.setPopupCardClosed(window);
     }
 
     SequentialAnimation {

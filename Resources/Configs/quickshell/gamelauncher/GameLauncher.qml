@@ -10,6 +10,8 @@ import Qt.labs.platform 1.1
 ShellRoot {
     id: root
     property bool edgeAnimationsEnabled: true
+    property bool borderAnimationsEnabled: true
+    property bool popupAnimationsEnabled: true
     property FileView _animStateFile: FileView {
         path: Quickshell.env("HOME") + "/.cache/quickshell/state.ini"
         watchChanges: true
@@ -19,17 +21,30 @@ ShellRoot {
     }
     function _parseAnimState(txt) {
         if (!txt || txt === "") return;
-        var lines = txt.split("\n"); var inSection = false;
+        var lines = txt.split("\n"); var inSection = false; var legacyValue = undefined; var foundBorderValue = false;
         for (var i = 0; i < lines.length; i++) {
             var line = lines[i].trim();
             if (line === "[quickshell.theme]") { inSection = true; continue; }
             if (inSection) {
                 if (line.startsWith("[")) break;
+                if (line.startsWith("borderAnimationsEnabled=")) {
+                    root.borderAnimationsEnabled = (line.split("=")[1].trim().toLowerCase() === "true");
+                    foundBorderValue = true;
+                    continue;
+                }
+                if (line.startsWith("popupAnimationsEnabled=")) {
+                    root.popupAnimationsEnabled = (line.split("=")[1].trim().toLowerCase() === "true");
+                    continue;
+                }
                 if (line.startsWith("edgeAnimationsEnabled=")) {
-                    root.edgeAnimationsEnabled = (line.split("=")[1].trim().toLowerCase() === "true"); return;
+                    legacyValue = (line.split("=")[1].trim().toLowerCase() === "true");
                 }
             }
         }
+        if (!foundBorderValue && legacyValue !== undefined)
+            root.borderAnimationsEnabled = legacyValue;
+        if (legacyValue !== undefined)
+            root.edgeAnimationsEnabled = legacyValue;
     }
     readonly property string textFont: "Fira Sans Semibold"
     readonly property string iconFont: "CaskaydiaMono Nerd Font"
@@ -119,7 +134,10 @@ ShellRoot {
         if (!popupEnterAnim.running && popupCardOpacity >= 0.999)
             return;
         popupEnterAnim.stop();
-        popupEnterAnim.start();
+        if (root.popupAnimationsEnabled)
+            popupEnterAnim.start();
+        else
+            root.openInstant();
     }
     function _hideGameLauncherPopup() {
         popupTargetVisible = false;
@@ -127,8 +145,40 @@ ShellRoot {
         if (!popupMounted && popupCardOpacity <= 0.001)
             return;
         popupExitAnim.stop();
-        popupExitAnim.start();
+        if (root.popupAnimationsEnabled)
+            popupExitAnim.start();
+        else
+            root.closeInstant();
     }
+
+    function openInstant() {
+        popupExitAnim.stop();
+        popupEnterAnim.stop();
+        popupTargetVisible = true;
+        popupMounted = true;
+        popupCardOpacity = 1.0;
+        popupCardScaleX = 1.0;
+        popupCardScaleY = 1.0;
+        popupCardWidth = popupOpenWidth;
+        popupCardHeight = popupOpenHeight;
+        popupCardRadius = popupOpenRadius;
+        popupCardLift = 0;
+    }
+
+    function closeInstant() {
+        popupEnterAnim.stop();
+        popupExitAnim.stop();
+        popupTargetVisible = false;
+        popupMounted = false;
+        popupCardOpacity = 0.0;
+        popupCardScaleX = 0.42;
+        popupCardScaleY = 0.24;
+        popupCardWidth = popupClosedWidth;
+        popupCardHeight = popupClosedHeight;
+        popupCardRadius = popupClosedRadius;
+        popupCardLift = popupOriginLift();
+    }
+
     SequentialAnimation {
         id: popupEnterAnim
         running: false
@@ -229,7 +279,7 @@ ShellRoot {
                         radius: card.radius
                         borderWidth: card.border.width
                         accentColor: root.accent
-                        animationsEnabled: root.edgeAnimationsEnabled
+                        animationsEnabled: root.borderAnimationsEnabled
                     }
 
                     MouseArea { anchors.fill:parent; acceptedButtons:Qt.AllButtons; onClicked:{} }

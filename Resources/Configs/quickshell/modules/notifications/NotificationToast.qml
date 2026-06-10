@@ -368,7 +368,10 @@ Scope {
 
                         Component.onCompleted: {
                             toastReady = true;
-                            popupEnterAnim.start();
+                            if (ThemePkg.Theme.popupAnimationsEnabled)
+                                popupEnterAnim.start();
+                            else
+                                toastCard.openInstant();
                             dismissTimer.start();
                         }
 
@@ -384,7 +387,35 @@ Scope {
                             dismissTimer.stop();
                             popupEnterAnim.stop();
                             popupExitAnim.stop();
-                            popupExitAnim.start();
+                            if (ThemePkg.Theme.popupAnimationsEnabled)
+                                popupExitAnim.start();
+                            else
+                                toastCard.closeInstant();
+                        }
+
+                        function openInstant() {
+                            popupExitAnim.stop();
+                            popupEnterAnim.stop();
+                            popupOpacity = 1.0;
+                            popupScaleX = 1.0;
+                            popupScaleY = 1.0;
+                            popupWidth = toastOpenWidth;
+                            popupHeight = toastTargetHeight;
+                            popupRadius = toastOpenRadius;
+                            popupLift = 0;
+                        }
+
+                        function closeInstant() {
+                            popupEnterAnim.stop();
+                            popupExitAnim.stop();
+                            popupOpacity = 0.0;
+                            popupScaleX = 0.42;
+                            popupScaleY = 0.24;
+                            popupWidth = toastClosedWidth;
+                            popupHeight = toastClosedHeight;
+                            popupRadius = toastClosedRadius;
+                            popupLift = 8.5;
+                            root._removeToastById(toastCard._thisId);
                         }
 
                         SequentialAnimation {

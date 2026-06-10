@@ -9,7 +9,7 @@ Item {
     property real borderWidth: 1
     property real pixelsPerSecond: 72
     property bool active: true
-    property bool animationsEnabled: ThemePkg.Theme.edgeAnimationsEnabled
+    property bool animationsEnabled: ThemePkg.Theme.borderAnimationsEnabled
     property int visualZ: 1000
     property real travel: 0
     property real lastTickMs: 0

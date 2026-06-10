@@ -218,7 +218,7 @@ Item {
         to: Math.PI * 2
         duration: 120000
         loops: Animation.Infinite
-        running: ThemePkg.Theme.edgeAnimationsEnabled
+        running: ThemePkg.Theme.rotationalAnimationsEnabled
     }
 
     property real introState: 0.0
@@ -238,11 +238,15 @@ Item {
         root.unreadDotfiles = Number(ArchState.ArchToolsState.unreadDotfiles || 0);
     }
 
-    function syncUpdateCountsFromState() {
-        root.updPacman = Number(ArchState.ArchToolsState.updatePacman || 0);
-        root.updAur = Number(ArchState.ArchToolsState.updateAur || 0);
-        root.updFlatpak = Number(ArchState.ArchToolsState.updateFlatpak || 0);
-        root.updTotal = Number(ArchState.ArchToolsState.updateTotal || 0);
+    function updateTotalFromParts(pacman, aur, flatpak) {
+        return Number(pacman || 0) + Number(aur || 0) + Number(flatpak || 0);
+    }
+
+    function setUpdateCounts(pacman, aur, flatpak, timestampMs) {
+        root.updPacman = Number(pacman || 0);
+        root.updAur = Number(aur || 0);
+        root.updFlatpak = Number(flatpak || 0);
+        root.updTotal = root.updateTotalFromParts(root.updPacman, root.updAur, root.updFlatpak);
 
         if (root.switcher) {
             root.switcher.updPacman = root.updPacman;
@@ -250,8 +254,17 @@ Item {
             root.switcher.updFlatpak = root.updFlatpak;
             root.switcher.updTotal = root.updTotal;
             root.switcher.updLastTs = ArchState.ArchToolsState.updatesLastTs || root.switcher.updLastTs;
-            root.switcher._updLastMs = Number(ArchState.ArchToolsState.updatesLastMs || root.switcher._updLastMs || 0);
+            root.switcher._updLastMs = Number(timestampMs || ArchState.ArchToolsState.updatesLastMs || root.switcher._updLastMs || 0);
         }
+    }
+
+    function syncUpdateCountsFromState() {
+        root.setUpdateCounts(
+            ArchState.ArchToolsState.updatePacman,
+            ArchState.ArchToolsState.updateAur,
+            ArchState.ArchToolsState.updateFlatpak,
+            ArchState.ArchToolsState.updatesLastMs
+        );
     }
 
     function publishUpdateCountsToState(timestampMs) {
@@ -259,7 +272,8 @@ Item {
         ArchState.ArchToolsState.updatePacman = Number(root.updPacman || 0);
         ArchState.ArchToolsState.updateAur = Number(root.updAur || 0);
         ArchState.ArchToolsState.updateFlatpak = Number(root.updFlatpak || 0);
-        ArchState.ArchToolsState.updateTotal = Number(root.updTotal || 0);
+        root.updTotal = root.updateTotalFromParts(root.updPacman, root.updAur, root.updFlatpak);
+        ArchState.ArchToolsState.updateTotal = root.updTotal;
         ArchState.ArchToolsState.updatesLastTs = Qt.formatDateTime(new Date(now), "HH:mm");
         ArchState.ArchToolsState.updatesLastMs = now;
     }
@@ -274,7 +288,10 @@ Item {
         loadCacheProc.running = true;
         root._lastProgressLineCount = 0;
         root.startImmediateStartupRefreshes();
-        popupEnterAnim.start();
+        if (ThemePkg.Theme.popupAnimationsEnabled)
+            popupEnterAnim.start();
+        else
+            root.openInstant();
         startupRefreshTimer.start();
     }
 
@@ -315,6 +332,11 @@ Item {
         if (hostLoaderOpacity < lastHostLoaderOpacity - 0.001 && popupTargetVisible) {
             popupTargetVisible = false;
             popupEnterAnim.stop();
+            if (!ThemePkg.Theme.popupAnimationsEnabled) {
+                root.closeInstant();
+                lastHostLoaderOpacity = hostLoaderOpacity;
+                return;
+            }
             if (!popupExitAnim.running)
                 popupExitAnim.start();
         }
@@ -583,6 +605,10 @@ Item {
             return;
         popupTargetVisible = false;
         popupEnterAnim.stop();
+        if (!ThemePkg.Theme.popupAnimationsEnabled) {
+            root.closeInstant();
+            return;
+        }
         if (!popupExitAnim.running)
             popupExitAnim.start();
     }
@@ -591,7 +617,26 @@ Item {
         popupTargetVisible = true;
         popupExitAnim.stop();
         popupEnterAnim.stop();
+        if (!ThemePkg.Theme.popupAnimationsEnabled) {
+            root.openInstant();
+            return;
+        }
         popupEnterAnim.start();
+    }
+
+    function openInstant() {
+        popupExitAnim.stop();
+        popupEnterAnim.stop();
+        popupTargetVisible = true;
+        archPanel.visible = true;
+        ThemePkg.Theme.setPopupCardOpen(root);
+    }
+
+    function closeInstant() {
+        popupEnterAnim.stop();
+        popupExitAnim.stop();
+        popupTargetVisible = false;
+        ThemePkg.Theme.setPopupCardClosed(root);
     }
 
     function handleEscape() {
@@ -1039,6 +1084,8 @@ Item {
                         root.updTotal = obj.updTotal;
                         loadedUpdateCounts = true;
                     }
+                    if (loadedUpdateCounts)
+                        root.updTotal = root.updateTotalFromParts(root.updPacman, root.updAur, root.updFlatpak);
                     if (loadedUpdateCounts) {
                         var cacheMs = Number(obj.updLastMs || 0);
                         var stateMs = Number(ArchState.ArchToolsState.updatesLastMs || 0);
@@ -1110,7 +1157,7 @@ Item {
             updPacman: root.updPacman,
             updAur: root.updAur,
             updFlatpak: root.updFlatpak,
-            updTotal: root.updTotal,
+            updTotal: root.updateTotalFromParts(root.updPacman, root.updAur, root.updFlatpak),
             updLastTs: ArchState.ArchToolsState.updatesLastTs,
             updLastMs: ArchState.ArchToolsState.updatesLastMs,
             cpuTotal: root.statCpuTotal,
@@ -1206,7 +1253,7 @@ Item {
                 pc = Number(obj.pacman || 0);
                 aur = Number(obj.aur || 0);
                 fl = Number(obj.flatpak || 0);
-                tot = Number(obj.total || (pc + aur + fl));
+                tot = root.updateTotalFromParts(pc, aur, fl);
             } catch (e) {
                 return;
             }
@@ -1430,7 +1477,7 @@ Item {
         root.updateCountPacman = root.switcher.archUpdCountPacman || 0;
         root.updateCountAur = root.switcher.archUpdCountAur || 0;
         root.updateCountFlatpak = root.switcher.archUpdCountFlatpak || 0;
-        root.updateCountTotal = root.switcher.archUpdCountTotal || 0;
+        root.updateCountTotal = root.updateTotalFromParts(root.updateCountPacman, root.updateCountAur, root.updateCountFlatpak);
         root.updateProgress = root.normalizedProgress(root.switcher.archUpdProgress || 0);
         root.updateProgressPacman = root.normalizedProgress(root.switcher.archUpdProgressPacman || 0);
         root.updateProgressAur = root.normalizedProgress(root.switcher.archUpdProgressAur || 0);
@@ -1485,7 +1532,7 @@ Item {
             countPacman: root.updateCountPacman,
             countAur: root.updateCountAur,
             countFlatpak: root.updateCountFlatpak,
-            countTotal: root.updateCountTotal,
+            countTotal: root.updateTotalFromParts(root.updateCountPacman, root.updateCountAur, root.updateCountFlatpak),
             progress: root.updateProgress,
             progressPacman: root.updateProgressPacman,
             progressAur: root.updateProgressAur,
@@ -1664,7 +1711,7 @@ Item {
                 root.updateCountPacman = Number(obj.pacman || 0);
                 root.updateCountAur = Number(obj.aur || 0);
                 root.updateCountFlatpak = Number(obj.flatpak || 0);
-                root.updateCountTotal = Number(obj.total || 0);
+                root.updateCountTotal = root.updateTotalFromParts(root.updateCountPacman, root.updateCountAur, root.updateCountFlatpak);
                 if (obj.errors) {
                     root.updateHadError = true;
                     root.updateErrorText = String(obj.errors);
@@ -1693,6 +1740,7 @@ Item {
             } else if (stage === "flatpak" && (status === "done" || status === "error")) {
                 root.updateCountFlatpak = Number(obj.count || 0);
             }
+            root.updateCountTotal = root.updateTotalFromParts(root.updateCountPacman, root.updateCountAur, root.updateCountFlatpak);
 
             root.persistUpdateStateToSwitcher();
         } catch (e) {}
@@ -2246,48 +2294,12 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 5
 
-                    Rectangle {
-                        width: 42
-                        height: 46
-                        radius: 10
-                        color: "#0dffffff"
-                        border.color: "#1affffff"
-                        border.width: 1
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: 10
-                            color: root.ambientPrimary
-                            opacity: 0.05
-                            Behavior on color {
-                                ColorAnimation {
-                                    duration: 1000
-                                }
-                            }
-                        }
-                        Column {
-                            anchors.centerIn: parent
-                            Text {
-                                text: root.upHours.toString().padStart(2, '0')
-                                font.pixelSize: 17
-                                font.family: root.textFont
-                                font.weight: Font.Black
-                                color: root.ambientPrimary
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                Behavior on color {
-                                    ColorAnimation {
-                                        duration: 1000
-                                    }
-                                }
-                            }
-                            Text {
-                                text: "HR"
-                                font.pixelSize: 7
-                                font.family: root.textFont
-                                font.weight: Font.Bold
-                                color: root.subtext0
-                                anchors.horizontalCenter: parent.horizontalCenter
-                            }
-                        }
+                    UptimeCell {
+                        value: root.upHours.toString().padStart(2, '0')
+                        label: "HR"
+                        accentColor: root.ambientPrimary
+                        hovered: uptimeMa.containsMouse
+                        pressed: uptimeMa.pressed
                     }
 
                     Text {
@@ -2296,6 +2308,7 @@ Item {
                         font.pixelSize: 20
                         font.family: root.textFont
                         font.weight: Font.Black
+                        renderType: Text.NativeRendering
                         color: root.ambientPrimary
                         Behavior on color {
                             ColorAnimation {
@@ -2320,48 +2333,12 @@ Item {
                         }
                     }
 
-                    Rectangle {
-                        width: 42
-                        height: 46
-                        radius: 10
-                        color: "#0dffffff"
-                        border.color: "#1affffff"
-                        border.width: 1
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: 10
-                            color: root.ambientSecondary
-                            opacity: 0.05
-                            Behavior on color {
-                                ColorAnimation {
-                                    duration: 1000
-                                }
-                            }
-                        }
-                        Column {
-                            anchors.centerIn: parent
-                            Text {
-                                text: root.upMins.toString().padStart(2, '0')
-                                font.pixelSize: 17
-                                font.family: root.textFont
-                                font.weight: Font.Black
-                                color: root.ambientSecondary
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                Behavior on color {
-                                    ColorAnimation {
-                                        duration: 1000
-                                    }
-                                }
-                            }
-                            Text {
-                                text: "MIN"
-                                font.pixelSize: 7
-                                font.family: root.textFont
-                                font.weight: Font.Bold
-                                color: root.subtext0
-                                anchors.horizontalCenter: parent.horizontalCenter
-                            }
-                        }
+                    UptimeCell {
+                        value: root.upMins.toString().padStart(2, '0')
+                        label: "MIN"
+                        accentColor: root.ambientSecondary
+                        hovered: uptimeMa.containsMouse
+                        pressed: uptimeMa.pressed
                     }
 
                     Text {
@@ -2370,6 +2347,7 @@ Item {
                         font.pixelSize: 20
                         font.family: root.textFont
                         font.weight: Font.Black
+                        renderType: Text.NativeRendering
                         color: root.ambientSecondary
                         Behavior on color {
                             ColorAnimation {
@@ -2394,48 +2372,12 @@ Item {
                         }
                     }
 
-                    Rectangle {
-                        width: 42
-                        height: 46
-                        radius: 10
-                        color: "#0dffffff"
-                        border.color: "#1affffff"
-                        border.width: 1
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: 10
-                            color: root.accent2
-                            opacity: 0.05
-                            Behavior on color {
-                                ColorAnimation {
-                                    duration: 1000
-                                }
-                            }
-                        }
-                        Column {
-                            anchors.centerIn: parent
-                            Text {
-                                text: root.upSecs.toString().padStart(2, '0')
-                                font.pixelSize: 17
-                                font.family: root.textFont
-                                font.weight: Font.Black
-                                color: root.accent2
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                Behavior on color {
-                                    ColorAnimation {
-                                        duration: 1000
-                                    }
-                                }
-                            }
-                            Text {
-                                text: "SEC"
-                                font.pixelSize: 7
-                                font.family: root.textFont
-                                font.weight: Font.Bold
-                                color: root.subtext0
-                                anchors.horizontalCenter: parent.horizontalCenter
-                            }
-                        }
+                    UptimeCell {
+                        value: root.upSecs.toString().padStart(2, '0')
+                        label: "SEC"
+                        accentColor: root.accent2
+                        hovered: uptimeMa.containsMouse
+                        pressed: uptimeMa.pressed
                     }
                 }
 
@@ -2616,13 +2558,11 @@ Item {
                         ToolBtn {
                             id: borderAnimationsBtn
                             icon: "FX"
-                            tip: ThemePkg.Theme.edgeAnimationsEnabled ? "Animations ON" : "Animations OFF"
-                            isActive: !ThemePkg.Theme.edgeAnimationsEnabled
-                            activeColor: ThemePkg.Theme.danger
-                            requireHold: true
+                            tip: "Animation Settings"
+                            isActive: !ThemePkg.Theme.borderAnimationsEnabled || !ThemePkg.Theme.rotationalAnimationsEnabled || !ThemePkg.Theme.popupAnimationsEnabled
+                            activeColor: ThemePkg.Theme.warning
                             onBtnClicked: {
-                                ThemePkg.Theme.edgeAnimationsEnabled = !ThemePkg.Theme.edgeAnimationsEnabled;
-                                root.notifyArchTools("Animations", ThemePkg.Theme.edgeAnimationsEnabled ? "Animations enabled" : "Animations disabled", "video-display");
+                                animationSettingsPopup.showPopup();
                             }
                         }
                         ToolBtn {
@@ -3199,7 +3139,10 @@ Item {
             root.authUnlockFlashOpacity = 0.0;
             root.authUnlockTriggered = false;
             authPopupEnterAnim.stop();
-            authPopupEnterAnim.start();
+            if (ThemePkg.Theme.popupAnimationsEnabled)
+                authPopupEnterAnim.start();
+            else
+                authPopup.openInstant();
             Qt.callLater(function () {
                 authPasswordField.forceActiveFocus();
             });
@@ -3212,8 +3155,41 @@ Item {
                 archPanel.visible = true;
                 return;
             }
+            if (!ThemePkg.Theme.popupAnimationsEnabled) {
+                authPopup.closeInstant();
+                return;
+            }
             if (!authPopupExitAnim.running)
                 authPopupExitAnim.start();
+        }
+
+        function openInstant() {
+            authPopupExitAnim.stop();
+            authPopupEnterAnim.stop();
+            popupMounted = true;
+            popupTargetVisible = true;
+            popupCardOpacity = 1.0;
+            popupCardScaleX = 1.0;
+            popupCardScaleY = 1.0;
+            popupCardWidth = 460;
+            popupCardHeight = 154;
+            popupCardRadius = 20;
+            popupCardLift = 0;
+        }
+
+        function closeInstant() {
+            authPopupEnterAnim.stop();
+            authPopupExitAnim.stop();
+            popupTargetVisible = false;
+            popupMounted = false;
+            popupCardOpacity = 0.0;
+            popupCardScaleX = 0.42;
+            popupCardScaleY = 0.24;
+            popupCardWidth = 406;
+            popupCardHeight = 142;
+            popupCardRadius = 34;
+            popupCardLift = 8.5;
+            archPanel.visible = true;
         }
 
         Keys.onReleased: e => {
@@ -3273,7 +3249,7 @@ Item {
                     to: Math.PI * 2
                     duration: 90000
                     loops: Animation.Infinite
-                    running: authPopup.popupMounted && ThemePkg.Theme.edgeAnimationsEnabled
+                    running: authPopup.popupMounted && ThemePkg.Theme.rotationalAnimationsEnabled
                 }
 
                 Rectangle {
@@ -3542,7 +3518,10 @@ Item {
             popupCardRadius = 34;
             popupCardLift = 8.5;
             weatherSettingsPopupEnterAnim.stop();
-            weatherSettingsPopupEnterAnim.start();
+            if (ThemePkg.Theme.popupAnimationsEnabled)
+                weatherSettingsPopupEnterAnim.start();
+            else
+                weatherSettingsPopup.openInstant();
             Qt.callLater(function () {
                 weatherKeyField.forceActiveFocus();
             });
@@ -3555,8 +3534,41 @@ Item {
                 archPanel.visible = true;
                 return;
             }
+            if (!ThemePkg.Theme.popupAnimationsEnabled) {
+                weatherSettingsPopup.closeInstant();
+                return;
+            }
             if (!weatherSettingsPopupExitAnim.running)
                 weatherSettingsPopupExitAnim.start();
+        }
+
+        function openInstant() {
+            weatherSettingsPopupExitAnim.stop();
+            weatherSettingsPopupEnterAnim.stop();
+            popupMounted = true;
+            popupTargetVisible = true;
+            popupCardOpacity = 1.0;
+            popupCardScaleX = 1.0;
+            popupCardScaleY = 1.0;
+            popupCardWidth = 460;
+            popupCardHeight = 253;
+            popupCardRadius = 20;
+            popupCardLift = 0;
+        }
+
+        function closeInstant() {
+            weatherSettingsPopupEnterAnim.stop();
+            weatherSettingsPopupExitAnim.stop();
+            popupTargetVisible = false;
+            popupMounted = false;
+            popupCardOpacity = 0.0;
+            popupCardScaleX = 0.42;
+            popupCardScaleY = 0.24;
+            popupCardWidth = 460;
+            popupCardHeight = 253;
+            popupCardRadius = 34;
+            popupCardLift = 8.5;
+            archPanel.visible = true;
         }
 
         Keys.onReleased: e => {
@@ -3613,7 +3625,7 @@ Item {
                     to: Math.PI * 2
                     duration: 90000
                     loops: Animation.Infinite
-                    running: weatherSettingsPopup.popupMounted && ThemePkg.Theme.edgeAnimationsEnabled
+                    running: weatherSettingsPopup.popupMounted && ThemePkg.Theme.rotationalAnimationsEnabled
                 }
 
                 Rectangle {
@@ -3944,7 +3956,10 @@ Item {
             popupCardRadius = 34;
             popupCardLift = 8.5;
             updatesListPopupEnterAnim.stop();
-            updatesListPopupEnterAnim.start();
+            if (ThemePkg.Theme.popupAnimationsEnabled)
+                updatesListPopupEnterAnim.start();
+            else
+                updatesListPopup.openInstant();
             if (typeof updatesSearch !== "undefined") {
                 updatesSearch.text = "";
                 Qt.callLater(function () {
@@ -3965,8 +3980,42 @@ Item {
                 currentViewIndex = 0;
                 return;
             }
+            if (!ThemePkg.Theme.popupAnimationsEnabled) {
+                updatesListPopup.closeInstant();
+                return;
+            }
             if (!updatesListPopupExitAnim.running)
                 updatesListPopupExitAnim.start();
+        }
+
+        function openInstant() {
+            updatesListPopupExitAnim.stop();
+            updatesListPopupEnterAnim.stop();
+            popupMounted = true;
+            popupTargetVisible = true;
+            popupCardOpacity = 1.0;
+            popupCardScaleX = 1.0;
+            popupCardScaleY = 1.0;
+            popupCardWidth = 480;
+            popupCardHeight = 600;
+            popupCardRadius = 20;
+            popupCardLift = 0;
+        }
+
+        function closeInstant() {
+            updatesListPopupEnterAnim.stop();
+            updatesListPopupExitAnim.stop();
+            popupTargetVisible = false;
+            popupMounted = false;
+            popupCardOpacity = 0.0;
+            popupCardScaleX = 0.42;
+            popupCardScaleY = 0.24;
+            popupCardWidth = 436;
+            popupCardHeight = 572;
+            popupCardRadius = 34;
+            popupCardLift = 8.5;
+            currentViewIndex = 0;
+            archPanel.visible = true;
         }
 
         MouseArea {
@@ -4121,7 +4170,7 @@ Item {
                     to: Math.PI * 2
                     duration: 90000
                     loops: Animation.Infinite
-                    running: updatesListPopup.popupMounted && ThemePkg.Theme.edgeAnimationsEnabled
+                    running: updatesListPopup.popupMounted && ThemePkg.Theme.rotationalAnimationsEnabled
                 }
 
                 Rectangle {
@@ -4264,7 +4313,7 @@ Item {
                                     to: 360
                                     duration: 1200
                                     loops: Animation.Infinite
-                                    running: updatesFetcher.running && updatesListPopup.popupMounted
+                                    running: updatesFetcher.running && updatesListPopup.popupMounted && ThemePkg.Theme.rotationalAnimationsEnabled
                                 }
                             }
 
@@ -5121,7 +5170,10 @@ Item {
             popupCardRadius = 34;
             popupCardLift = 8.5;
             profileSettingsPopupEnterAnim.stop();
-            profileSettingsPopupEnterAnim.start();
+            if (ThemePkg.Theme.popupAnimationsEnabled)
+                profileSettingsPopupEnterAnim.start();
+            else
+                profileSettingsPopup.openInstant();
         }
 
         function hidePopup() {
@@ -5131,8 +5183,41 @@ Item {
                 archPanel.visible = true;
                 return;
             }
+            if (!ThemePkg.Theme.popupAnimationsEnabled) {
+                profileSettingsPopup.closeInstant();
+                return;
+            }
             if (!profileSettingsPopupExitAnim.running)
                 profileSettingsPopupExitAnim.start();
+        }
+
+        function openInstant() {
+            profileSettingsPopupExitAnim.stop();
+            profileSettingsPopupEnterAnim.stop();
+            popupMounted = true;
+            popupTargetVisible = true;
+            popupCardOpacity = 1.0;
+            popupCardScaleX = 1.0;
+            popupCardScaleY = 1.0;
+            popupCardWidth = 460;
+            popupCardHeight = 165;
+            popupCardRadius = 20;
+            popupCardLift = 0;
+        }
+
+        function closeInstant() {
+            profileSettingsPopupEnterAnim.stop();
+            profileSettingsPopupExitAnim.stop();
+            popupTargetVisible = false;
+            popupMounted = false;
+            popupCardOpacity = 0.0;
+            popupCardScaleX = 0.42;
+            popupCardScaleY = 0.24;
+            popupCardWidth = 406;
+            popupCardHeight = 292;
+            popupCardRadius = 34;
+            popupCardLift = 8.5;
+            archPanel.visible = true;
         }
 
         Keys.onReleased: e => {
@@ -5189,7 +5274,7 @@ Item {
                     to: Math.PI * 2
                     duration: 90000
                     loops: Animation.Infinite
-                    running: profileSettingsPopup.popupMounted && ThemePkg.Theme.edgeAnimationsEnabled
+                    running: profileSettingsPopup.popupMounted && ThemePkg.Theme.rotationalAnimationsEnabled
                 }
 
                 Rectangle {
@@ -5312,6 +5397,254 @@ Item {
                                 profileSettingsPopup.activePickerMode = 1;
                                 root.openSddmPicker();
                             }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Item {
+        id: animationSettingsPopup
+        anchors.fill: parent
+        z: 100
+        visible: popupMounted
+        focus: true
+
+        property bool popupMounted: false
+        property bool popupTargetVisible: false
+        property real popupCardOpacity: 0.0
+        property real popupCardScaleX: 0.42
+        property real popupCardScaleY: 0.24
+        property real popupCardWidth: 460
+        property real popupCardHeight: 300
+        property real popupCardRadius: 34
+        property real popupCardLift: 8.5
+
+        function showPopup() {
+            popupMounted = true;
+            popupTargetVisible = true;
+            animationSettingsPopupExitAnim.stop();
+            popupCardOpacity = 0.0;
+            popupCardScaleX = 0.42;
+            popupCardScaleY = 0.24;
+            popupCardWidth = 460;
+            popupCardHeight = 300;
+            popupCardRadius = 34;
+            popupCardLift = 8.5;
+            animationSettingsPopupEnterAnim.stop();
+            if (ThemePkg.Theme.popupAnimationsEnabled)
+                animationSettingsPopupEnterAnim.start();
+            else
+                animationSettingsPopup.openInstant();
+        }
+
+        function hidePopup() {
+            popupTargetVisible = false;
+            animationSettingsPopupEnterAnim.stop();
+            if (!popupMounted && popupCardOpacity <= 0.001) {
+                archPanel.visible = true;
+                return;
+            }
+            if (!ThemePkg.Theme.popupAnimationsEnabled) {
+                animationSettingsPopup.closeInstant();
+                return;
+            }
+            if (!animationSettingsPopupExitAnim.running)
+                animationSettingsPopupExitAnim.start();
+        }
+
+        function openInstant() {
+            animationSettingsPopupExitAnim.stop();
+            animationSettingsPopupEnterAnim.stop();
+            popupMounted = true;
+            popupTargetVisible = true;
+            popupCardOpacity = 1.0;
+            popupCardScaleX = 1.0;
+            popupCardScaleY = 1.0;
+            popupCardWidth = 460;
+            popupCardHeight = 300;
+            popupCardRadius = 20;
+            popupCardLift = 0;
+        }
+
+        function closeInstant() {
+            animationSettingsPopupEnterAnim.stop();
+            animationSettingsPopupExitAnim.stop();
+            popupTargetVisible = false;
+            popupMounted = false;
+            popupCardOpacity = 0.0;
+            popupCardScaleX = 0.42;
+            popupCardScaleY = 0.24;
+            popupCardWidth = 460;
+            popupCardHeight = 300;
+            popupCardRadius = 34;
+            popupCardLift = 8.5;
+            archPanel.visible = true;
+        }
+
+        Keys.onReleased: e => {
+            if (e.key === Qt.Key_Escape) {
+                animationSettingsPopup.hidePopup();
+                e.accepted = true;
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: animationSettingsPopup.hidePopup()
+        }
+
+        Item {
+            id: animationPopupShell
+            width: animationSettingsPopup.popupCardWidth
+            height: animationSettingsPopup.popupCardHeight
+            anchors.centerIn: parent
+            opacity: animationSettingsPopup.popupCardOpacity
+            transform: [
+                Scale {
+                    origin.x: animationPopupShell.width / 2
+                    origin.y: animationPopupShell.height / 2
+                    xScale: animationSettingsPopup.popupCardScaleX
+                    yScale: animationSettingsPopup.popupCardScaleY
+                },
+                Translate {
+                    y: animationSettingsPopup.popupCardLift
+                }
+            ]
+
+            Rectangle {
+                width: parent.width
+                height: parent.height
+                anchors.centerIn: parent
+                radius: animationSettingsPopup.popupCardRadius
+                color: root.base
+                border.color: root.panelBorderColor
+                border.width: 1
+                clip: true
+
+                AnimatedBorder {
+                    anchors.fill: parent
+                    radius: parent.radius
+                    borderWidth: parent.border.width
+                    accentColor: root.accent
+                    active: animationSettingsPopup.popupMounted
+                }
+
+                property real globalOrbitAngle: 0
+                NumberAnimation on globalOrbitAngle {
+                    from: 0
+                    to: Math.PI * 2
+                    duration: 90000
+                    loops: Animation.Infinite
+                    running: animationSettingsPopup.popupMounted && ThemePkg.Theme.rotationalAnimationsEnabled
+                }
+
+                Rectangle {
+                    width: parent.width * 0.68
+                    height: width
+                    radius: width / 2
+                    x: (parent.width * 0.58 - width / 2) + Math.cos(parent.globalOrbitAngle * 1.5) * 70
+                    y: (parent.height * 0.10 - height / 2) + Math.sin(parent.globalOrbitAngle * 1.5) * 80
+                    opacity: 0.05
+                    color: root.accent
+                }
+
+                Rectangle {
+                    width: parent.width * 0.50
+                    height: width
+                    radius: width / 2
+                    x: (parent.width * 0.12 - width / 2) + Math.sin(parent.globalOrbitAngle * 1.2) * -52
+                    y: (parent.height * 0.86 - height / 2) + Math.cos(parent.globalOrbitAngle * 1.2) * -64
+                    opacity: 0.035
+                    color: ThemePkg.Theme.c5
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    anchors.verticalCenterOffset: 8
+                    text: "FX"
+                    font.family: root.textFont
+                    font.weight: Font.Black
+                    font.pixelSize: 170
+                    color: root.accent
+                    opacity: 0.03
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: {}
+                }
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 25
+                    spacing: 12
+                    z: 1
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 36
+                        spacing: 10
+
+                        Text {
+                            text: "󰐊"
+                            font.family: "Iosevka Nerd Font"
+                            font.pixelSize: 20
+                            color: root.accent
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 0
+
+                            Text {
+                                text: "Animation Controls"
+                                font.family: root.textFont
+                                font.weight: Font.Black
+                                font.pixelSize: 16
+                                color: root.text
+                            }
+
+                            Text {
+                                text: "Hold a switch to apply"
+                                font.family: root.textFont
+                                font.pixelSize: 11
+                                color: root.subtext0
+                            }
+                        }
+                    }
+
+                    AnimationOptionRow {
+                        icon: "󰔷"
+                        title: "Animated Border"
+                        detail: "Glow border on Quickshell panels"
+                        enabledState: ThemePkg.Theme.borderAnimationsEnabled
+                        onToggled: {
+                            ThemePkg.Theme.borderAnimationsEnabled = !ThemePkg.Theme.borderAnimationsEnabled;
+                            root.notifyArchTools("Animated Border", ThemePkg.Theme.borderAnimationsEnabled ? "Enabled" : "Disabled", "video-display");
+                        }
+                    }
+
+                    AnimationOptionRow {
+                        icon: "󰑮"
+                        title: "Rotations"
+                        detail: "Network, ArchTools and Calendar orbits"
+                        enabledState: ThemePkg.Theme.rotationalAnimationsEnabled
+                        onToggled: {
+                            ThemePkg.Theme.rotationalAnimationsEnabled = !ThemePkg.Theme.rotationalAnimationsEnabled;
+                            root.notifyArchTools("Rotations", ThemePkg.Theme.rotationalAnimationsEnabled ? "Enabled" : "Disabled", "view-refresh");
+                        }
+                    }
+
+                    AnimationOptionRow {
+                        icon: "󰐊"
+                        title: "Popup Open/Close"
+                        detail: "Container open and close motion"
+                        enabledState: ThemePkg.Theme.popupAnimationsEnabled
+                        onToggled: {
+                            ThemePkg.Theme.popupAnimationsEnabled = !ThemePkg.Theme.popupAnimationsEnabled;
+                            root.notifyArchTools("Popup Animations", ThemePkg.Theme.popupAnimationsEnabled ? "Enabled" : "Disabled", "preferences-desktop-effects");
                         }
                     }
                 }
@@ -5543,6 +5876,238 @@ Item {
             }
             NumberAnimation {
                 target: profileSettingsPopup
+                property: "popupCardLift"
+                to: 8.5
+                duration: 280
+                easing.type: Easing.InCubic
+            }
+        }
+    }
+
+    SequentialAnimation {
+        id: animationSettingsPopupEnterAnim
+        running: false
+
+        onStopped: {
+            if (!animationSettingsPopup.popupTargetVisible && animationSettingsPopup.popupCardOpacity <= 0.001) {
+                animationSettingsPopup.popupMounted = false;
+                archPanel.visible = true;
+            }
+        }
+
+        ParallelAnimation {
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardOpacity"
+                to: 0.82
+                duration: 210
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardScaleX"
+                to: 0.985
+                duration: 280
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardScaleY"
+                to: 0.94
+                duration: 300
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardWidth"
+                to: 434
+                duration: 285
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardHeight"
+                to: 282
+                duration: 300
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardRadius"
+                to: 28
+                duration: 270
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardLift"
+                to: 8
+                duration: 300
+                easing.type: Easing.OutCubic
+            }
+        }
+
+        ParallelAnimation {
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardOpacity"
+                to: 1.0
+                duration: 175
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardScaleX"
+                to: 1.0
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardScaleY"
+                to: 1.0
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardWidth"
+                to: 460
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardHeight"
+                to: 300
+                duration: 215
+                easing.type: Easing.OutCubic
+            }
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardRadius"
+                to: 20
+                duration: 195
+                easing.type: Easing.InOutQuad
+            }
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardLift"
+                to: 0
+                duration: 205
+                easing.type: Easing.OutCubic
+            }
+        }
+    }
+
+    SequentialAnimation {
+        id: animationSettingsPopupExitAnim
+        running: false
+
+        onStopped: {
+            if (!animationSettingsPopup.popupTargetVisible && animationSettingsPopup.popupCardOpacity <= 0.001) {
+                animationSettingsPopup.popupMounted = false;
+                archPanel.visible = true;
+            }
+        }
+
+        ParallelAnimation {
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardScaleX"
+                to: 1.04
+                duration: 85
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardScaleY"
+                to: 0.95
+                duration: 85
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardWidth"
+                to: 478
+                duration: 95
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardHeight"
+                to: 286
+                duration: 95
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardRadius"
+                to: 30
+                duration: 95
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardLift"
+                to: 5
+                duration: 95
+                easing.type: Easing.OutQuad
+            }
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardOpacity"
+                to: 0.88
+                duration: 80
+                easing.type: Easing.OutQuad
+            }
+        }
+
+        ParallelAnimation {
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardOpacity"
+                to: 0.0
+                duration: 180
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardScaleX"
+                to: 0.42
+                duration: 260
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardScaleY"
+                to: 0.24
+                duration: 280
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardWidth"
+                to: 460
+                duration: 200
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardHeight"
+                to: 300
+                duration: 210
+                easing.type: Easing.InCubic
+            }
+            NumberAnimation {
+                target: animationSettingsPopup
+                property: "popupCardRadius"
+                to: 34
+                duration: 200
+                easing.type: Easing.InQuad
+            }
+            NumberAnimation {
+                target: animationSettingsPopup
                 property: "popupCardLift"
                 to: 8.5
                 duration: 280
@@ -7080,6 +7645,7 @@ Item {
                                             rotation: interfaceCard.expanded ? 90 : 0
 
                                             Behavior on rotation {
+                                                enabled: ThemePkg.Theme.rotationalAnimationsEnabled
                                                 NumberAnimation {
                                                     duration: 180
                                                     easing.type: Easing.OutCubic
@@ -7757,6 +8323,93 @@ Item {
         }
     }
 
+    component UptimeCell: Item {
+        id: uptimeCellRoot
+        width: 42
+        height: 46
+
+        property string value: ""
+        property string label: ""
+        property color accentColor: root.accent
+        property bool hovered: false
+        property bool pressed: false
+
+        Rectangle {
+            anchors.fill: parent
+            radius: 10
+            color: uptimeCellRoot.hovered ? "#14ffffff" : "#0dffffff"
+            border.color: uptimeCellRoot.hovered ? root.accent : "#1affffff"
+            border.width: 1
+            transformOrigin: Item.Center
+            scale: uptimeCellRoot.pressed ? 0.96 : (uptimeCellRoot.hovered ? 1.05 : 1.0)
+
+            Behavior on scale {
+                NumberAnimation {
+                    duration: 200
+                    easing.type: Easing.OutCubic
+                }
+            }
+            Behavior on color {
+                ColorAnimation {
+                    duration: 150
+                }
+            }
+            Behavior on border.color {
+                ColorAnimation {
+                    duration: 150
+                }
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                radius: 10
+                color: uptimeCellRoot.accentColor
+                opacity: uptimeCellRoot.hovered ? 0.10 : 0.05
+                Behavior on color {
+                    ColorAnimation {
+                        duration: 1000
+                    }
+                }
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: 150
+                    }
+                }
+            }
+        }
+
+        Column {
+            anchors.centerIn: parent
+
+            Text {
+                text: uptimeCellRoot.value
+                font.pixelSize: 17
+                font.family: root.textFont
+                font.weight: Font.Black
+                renderType: Text.NativeRendering
+                color: uptimeCellRoot.accentColor
+                anchors.horizontalCenter: parent.horizontalCenter
+                horizontalAlignment: Text.AlignHCenter
+                Behavior on color {
+                    ColorAnimation {
+                        duration: 1000
+                    }
+                }
+            }
+
+            Text {
+                text: uptimeCellRoot.label
+                font.pixelSize: 7
+                font.family: root.textFont
+                font.weight: Font.Bold
+                renderType: Text.NativeRendering
+                color: root.subtext0
+                anchors.horizontalCenter: parent.horizontalCenter
+                horizontalAlignment: Text.AlignHCenter
+            }
+        }
+    }
+
     component ToolBtn: Rectangle {
         id: toolBtnRoot
         width: 42
@@ -7990,6 +8643,90 @@ Item {
         }
     }
 
+    component AnimationOptionRow: Rectangle {
+        id: optionRoot
+        Layout.fillWidth: true
+        Layout.preferredHeight: 56
+        radius: 12
+
+        property string icon: ""
+        property string title: ""
+        property string detail: ""
+        property bool enabledState: true
+        property bool wip: false
+        signal toggled
+
+        readonly property color stateColor: optionRoot.wip ? root.overlay1 : (optionRoot.enabledState ? root.success : root.red)
+
+        color: "#10ffffff"
+        border.color: optionRoot.wip ? "#16ffffff" : ThemePkg.Theme.withAlpha(optionRoot.stateColor, 0.55)
+        border.width: 1
+        opacity: optionRoot.wip ? 0.72 : 1.0
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 14
+            anchors.rightMargin: 10
+            spacing: 12
+
+            Text {
+                text: optionRoot.icon
+                font.family: "Iosevka Nerd Font"
+                font.pixelSize: 18
+                color: optionRoot.wip ? root.overlay1 : optionRoot.stateColor
+                Layout.preferredWidth: 24
+                horizontalAlignment: Text.AlignHCenter
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 0
+
+                Text {
+                    text: optionRoot.title
+                    font.family: root.textFont
+                    font.weight: Font.Black
+                    font.pixelSize: 13
+                    color: optionRoot.wip ? root.overlay1 : root.text
+                    elide: Text.ElideRight
+                    Layout.fillWidth: true
+                }
+
+                Text {
+                    text: optionToggleButton.fillLevel > 0.01 ? "Hold..." : optionRoot.detail
+                    font.family: root.textFont
+                    font.pixelSize: 10
+                    color: optionRoot.wip ? root.overlay0 : root.subtext0
+                    elide: Text.ElideRight
+                    Layout.fillWidth: true
+                }
+            }
+
+            Text {
+                text: optionRoot.wip ? "WIP" : (optionRoot.enabledState ? "ON" : "OFF")
+                font.family: root.textFont
+                font.weight: Font.Black
+                font.pixelSize: 10
+                color: optionRoot.stateColor
+                Layout.preferredWidth: 32
+                horizontalAlignment: Text.AlignHCenter
+            }
+
+            ToolBtn {
+                id: optionToggleButton
+                icon: optionRoot.wip ? "WIP" : (optionRoot.enabledState ? "ON" : "OFF")
+                tip: optionRoot.wip ? "WIP" : (optionRoot.enabledState ? "Hold to disable" : "Hold to enable")
+                isActive: true
+                activeColor: optionRoot.stateColor
+                requireHold: !optionRoot.wip
+                holdDuration: 650
+                enabled: !optionRoot.wip
+                opacity: optionRoot.wip ? 0.45 : 1.0
+                onBtnClicked: optionRoot.toggled()
+            }
+        }
+    }
+
     component ResCard: Rectangle {
         id: resCardRoot
         width: root.resourceCardWidth
@@ -8024,10 +8761,10 @@ Item {
                 duration: 150
             }
         }
-        scale: resMa.pressed ? 0.96 : ((resMa.containsMouse || selected) ? 1.03 : 1.0)
+        scale: resMa.pressed ? 0.98 : 1.0
         Behavior on scale {
             NumberAnimation {
-                duration: 220
+                duration: 120
                 easing.type: Easing.OutCubic
             }
         }
@@ -8148,6 +8885,8 @@ Item {
                 font.pixelSize: resCardRoot.value.length > 11 ? 16 : (resCardRoot.value.length > 8 ? 18 : 20)
                 font.family: root.textFont
                 font.weight: Font.Black
+                renderType: Text.NativeRendering
+                horizontalAlignment: Text.AlignHCenter
                 anchors.horizontalCenter: parent.horizontalCenter
             }
             Text {
@@ -8156,6 +8895,8 @@ Item {
                 font.pixelSize: 10
                 font.family: root.textFont
                 font.weight: Font.Bold
+                renderType: Text.NativeRendering
+                horizontalAlignment: Text.AlignHCenter
                 anchors.horizontalCenter: parent.horizontalCenter
             }
         }
@@ -8179,6 +8920,8 @@ Item {
                     font.pixelSize: resCardRoot.value.length > 11 ? 16 : (resCardRoot.value.length > 8 ? 18 : 20)
                     font.family: root.textFont
                     font.weight: Font.Black
+                    renderType: Text.NativeRendering
+                    horizontalAlignment: Text.AlignHCenter
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
                 Text {
@@ -8187,6 +8930,8 @@ Item {
                     font.pixelSize: 10
                     font.family: root.textFont
                     font.weight: Font.Bold
+                    renderType: Text.NativeRendering
+                    horizontalAlignment: Text.AlignHCenter
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
             }

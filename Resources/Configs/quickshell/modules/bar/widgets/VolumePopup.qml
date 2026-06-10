@@ -304,13 +304,21 @@ Item {
     Component.onCompleted: {
         popupTargetVisible = true;
         startupAnim.start();
-        popupEnterAnim.start();
+        if (ThemePkg.Theme.popupAnimationsEnabled)
+            popupEnterAnim.start();
+        else
+            root.openInstant();
     }
 
     onHostLoaderOpacityChanged: {
         if (hostLoaderOpacity < lastHostLoaderOpacity - 0.001 && popupTargetVisible) {
             popupTargetVisible = false;
             popupEnterAnim.stop();
+            if (!ThemePkg.Theme.popupAnimationsEnabled) {
+                root.closeInstant();
+                lastHostLoaderOpacity = hostLoaderOpacity;
+                return;
+            }
             if (!popupExitAnim.running)
                 popupExitAnim.start();
         }
@@ -322,6 +330,10 @@ Item {
             return;
         popupTargetVisible = false;
         popupEnterAnim.stop();
+        if (!ThemePkg.Theme.popupAnimationsEnabled) {
+            root.closeInstant();
+            return;
+        }
         if (!popupExitAnim.running)
             popupExitAnim.start();
     }
@@ -330,7 +342,29 @@ Item {
         popupTargetVisible = true;
         popupExitAnim.stop();
         popupEnterAnim.stop();
+        if (!ThemePkg.Theme.popupAnimationsEnabled) {
+            root.openInstant();
+            return;
+        }
         popupEnterAnim.start();
+    }
+
+    function popupOriginLift() {
+        return root.barPanelCenterY - (root.popupClosedHeight / 2);
+    }
+
+    function openInstant() {
+        popupExitAnim.stop();
+        popupEnterAnim.stop();
+        popupTargetVisible = true;
+        ThemePkg.Theme.setPopupCardOpen(root);
+    }
+
+    function closeInstant() {
+        popupEnterAnim.stop();
+        popupExitAnim.stop();
+        popupTargetVisible = false;
+        ThemePkg.Theme.setPopupCardClosed(root);
     }
 
     ParallelAnimation {
@@ -345,10 +379,6 @@ Item {
             PauseAnimation { duration: 200 }
             NumberAnimation { target: root; property: "introContent"; from: 0; to: 1.0; duration: 800; easing.type: Easing.OutExpo }
         }
-    }
-
-    function popupOriginLift() {
-        return root.barPanelCenterY - (root.popupClosedHeight / 2);
     }
 
     SequentialAnimation {
@@ -509,176 +539,186 @@ Item {
                             Item {
                                 Layout.preferredWidth: 130
                                 Layout.preferredHeight: 130
-                                scale: masterOrbMa.pressed ? 0.95 : (masterOrbMa.containsMouse ? 1.05 : 1.0)
-                                Behavior on scale { NumberAnimation { duration: 400; easing.type: Easing.OutBack } }
 
-                                Rectangle {
-                                    anchors.centerIn: parent
-                                    width: parent.width + 15
-                                    height: width
-                                    radius: width / 2
-                                    color: "transparent"
-                                    border.color: root.activeMute ? root.red : root.tabColor
-                                    border.width: 3
-                                    z: -2
-
-                                    property real pulseOp: 0.0
-                                    property real pulseSc: 1.0
-                                    opacity: root.activeMute ? 0.0 : pulseOp
-                                    scale: pulseSc
-
-                                    Timer {
-                                        interval: 45
-                                        running: parent.opacity > 0.01 || !root.activeMute
-                                        repeat: true
-                                        onTriggered: {
-                                            var time = Date.now() / 1000;
-                                            parent.pulseOp = 0.3 + Math.sin(time * 2.5) * 0.15;
-                                            parent.pulseSc = 1.02 + Math.cos(time * 3.0) * 0.02;
-                                        }
-                                    }
-                                }
-
-                                Rectangle {
-                                    anchors.centerIn: parent
-                                    width: parent.width + 40
-                                    height: width
-                                    radius: width / 2
-                                    color: root.activeMute ? root.red : root.tabColor
-                                    opacity: root.activeMute ? 0.3 : 0.15
-                                    z: -1
-                                    Behavior on color { ColorAnimation { duration: 300 } }
-
-                                    SequentialAnimation on scale {
-                                        loops: Animation.Infinite; running: true
-                                        NumberAnimation { to: masterOrbMa.containsMouse ? 1.15 : 1.1; duration: masterOrbMa.containsMouse ? 800 : 2000; easing.type: Easing.InOutSine }
-                                        NumberAnimation { to: 1.0; duration: masterOrbMa.containsMouse ? 800 : 2000; easing.type: Easing.InOutSine }
-                                    }
-                                }
-
-                                MultiEffect {
-                                    source: centralCore
-                                    anchors.fill: centralCore
-                                    shadowEnabled: true
-                                    shadowColor: "#000000"
-                                    shadowOpacity: 0.5
-                                    shadowBlur: 1.2
-                                    shadowVerticalOffset: 6
-                                    z: -1
-                                }
-
-                                Rectangle {
-                                    id: centralCore
+                                Item {
+                                    id: masterOrbVisual
                                     anchors.fill: parent
-                                    radius: width / 2
-                                    color: root.base
-                                    border.color: root.activeMute ? root.red : Qt.lighter(root.tabColor, 1.1)
-                                    border.width: 2
-                                    clip: true
-                                    Behavior on border.color { ColorAnimation { duration: 300 } }
+                                    scale: masterOrbMa.pressed ? 0.95 : (masterOrbMa.containsMouse ? 1.05 : 1.0)
+                                    Behavior on scale { NumberAnimation { duration: 400; easing.type: Easing.OutBack } }
 
-                                    Canvas {
-                                        id: orbWave
-                                        anchors.fill: parent
+                                    Rectangle {
+                                        anchors.centerIn: parent
+                                        width: parent.width + 15
+                                        height: width
+                                        radius: width / 2
+                                        color: "transparent"
+                                        border.color: root.activeMute ? root.red : root.tabColor
+                                        border.width: 3
+                                        z: -2
 
-                                        property real wavePhase: 0.0
-                                        NumberAnimation on wavePhase {
-                                            running: root.activeFillRatio > 0 && root.activeFillRatio < 0.99
-                                            loops: Animation.Infinite
-                                            from: 0; to: Math.PI * 2; duration: 1200
-                                        }
-                                        onWavePhaseChanged: requestPaint()
+                                        property real pulseOp: 0.0
+                                        property real pulseSc: 1.0
+                                        opacity: root.activeMute ? 0.0 : pulseOp
+                                        scale: pulseSc
 
-                                        Connections {
-                                            target: root
-                                            function onActiveVolChanged() { orbWave.requestPaint() }
-                                            function onActiveVolVisualChanged() { orbWave.requestPaint() }
-                                            function onActiveMuteChanged() { orbWave.requestPaint() }
-                                            function onTabColorChanged() { orbWave.requestPaint() }
-                                        }
-
-                                        onPaint: {
-                                            var ctx = getContext("2d");
-                                            ctx.clearRect(0, 0, width, height);
-                                            if (root.activeFillRatio <= 0) return;
-
-                                            var fillRatio = root.activeFillRatio;
-                                            var r = width / 2;
-                                            var fillY = height * (1.0 - fillRatio);
-
-                                            ctx.save();
-
-                                            ctx.beginPath();
-                                            ctx.arc(r, r, r, 0, 2 * Math.PI);
-                                            ctx.clip();
-
-                                            ctx.beginPath();
-                                            ctx.moveTo(0, fillY);
-
-                                            if (fillRatio < 0.99) {
-                                                var waveAmp = 8 * Math.sin(fillRatio * Math.PI);
-                                                var cp1y = fillY + Math.sin(wavePhase) * waveAmp;
-                                                var cp2y = fillY + Math.cos(wavePhase + Math.PI) * waveAmp;
-                                                ctx.bezierCurveTo(width * 0.33, cp2y, width * 0.66, cp1y, width, fillY);
-                                                ctx.lineTo(width, height);
-                                                ctx.lineTo(0, height);
-                                            } else {
-                                                ctx.lineTo(width, 0);
-                                                ctx.lineTo(width, height);
-                                                ctx.lineTo(0, height);
+                                        Timer {
+                                            interval: 45
+                                            running: parent.opacity > 0.01 || !root.activeMute
+                                            repeat: true
+                                            onTriggered: {
+                                                var time = Date.now() / 1000;
+                                                parent.pulseOp = 0.3 + Math.sin(time * 2.5) * 0.15;
+                                                parent.pulseSc = 1.02 + Math.cos(time * 3.0) * 0.02;
                                             }
-                                            ctx.closePath();
-
-                                            var grad = ctx.createLinearGradient(0, 0, 0, height);
-
-                                            if (root.activeMute) {
-                                                grad.addColorStop(0, Qt.lighter(root.red, 1.15).toString());
-                                                grad.addColorStop(1, root.red.toString());
-                                            } else {
-                                                grad.addColorStop(0, Qt.lighter(root.tabColor, 1.15).toString());
-                                                grad.addColorStop(1, root.tabColor.toString());
-                                            }
-                                            ctx.fillStyle = grad;
-                                            ctx.globalAlpha = 1.0;
-                                            ctx.fill();
-                                            ctx.restore();
                                         }
                                     }
+
+                                    Rectangle {
+                                        anchors.centerIn: parent
+                                        width: parent.width + 40
+                                        height: width
+                                        radius: width / 2
+                                        color: root.activeMute ? root.red : root.tabColor
+                                        opacity: root.activeMute ? 0.3 : 0.15
+                                        z: -1
+                                        Behavior on color { ColorAnimation { duration: 300 } }
+
+                                        SequentialAnimation on scale {
+                                            loops: Animation.Infinite; running: true
+                                            NumberAnimation { to: masterOrbMa.containsMouse ? 1.15 : 1.1; duration: masterOrbMa.containsMouse ? 800 : 2000; easing.type: Easing.InOutSine }
+                                            NumberAnimation { to: 1.0; duration: masterOrbMa.containsMouse ? 800 : 2000; easing.type: Easing.InOutSine }
+                                        }
+                                    }
+
+                                    MultiEffect {
+                                        source: centralCore
+                                        anchors.fill: centralCore
+                                        shadowEnabled: true
+                                        shadowColor: "#000000"
+                                        shadowOpacity: 0.5
+                                        shadowBlur: 1.2
+                                        shadowVerticalOffset: 6
+                                        z: -1
+                                    }
+
+                                    Rectangle {
+                                        id: centralCore
+                                        anchors.fill: parent
+                                        radius: width / 2
+                                        color: root.base
+                                        border.color: root.activeMute ? root.red : Qt.lighter(root.tabColor, 1.1)
+                                        border.width: 2
+                                        clip: true
+                                        Behavior on border.color { ColorAnimation { duration: 300 } }
+
+                                        Canvas {
+                                            id: orbWave
+                                            anchors.fill: parent
+
+                                            property real wavePhase: 0.0
+                                            NumberAnimation on wavePhase {
+                                                running: root.activeFillRatio > 0 && root.activeFillRatio < 0.99
+                                                loops: Animation.Infinite
+                                                from: 0; to: Math.PI * 2; duration: 1200
+                                            }
+                                            onWavePhaseChanged: requestPaint()
+
+                                            Connections {
+                                                target: root
+                                                function onActiveVolChanged() { orbWave.requestPaint() }
+                                                function onActiveVolVisualChanged() { orbWave.requestPaint() }
+                                                function onActiveMuteChanged() { orbWave.requestPaint() }
+                                                function onTabColorChanged() { orbWave.requestPaint() }
+                                            }
+
+                                            onPaint: {
+                                                var ctx = getContext("2d");
+                                                ctx.clearRect(0, 0, width, height);
+                                                if (root.activeFillRatio <= 0) return;
+
+                                                var fillRatio = root.activeFillRatio;
+                                                var r = width / 2;
+                                                var fillY = height * (1.0 - fillRatio);
+
+                                                ctx.save();
+
+                                                ctx.beginPath();
+                                                ctx.arc(r, r, r, 0, 2 * Math.PI);
+                                                ctx.clip();
+
+                                                ctx.beginPath();
+                                                ctx.moveTo(0, fillY);
+
+                                                if (fillRatio < 0.99) {
+                                                    var waveAmp = 8 * Math.sin(fillRatio * Math.PI);
+                                                    var cp1y = fillY + Math.sin(wavePhase) * waveAmp;
+                                                    var cp2y = fillY + Math.cos(wavePhase + Math.PI) * waveAmp;
+                                                    ctx.bezierCurveTo(width * 0.33, cp2y, width * 0.66, cp1y, width, fillY);
+                                                    ctx.lineTo(width, height);
+                                                    ctx.lineTo(0, height);
+                                                } else {
+                                                    ctx.lineTo(width, 0);
+                                                    ctx.lineTo(width, height);
+                                                    ctx.lineTo(0, height);
+                                                }
+                                                ctx.closePath();
+
+                                                var grad = ctx.createLinearGradient(0, 0, 0, height);
+
+                                                if (root.activeMute) {
+                                                    grad.addColorStop(0, Qt.lighter(root.red, 1.15).toString());
+                                                    grad.addColorStop(1, root.red.toString());
+                                                } else {
+                                                    grad.addColorStop(0, Qt.lighter(root.tabColor, 1.15).toString());
+                                                    grad.addColorStop(1, root.tabColor.toString());
+                                                }
+                                                ctx.fillStyle = grad;
+                                                ctx.globalAlpha = 1.0;
+                                                ctx.fill();
+                                                ctx.restore();
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Text {
+                                    anchors.fill: parent
+                                    font.family: root.textFont
+                                    font.weight: Font.Black
+                                    font.pixelSize: 32
+                                    color: root.activeMute ? root.red : root.text
+                                    text: root.activeMute ? "MUTE" : root.activeVolLabel + "%"
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                    renderType: Text.NativeRendering
+                                    Behavior on color { ColorAnimation { duration: 200 } }
+                                }
+
+                                Item {
+                                    id: waveClipItem
+                                    anchors.bottom: parent.bottom
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+
+                                    property real fillRatio: root.activeFillRatio
+                                    property real waveAmp: fillRatio < 0.99 ? 8 * Math.sin(fillRatio * Math.PI) : 0
+                                    property real waveCenterOffset: 0.375 * waveAmp * (Math.sin(orbWave.wavePhase) - Math.cos(orbWave.wavePhase))
+                                    property real baseClipHeight: parent.height * fillRatio
+
+                                    height: Math.min(parent.height, Math.max(0, baseClipHeight - waveCenterOffset))
+                                    clip: true
+                                    visible: root.activeFillRatio > 0
 
                                     Text {
-                                        anchors.centerIn: parent
+                                        width: waveClipItem.width
+                                        y: (parent.parent.height / 2) - (height / 2) - (parent.parent.height - waveClipItem.height)
                                         font.family: root.textFont
                                         font.weight: Font.Black
                                         font.pixelSize: 32
-                                        color: root.activeMute ? root.red : root.text
+                                        color: root.crust
                                         text: root.activeMute ? "MUTE" : root.activeVolLabel + "%"
-                                        Behavior on color { ColorAnimation { duration: 200 } }
-                                    }
-
-                                    Item {
-                                        id: waveClipItem
-                                        anchors.bottom: parent.bottom
-                                        anchors.left: parent.left
-                                        anchors.right: parent.right
-
-                                        property real fillRatio: root.activeFillRatio
-                                        property real waveAmp: fillRatio < 0.99 ? 8 * Math.sin(fillRatio * Math.PI) : 0
-                                        property real waveCenterOffset: 0.375 * waveAmp * (Math.sin(orbWave.wavePhase) - Math.cos(orbWave.wavePhase))
-                                        property real baseClipHeight: parent.height * fillRatio
-
-                                        height: Math.min(parent.height, Math.max(0, baseClipHeight - waveCenterOffset))
-                                        clip: true
-                                        visible: root.activeFillRatio > 0
-
-                                        Text {
-                                            x: waveClipItem.width / 2 - width / 2
-                                            y: (centralCore.height / 2) - (height / 2) - (centralCore.height - waveClipItem.height)
-                                            font.family: root.textFont
-                                            font.weight: Font.Black
-                                            font.pixelSize: 32
-                                            color: root.crust
-                                            text: root.activeMute ? "MUTE" : root.activeVolLabel + "%"
-                                        }
+                                        horizontalAlignment: Text.AlignHCenter
+                                        renderType: Text.NativeRendering
                                     }
                                 }
 
@@ -866,37 +906,6 @@ Item {
 
                                                 masterCmdThrottle.targetPct = pct;
                                                 if (!masterCmdThrottle.running) masterCmdThrottle.start();
-                                            }
-                                        }
-                                    }
-
-                                    Rectangle {
-                                        Layout.preferredWidth: 36
-                                        Layout.preferredHeight: 36
-                                        radius: 18
-                                        color: musicBtnMa.containsMouse ? "#1affffff" : "#0dffffff"
-                                        border.color: musicBtnMa.containsMouse ? root.mauve : "#1affffff"
-                                        border.width: 1
-                                        Behavior on color { ColorAnimation { duration: 150 } }
-                                        Behavior on border.color { ColorAnimation { duration: 150 } }
-
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: "󰎆"
-                                            color: musicBtnMa.containsMouse ? root.mauve : root.subtext0
-                                            font.family: "CaskaydiaMono Nerd Font"
-                                            font.pixelSize: 18
-                                            Behavior on color { ColorAnimation { duration: 150 } }
-                                        }
-
-                                        MouseArea {
-                                            id: musicBtnMa
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: {
-                                                if (root.overlaySwitcher) root.overlaySwitcher.close();
-                                                Quickshell.execDetached(["bash", "-c", "sleep 0.15 && qs ipc call music toggle"]);
                                             }
                                         }
                                     }

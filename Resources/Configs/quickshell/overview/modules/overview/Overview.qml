@@ -7,6 +7,7 @@ import Quickshell.Wayland
 import Quickshell.Hyprland
 import "../../common"
 import "../../services"
+import "../../../modules/theme" as ThemePkg
 import "."
 
 Scope {
@@ -74,7 +75,10 @@ Scope {
                 if (!popupEnterAnim.running && popupOpacity >= 0.999)
                     return;
                 popupEnterAnim.stop();
-                popupEnterAnim.start();
+                if (ThemePkg.Theme.popupAnimationsEnabled)
+                    popupEnterAnim.start();
+                else
+                    root.openInstant();
             }
 
             function hideOverviewPopup() {
@@ -83,7 +87,36 @@ Scope {
                 if (!popupMounted && popupOpacity <= 0.001)
                     return;
                 popupExitAnim.stop();
-                popupExitAnim.start();
+                if (ThemePkg.Theme.popupAnimationsEnabled)
+                    popupExitAnim.start();
+                else
+                    root.closeInstant();
+            }
+
+            function openInstant() {
+                popupExitAnim.stop();
+                popupEnterAnim.stop();
+                popupTargetVisible = true;
+                popupMounted = true;
+                popupOpacity = 1.0;
+                popupScaleX = 1.0;
+                popupScaleY = 1.0;
+                popupWidthFactor = 1.0;
+                popupHeightFactor = 1.0;
+                popupLift = 0;
+            }
+
+            function closeInstant() {
+                popupEnterAnim.stop();
+                popupExitAnim.stop();
+                popupTargetVisible = false;
+                popupMounted = false;
+                popupOpacity = 0.0;
+                popupScaleX = 0.42;
+                popupScaleY = 0.24;
+                popupWidthFactor = 0.42;
+                popupHeightFactor = 0.24;
+                popupLift = 8.5;
             }
 
             Timer {

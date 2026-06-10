@@ -59,6 +59,10 @@ Item {
         return isNaN(n) ? fallback : n;
     }
 
+    function updateTotal(pacman, aur, flatpak) {
+        return root.asNumber(pacman, 0) + root.asNumber(aur, 0) + root.asNumber(flatpak, 0);
+    }
+
     function hasUpdateCounts(obj) {
         return !!obj && (
             obj.pacman !== undefined
@@ -114,10 +118,10 @@ Item {
         if (!root.hasUpdateCounts(obj))
             return;
 
-        var pacman = root.asNumber(obj.pacman !== undefined ? obj.pacman : obj.updPacman, 0);
-        var aur = root.asNumber(obj.aur !== undefined ? obj.aur : obj.updAur, 0);
-        var flatpak = root.asNumber(obj.flatpak !== undefined ? obj.flatpak : obj.updFlatpak, 0);
-        var total = root.asNumber(obj.total !== undefined ? obj.total : obj.updTotal, pacman + aur + flatpak);
+        var pacman = root.asNumber(obj.pacman !== undefined ? obj.pacman : obj.updPacman, ArchState.ArchToolsState.updatePacman);
+        var aur = root.asNumber(obj.aur !== undefined ? obj.aur : obj.updAur, ArchState.ArchToolsState.updateAur);
+        var flatpak = root.asNumber(obj.flatpak !== undefined ? obj.flatpak : obj.updFlatpak, ArchState.ArchToolsState.updateFlatpak);
+        var total = root.updateTotal(pacman, aur, flatpak);
         var now = root.asNumber(obj.updLastMs, Date.now());
         var lastTs = obj.updLastTs !== undefined ? String(obj.updLastTs || "") : Qt.formatDateTime(new Date(now), "HH:mm");
 

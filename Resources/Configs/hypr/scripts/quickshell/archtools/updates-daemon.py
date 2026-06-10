@@ -124,7 +124,7 @@ def refresh_packages():
     pacman = int(payload.get("pacman") or 0)
     aur = int(payload.get("aur") or 0)
     flatpak = int(payload.get("flatpak") or 0)
-    total = int(payload.get("total") if payload.get("total") is not None else pacman + aur + flatpak)
+    total = pacman + aur + flatpak
     ts_ms = now_ms()
 
     merge_cache({

@@ -234,36 +234,57 @@ Variants {
                     property string shownOverlay: ""
                     property int dur: 140
                     property int activeDur: dur
+                    readonly property bool popupAnimationsEnabled: ThemePkg.Theme.popupAnimationsEnabled
                     property real scaleIn: 0.98
                     property real scaleOut: 1.02
 
                     property int pendingIndex: -1
                     property string pendingShownOverlay: ""
 
+                    function finishClose() {
+                        var L = (switcher.pendingIndex === 0 ? loaderA : loaderB);
+                        L.sourceComponent = null;
+                        switcher.shownOverlay = "";
+                        switcher.pendingIndex = -1;
+                        switcher.activeDur = switcher.dur;
+                    }
+
+                    function finishSwap() {
+                        var outL = (switcher.pendingIndex === 0 ? loaderA : loaderB);
+                        outL.sourceComponent = null;
+                        switcher.activeIndex = (switcher.pendingIndex === 0 ? 1 : 0);
+                        switcher.shownOverlay = switcher.pendingShownOverlay;
+                        switcher.pendingIndex = -1;
+                        switcher.activeDur = switcher.dur;
+                    }
+
+                    function scheduleCloseFinalize() {
+                        finalizeClose.stop();
+                        if (switcher.activeDur <= 0)
+                            Qt.callLater(switcher.finishClose);
+                        else
+                            finalizeClose.start();
+                    }
+
+                    function scheduleSwapFinalize() {
+                        finalizeSwap.stop();
+                        if (switcher.activeDur <= 0)
+                            Qt.callLater(switcher.finishSwap);
+                        else
+                            finalizeSwap.start();
+                    }
+
                     Timer {
                         id: finalizeClose
                         interval: switcher.activeDur
                         repeat: false
-                        onTriggered: {
-                            var L = (switcher.pendingIndex === 0 ? loaderA : loaderB);
-                            L.sourceComponent = null;
-                            switcher.shownOverlay = "";
-                            switcher.pendingIndex = -1;
-                            switcher.activeDur = switcher.dur;
-                        }
+                        onTriggered: switcher.finishClose()
                     }
                     Timer {
                         id: finalizeSwap
                         interval: switcher.activeDur
                         repeat: false
-                        onTriggered: {
-                            var outL = (switcher.pendingIndex === 0 ? loaderA : loaderB);
-                            outL.sourceComponent = null;
-                            switcher.activeIndex = (switcher.pendingIndex === 0 ? 1 : 0);
-                            switcher.shownOverlay = switcher.pendingShownOverlay;
-                            switcher.pendingIndex = -1;
-                            switcher.activeDur = switcher.dur;
-                        }
+                        onTriggered: switcher.finishSwap()
                     }
 
                     Keys.onPressed: {
@@ -345,6 +366,8 @@ Variants {
                         return activeIndex === 0 ? loaderB : loaderA;
                     }
                     function overlayEnterDurationFor(loader) {
+                        if (!popupAnimationsEnabled)
+                            return 0;
                         var item = loader ? loader.item : null;
                         if (item && item.overlayEnterDuration !== undefined) {
                             var value = Number(item.overlayEnterDuration);
@@ -363,19 +386,32 @@ Variants {
                     }
                     function prepareOverlayOpen(loader) {
                         var ownsOpen = overlayOwnsOpenAnimation(loader);
-                        loader.animateTransition = !ownsOpen;
+                        loader.animateTransition = popupAnimationsEnabled && !ownsOpen;
                         loader.opacity = ownsOpen ? 1.0 : 0.0;
                         loader.scale = ownsOpen ? 1.0 : scaleIn;
                         loader.animateTransition = true;
+                    }
+                    function requestOverlayOpenInstant(loader) {
+                        if (popupAnimationsEnabled)
+                            return;
+                        var item = loader ? loader.item : null;
+                        if (item && item.openInstant !== undefined)
+                            item.openInstant();
                     }
                     function requestOverlayCloseAnimation(loader) {
                         var item = loader ? loader.item : null;
                         if (!item || item.beginOverlayClose === undefined)
                             return false;
+                        if (!popupAnimationsEnabled && item.closeInstant !== undefined) {
+                            item.closeInstant();
+                            return true;
+                        }
                         item.beginOverlayClose();
                         return true;
                     }
                     function overlayExitDurationFor(loader) {
+                        if (!popupAnimationsEnabled)
+                            return 0;
                         var item = loader ? loader.item : null;
                         if (item && item.overlayExitDuration !== undefined) {
                             var value = Number(item.overlayExitDuration);
@@ -393,6 +429,7 @@ Variants {
                         L.sourceComponent = compFor(which);
                         activeDur = overlayEnterDurationFor(L);
                         prepareOverlayOpen(L);
+                        requestOverlayOpenInstant(L);
                         L.opacity = 1.0;
                         L.scale = 1.0;
                         shownOverlay = which;
@@ -412,7 +449,7 @@ Variants {
                             L.scale = scaleOut;
                         }
                         pendingIndex = activeIndex;
-                        finalizeClose.start();
+                        scheduleCloseFinalize();
                     }
 
                     function forceClose() {
@@ -440,6 +477,7 @@ Variants {
                         inL.sourceComponent = compFor(which);
                         activeDur = Math.max(overlayExitDurationFor(outL), overlayEnterDurationFor(inL));
                         prepareOverlayOpen(inL);
+                        requestOverlayOpenInstant(inL);
 
                         if (overlayOwnsCloseAnimation(outL)) {
                             requestOverlayCloseAnimation(outL);
@@ -454,7 +492,7 @@ Variants {
 
                         pendingIndex = activeIndex;
                         pendingShownOverlay = which;
-                        finalizeSwap.start();
+                        scheduleSwapFinalize();
                     }
 
                     function toggle(which) {

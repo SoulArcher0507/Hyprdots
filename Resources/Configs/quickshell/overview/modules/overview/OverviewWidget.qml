@@ -402,7 +402,7 @@ Item {
             radius: overviewBackground.radius
             borderWidth: overviewBackground.border.width
             accentColor: Appearance.colors.accent
-            animationsEnabled: Appearance.edgeAnimationsEnabled
+            animationsEnabled: Appearance.borderAnimationsEnabled
         }
 
         Rectangle {

@@ -97,7 +97,10 @@ PopupWindow {
         popupExitAnim.stop();
         resetClosedMorph();
         popupEnterAnim.stop();
-        popupEnterAnim.start();
+        if (ThemePkg.Theme.popupAnimationsEnabled)
+            popupEnterAnim.start();
+        else
+            root.openInstant();
     }
 
     function closeNow() {
@@ -155,8 +158,36 @@ PopupWindow {
         closeActiveSubmenuNow();
         root.activeSubMenuEntry = null;
         popupEnterAnim.stop();
+        if (!ThemePkg.Theme.popupAnimationsEnabled) {
+            root.closeInstant();
+            return;
+        }
         if (!popupExitAnim.running)
             popupExitAnim.start();
+    }
+
+    function openInstant() {
+        popupExitAnim.stop();
+        popupEnterAnim.stop();
+        finalizingAnimatedClose = false;
+        popupTargetVisible = true;
+        root.visible = true;
+        popupCardOpacity = 1.0;
+        popupCardScaleX = 1.0;
+        popupCardScaleY = 1.0;
+        popupCardRadius = 10 * root.scaleFactor;
+        popupCardLift = 0;
+    }
+
+    function closeInstant() {
+        popupEnterAnim.stop();
+        popupExitAnim.stop();
+        closeActiveSubmenuNow();
+        popupTargetVisible = false;
+        activeSubMenuEntry = null;
+        finalizingAnimatedClose = true;
+        root.visible = false;
+        resetClosedMorph();
     }
 
     function finalizeClose() {

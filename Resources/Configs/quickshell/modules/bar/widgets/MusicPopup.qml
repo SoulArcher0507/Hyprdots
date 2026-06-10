@@ -170,6 +170,17 @@ Item {
         root.introPresets = 0;
     }
 
+    function finishIntroState() {
+        root.introMain = 1;
+        root.introCover = 1;
+        root.introText = 1;
+        root.introControls = 1;
+        root.introSeparator = 1;
+        root.introEqHeader = 1;
+        root.introEqSliders = 1;
+        root.introPresets = 1;
+    }
+
     function popupOriginY() {
         return root.barPanelCenterY - (root.popupClosedHeight / 2);
     }
@@ -196,9 +207,15 @@ Item {
         if (startingFresh)
             resetPopupOriginState();
         resetIntroState();
-        introAnim.restart();
+        if (ThemePkg.Theme.popupAnimationsEnabled)
+            introAnim.restart();
+        else
+            finishIntroState();
         popupEnterAnim.stop();
-        popupEnterAnim.start();
+        if (ThemePkg.Theme.popupAnimationsEnabled)
+            popupEnterAnim.start();
+        else
+            root.openInstant();
         Qt.callLater(function() { musicCard.forceActiveFocus(); });
     }
 
@@ -208,7 +225,29 @@ Item {
         if (!popupMounted && popupCardOpacity <= 0.001)
             return;
         popupExitAnim.stop();
-        popupExitAnim.start();
+        if (ThemePkg.Theme.popupAnimationsEnabled)
+            popupExitAnim.start();
+        else
+            root.closeInstant();
+    }
+
+    function openInstant() {
+        popupExitAnim.stop();
+        popupEnterAnim.stop();
+        popupTargetVisible = true;
+        popupMounted = true;
+        ThemePkg.Theme.setPopupCardOpen(root);
+        finishIntroState();
+    }
+
+    function closeInstant() {
+        popupEnterAnim.stop();
+        popupExitAnim.stop();
+        introAnim.stop();
+        popupTargetVisible = false;
+        popupMounted = false;
+        ThemePkg.Theme.setPopupCardClosed(root);
+        resetIntroState();
     }
 
     property string lastMusicStatus: "Stopped"
@@ -1272,17 +1311,24 @@ Item {
         property bool isActivePreset: root.eqData && root.eqData.preset === name
         property bool isHovered: hoverMa.containsMouse
         color: isActivePreset ? root.mauve : (isHovered ? root.surface1 : Qt.rgba(root.surface0.r, root.surface0.g, root.surface0.b, 0.75))
-        scale: isHovered && !isActivePreset ? 1.05 : 1.0
+        border.color: isActivePreset ? root.mauve : (isHovered ? root.surface2 : "transparent")
+        border.width: 1
+        antialiasing: true
         Behavior on color { ColorAnimation { duration: 200 } }
-        Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
+        Behavior on border.color { ColorAnimation { duration: 200 } }
 
         Text {
             anchors.centerIn: parent
+            width: parent.width - 12
             text: parent.name
             color: parent.isActivePreset ? root.base : (parent.isHovered ? root.text : root.subtext0)
             font.family: root.textFont
             font.pixelSize: 12
             font.bold: true
+            horizontalAlignment: Text.AlignHCenter
+            elide: Text.ElideRight
+            maximumLineCount: 1
+            renderType: Text.NativeRendering
             Behavior on color { ColorAnimation { duration: 200 } }
         }
         MouseArea {

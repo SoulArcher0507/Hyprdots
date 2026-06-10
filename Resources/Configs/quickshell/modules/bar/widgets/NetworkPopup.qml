@@ -146,7 +146,10 @@ Item {
         trafficPoller.running = true;
         speedtestPollerProc.running = true;
         tailscalePoller.running = true;
-        popupEnterAnim.start();
+        if (ThemePkg.Theme.popupAnimationsEnabled)
+            popupEnterAnim.start();
+        else
+            window.openInstant();
     }
 
     Component.onDestruction: {
@@ -1289,7 +1292,7 @@ Item {
         to: Math.PI * 2
         duration: 200000
         loops: Animation.Infinite
-        running: ThemePkg.Theme.edgeAnimationsEnabled
+        running: ThemePkg.Theme.rotationalAnimationsEnabled
     }
     property real introState: 0.0
     Behavior on introState {
@@ -1303,6 +1306,11 @@ Item {
         if (hostLoaderOpacity < lastHostLoaderOpacity - 0.001 && popupTargetVisible) {
             popupTargetVisible = false;
             popupEnterAnim.stop();
+            if (!ThemePkg.Theme.popupAnimationsEnabled) {
+                window.closeInstant();
+                lastHostLoaderOpacity = hostLoaderOpacity;
+                return;
+            }
             if (!popupExitAnim.running)
                 popupExitAnim.start();
         }
@@ -1314,6 +1322,10 @@ Item {
             return;
         popupTargetVisible = false;
         popupEnterAnim.stop();
+        if (!ThemePkg.Theme.popupAnimationsEnabled) {
+            window.closeInstant();
+            return;
+        }
         if (!popupExitAnim.running)
             popupExitAnim.start();
     }
@@ -1322,11 +1334,29 @@ Item {
         popupTargetVisible = true;
         popupExitAnim.stop();
         popupEnterAnim.stop();
+        if (!ThemePkg.Theme.popupAnimationsEnabled) {
+            window.openInstant();
+            return;
+        }
         popupEnterAnim.start();
     }
 
     function popupOriginLift() {
         return window.barPanelCenterY - (window.popupClosedHeight / 2);
+    }
+
+    function openInstant() {
+        popupExitAnim.stop();
+        popupEnterAnim.stop();
+        popupTargetVisible = true;
+        ThemePkg.Theme.setPopupCardOpen(window);
+    }
+
+    function closeInstant() {
+        popupEnterAnim.stop();
+        popupExitAnim.stop();
+        popupTargetVisible = false;
+        ThemePkg.Theme.setPopupCardClosed(window);
     }
 
     SequentialAnimation {
@@ -3294,7 +3324,7 @@ Item {
                                 to: 360
                                 duration: 800
                                 loops: Animation.Infinite
-                                running: window.currentPowerPending && ThemePkg.Theme.edgeAnimationsEnabled
+                                running: window.currentPowerPending && ThemePkg.Theme.rotationalAnimationsEnabled
                                 onRunningChanged: {
                                     if (!running)
                                         pwrIcon.rotation = 0;

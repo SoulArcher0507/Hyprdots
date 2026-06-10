@@ -42,18 +42,36 @@ Item {
 
     signal startButtonEnter()
     signal startButtonExit()
+    signal startButtonEnterInstant()
+    signal startButtonExitInstant()
 
     function beginOverlayClose() {
         if (!popupTargetVisible)
             return ;
 
         popupTargetVisible = false;
-        root.startButtonExit();
+        if (ThemePkg.Theme.popupAnimationsEnabled)
+            root.startButtonExit();
+        else
+            root.startButtonExitInstant();
     }
 
     function cancelOverlayClose() {
         popupTargetVisible = true;
-        root.startButtonEnter();
+        if (ThemePkg.Theme.popupAnimationsEnabled)
+            root.startButtonEnter();
+        else
+            root.startButtonEnterInstant();
+    }
+
+    function openInstant() {
+        popupTargetVisible = true;
+        root.startButtonEnterInstant();
+    }
+
+    function closeInstant() {
+        popupTargetVisible = false;
+        root.startButtonExitInstant();
     }
 
     function triggerHibernate() {
@@ -90,13 +108,19 @@ Item {
     Component.onCompleted: {
         popupTargetVisible = true;
         Qt.callLater(function() {
-            root.startButtonEnter();
+            if (ThemePkg.Theme.popupAnimationsEnabled)
+                root.startButtonEnter();
+            else
+                root.startButtonEnterInstant();
         });
     }
     onHostLoaderOpacityChanged: {
         if (hostLoaderOpacity < lastHostLoaderOpacity - 0.001 && popupTargetVisible) {
             popupTargetVisible = false;
-            root.startButtonExit();
+            if (ThemePkg.Theme.popupAnimationsEnabled)
+                root.startButtonExit();
+            else
+                root.startButtonExitInstant();
         }
         lastHostLoaderOpacity = hostLoaderOpacity;
     }
@@ -230,9 +254,33 @@ Item {
                                 buttonEnterAnim.restart();
                             }
 
+                            function onStartButtonEnterInstant() {
+                                buttonExitAnim.stop();
+                                buttonEnterAnim.stop();
+                                actionCapsule.buttonOpacity = 1;
+                                actionCapsule.buttonScaleX = 1;
+                                actionCapsule.buttonScaleY = 1;
+                                actionCapsule.buttonWidth = actionCapsule.buttonOpenWidth;
+                                actionCapsule.buttonHeight = actionCapsule.buttonOpenHeight;
+                                actionCapsule.buttonRadius = actionCapsule.buttonOpenRadius;
+                                actionCapsule.buttonLift = 0;
+                            }
+
                             function onStartButtonExit() {
                                 buttonEnterAnim.stop();
                                 buttonExitAnim.restart();
+                            }
+
+                            function onStartButtonExitInstant() {
+                                buttonEnterAnim.stop();
+                                buttonExitAnim.stop();
+                                actionCapsule.buttonOpacity = 0;
+                                actionCapsule.buttonScaleX = 0.42;
+                                actionCapsule.buttonScaleY = 0.24;
+                                actionCapsule.buttonWidth = actionCapsule.buttonClosedWidth;
+                                actionCapsule.buttonHeight = actionCapsule.buttonClosedHeight;
+                                actionCapsule.buttonRadius = actionCapsule.buttonClosedRadius;
+                                actionCapsule.buttonLift = 8.5;
                             }
 
                             target: root
@@ -599,76 +647,6 @@ Item {
 
                         }
 
-                        Column {
-                            anchors.centerIn: parent
-                            spacing: 12
-
-                            Text {
-                                text: model.iconText
-                                font.pixelSize: 42
-                                font.family: "CaskaydiaMono Nerd Font"
-                                color: btnMa.containsMouse ? actionCapsule.brandColor : root.moduleFontColor
-                                anchors.horizontalCenter: parent.horizontalCenter
-
-                                Behavior on color {
-                                    ColorAnimation {
-                                        duration: 150
-                                    }
-
-                                }
-
-                            }
-
-                            Text {
-                                text: model.labelText
-                                font.pixelSize: 14
-                                font.family: "Fira Sans Semibold"
-                                color: btnMa.containsMouse ? root.text : root.moduleFontColor
-                                anchors.horizontalCenter: parent.horizontalCenter
-
-                                Behavior on color {
-                                    ColorAnimation {
-                                        duration: 150
-                                    }
-
-                                }
-
-                            }
-
-                        }
-
-                        Item {
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.bottom: parent.bottom
-                            height: actionCapsule.height * actionCapsule.fillLevel
-                            clip: true
-
-                            Column {
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                y: (actionCapsule.height / 2) - (height / 2) - (actionCapsule.height - parent.height)
-                                spacing: 12
-
-                                Text {
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    font.family: "CaskaydiaMono Nerd Font"
-                                    font.pixelSize: 42
-                                    color: root.base
-                                    text: model.iconText
-                                }
-
-                                Text {
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    font.family: "Fira Sans Semibold"
-                                    font.pixelSize: 14
-                                    color: root.base
-                                    text: model.labelText
-                                }
-
-                            }
-
-                        }
-
                         MouseArea {
                             id: btnMa
 
@@ -748,6 +726,85 @@ Item {
 
                         }
 
+                    }
+
+                    Column {
+                        x: actionCapsule.x
+                        y: actionCapsule.y + actionCapsule.buttonLift + (actionCapsule.height / 2) - (height / 2)
+                        width: actionCapsule.width
+                        opacity: actionCapsule.buttonOpacity
+                        spacing: 12
+
+                        Text {
+                            width: parent.width
+                            text: model.iconText
+                            font.pixelSize: 42
+                            font.family: "CaskaydiaMono Nerd Font"
+                            color: btnMa.containsMouse ? actionCapsule.brandColor : root.moduleFontColor
+                            horizontalAlignment: Text.AlignHCenter
+                            renderType: Text.NativeRendering
+
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: 150
+                                }
+                            }
+                        }
+
+                        Text {
+                            width: parent.width
+                            text: model.labelText
+                            font.pixelSize: 14
+                            font.family: "Fira Sans Semibold"
+                            color: btnMa.containsMouse ? root.text : root.moduleFontColor
+                            horizontalAlignment: Text.AlignHCenter
+                            elide: Text.ElideRight
+                            maximumLineCount: 1
+                            renderType: Text.NativeRendering
+
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: 150
+                                }
+                            }
+                        }
+                    }
+
+                    Item {
+                        x: actionCapsule.x
+                        y: actionCapsule.y + actionCapsule.buttonLift + actionCapsule.height - height
+                        width: actionCapsule.width
+                        height: actionCapsule.height * actionCapsule.fillLevel
+                        opacity: actionCapsule.buttonOpacity
+                        clip: true
+
+                        Column {
+                            width: parent.width
+                            y: (actionCapsule.height / 2) - (height / 2) - (actionCapsule.height - parent.height)
+                            spacing: 12
+
+                            Text {
+                                width: parent.width
+                                font.family: "CaskaydiaMono Nerd Font"
+                                font.pixelSize: 42
+                                color: root.base
+                                text: model.iconText
+                                horizontalAlignment: Text.AlignHCenter
+                                renderType: Text.NativeRendering
+                            }
+
+                            Text {
+                                width: parent.width
+                                font.family: "Fira Sans Semibold"
+                                font.pixelSize: 14
+                                color: root.base
+                                text: model.labelText
+                                horizontalAlignment: Text.AlignHCenter
+                                elide: Text.ElideRight
+                                maximumLineCount: 1
+                                renderType: Text.NativeRendering
+                            }
+                        }
                     }
 
                 }
