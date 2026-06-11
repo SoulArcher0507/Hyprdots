@@ -16,6 +16,7 @@ hl.on("hyprland.start", function()
 
         -- Wallpaper, idle, sunset and clipboard
         "awww-daemon &",
+        "sh -c 'for i in 1 2 3 4 5; do awww restore >/dev/null 2>&1 && exit 0; sleep 0.3; done' &",
         "~/.config/hypr/scripts/start-hypridle.sh",
         "hyprsunset",
         "wl-paste --watch cliphist store &",

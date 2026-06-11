@@ -55,6 +55,17 @@ stop_mpvpaper() {
   fi
 }
 
+prepare_awww_static_wallpaper() {
+  local ext target
+
+  ext="$(lower_ext "$PAPER" || true)"
+  [[ "$ext" =~ ^[[:alnum:]]+$ ]] || ext="jpg"
+  target="$ACTIVE_DIR/awww-current.$ext"
+
+  cp -f -- "$PAPER" "$target"
+  printf '%s\n' "$target"
+}
+
 apply_static_wallpaper() {
   stop_mpvpaper
 
@@ -63,7 +74,12 @@ apply_static_wallpaper() {
     exit 1
   fi
 
-  awww img "$PAPER" \
+  local display_paper
+  if ! display_paper="$(prepare_awww_static_wallpaper)"; then
+    display_paper="$PAPER"
+  fi
+
+  awww img "$display_paper" \
       --resize "$AWWW_RESIZE" \
       -t "$TRANSITION" \
       --transition-fps "$TRANSITION_FPS" \

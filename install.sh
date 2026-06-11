@@ -119,7 +119,7 @@ run_target_cmd mkdir -p "$TARGET_HOME/Pictures/Wallpapers" "$TARGET_HOME/Picture
 run_target_cmd rsync -av --progress "$SCRIPT_DIR/Resources/Wallpapers/" "$TARGET_HOME/Pictures/Wallpapers/"
 run_target_cmd rsync -av --progress "$SCRIPT_DIR/Resources/Icons/" "$TARGET_HOME/Pictures/Icons/"
 
-run_target_cmd env WALLPAPER_SYNC_COLORS=1 "$TARGET_HOME/.config/awww/wallpaper.sh" "$TARGET_HOME/Pictures/Wallpapers/default.jpg"
+run_target_cmd env WALLPAPER_SYNC_COLORS=1 "$TARGET_HOME/.config/awww/wallpaper.sh" "$TARGET_HOME/Pictures/Wallpapers/Static/default.jpg"
 
 sudo systemctl enable --now bluetooth.service
 sudo systemctl enable --now cups.service 

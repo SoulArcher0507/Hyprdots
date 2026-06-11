@@ -23,6 +23,7 @@ start_once({
 
     -- Load wallpaper
     "awww-daemon",
+    "sh -c 'for i in 1 2 3 4 5; do awww restore >/dev/null 2>&1 && exit 0; sleep 0.3; done' &",
 
     -- Hypridle / Hyprsunset
     "~/.config/hypr/scripts/start-hypridle.sh",
@@ -43,7 +44,7 @@ start_once({
     "sh -c 'command -v sunshine >/dev/null 2>&1 && exec sunshine' &",
     "sh -c 'sleep 6 && exec ~/.config/hypr/scripts/quickshell/tray/trayctl.sh launch 30 discord' &",
     "sh -c 'sleep 3 && exec ~/.config/hypr/scripts/soundboard.sh' &",
-    "sh -c 'command -v feishin >/dev/null 2>&1 && exec feishin' &"
+    "sh -c 'command -v feishin >/dev/null 2>&1 && sleep 5 && exec feishin' &"
 })
 
 hl.on("hyprland.start", function()
