@@ -1969,6 +1969,7 @@ Item {
         updatesListPopup.currentPackageName = "";
         updatesListPopup.packageDetailsText = "";
         updatesListPopup.fetchError = "";
+        updatesListPopup.fetchErrorDetail = "";
         updatesListPopup.allPackages = [];
         updatesListPopup.listModel.clear();
         updatesListPopup.showPopup();
@@ -3942,6 +3943,7 @@ Item {
         property string currentPackageName: ""
         property string packageDetailsText: ""
         property string fetchError: ""
+        property string fetchErrorDetail: ""
         property string currentCacheKey: ""
 
         function showPopup() {
@@ -4081,9 +4083,15 @@ Item {
                     updatesListPopup.applyFilter("");
                 }
             }
+            stderr: Io.StdioCollector {
+                onStreamFinished: {
+                    updatesListPopup.fetchErrorDetail = this.text.replace(/\x1b\[[0-9;]*[mK]/g, "").trim();
+                }
+            }
             onExited: function (exitCode, exitStatus) {
                 if (exitCode === 0) {
                     updatesListPopup.fetchError = "";
+                    updatesListPopup.fetchErrorDetail = "";
                     if (updatesListPopup.currentCacheKey !== "") {
                         var cache = root.updatesListCache;
                         cache[updatesListPopup.currentCacheKey] = {
@@ -4096,9 +4104,20 @@ Item {
                     return;
                 }
 
-                updatesListPopup.fetchError = updatesListPopup.allPackages.length > 0
-                    ? "Package list may be incomplete."
-                    : "Package database is busy. Try again in a moment.";
+                if (updatesListPopup.allPackages.length > 0) {
+                    updatesListPopup.fetchError = "Package list may be incomplete.";
+                    return;
+                }
+
+                if (exitCode === 75) {
+                    updatesListPopup.fetchError = "Package database is busy. Try again in a moment.";
+                    return;
+                }
+
+                var detail = updatesListPopup.fetchErrorDetail.split("\n")[0].trim();
+                updatesListPopup.fetchError = detail !== ""
+                    ? "Could not fetch package list: " + detail
+                    : "Could not fetch package list.";
             }
         }
 

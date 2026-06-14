@@ -1,3 +1,5 @@
+local indent = require("core.indent")
+
 -- Line numbers
 vim.opt.nu = true
 
@@ -5,10 +7,7 @@ vim.opt.guicursor = "a:ver10"
 
 vim.opt.relativenumber = true
 
-vim.opt.tabstop = 4
-vim.opt.softtabstop = 4
-vim.opt.shiftwidth = 4
-vim.opt.expandtab = true
+indent.setup()
 
 vim.opt.cursorline = true
 
@@ -39,15 +38,5 @@ vim.api.nvim_create_autocmd("FileType", {
     callback = function()
         vim.opt_local.spell = true
         vim.opt_local.spelllang = "it"
-    end,
-})
-
-vim.api.nvim_create_autocmd("FileType", {
-    pattern = { "c", "cpp", "objc", "objcpp" },
-    callback = function()
-        vim.opt_local.tabstop = 4
-        vim.opt_local.softtabstop = 4
-        vim.opt_local.shiftwidth = 4
-        vim.opt_local.expandtab = true
     end,
 })

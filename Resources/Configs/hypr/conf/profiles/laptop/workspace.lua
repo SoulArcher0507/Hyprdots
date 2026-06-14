@@ -6,5 +6,9 @@ hl.config({
     },
 })
 
+for workspace = 5, 10 do
+    hl.workspace_rule({ workspace = tostring(workspace), monitor = "SUNSHINE-TABLET" })
+end
+
 hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
 hl.gesture({ fingers = 3, direction = "vertical", action = "fullscreen" })

@@ -11,6 +11,8 @@ MPVPAPER_OUTPUT="${WALLPAPER_MPVPAPER_OUTPUT:-ALL}"
 MPVPAPER_OPTS="${WALLPAPER_MPVPAPER_OPTS:-no-audio loop-file=inf panscan=1 video-align-x=0 video-align-y=0}"
 PID_DIR="${XDG_RUNTIME_DIR:-$HOME/.cache}"
 MPVPAPER_PID_FILE="$PID_DIR/hyprdots-mpvpaper.pid"
+SUNSHINE_TABLET_OUTPUT="${SUNSHINE_TABLET_OUTPUT:-SUNSHINE-TABLET}"
+SUNSHINE_TABLET_SCRIPT="${SUNSHINE_TABLET_SCRIPT:-$HOME/.config/hypr/scripts/sunshine-tablet-display.sh}"
 mkdir -p "$ACTIVE_DIR"
 
 log() { printf '[wallpaper] %s\n' "$*" >&2; }
@@ -55,6 +57,34 @@ stop_mpvpaper() {
   fi
 }
 
+refresh_sunshine_tablet_wallpaper() {
+  local wallpaper="${1:-}"
+
+  [[ -x "$SUNSHINE_TABLET_SCRIPT" ]] || return 0
+  if [[ -n "$wallpaper" ]]; then
+    SUNSHINE_TABLET_WALLPAPER="$wallpaper" "$SUNSHINE_TABLET_SCRIPT" refresh-wallpaper >/dev/null 2>&1 || true
+  else
+    "$SUNSHINE_TABLET_SCRIPT" refresh-wallpaper >/dev/null 2>&1 || true
+  fi
+}
+
+awww_query_json() {
+  command -v jq >/dev/null 2>&1 || return 1
+  awww query -j 2>/dev/null
+}
+
+sunshine_tablet_awww_active() {
+  awww_query_json | jq -e --arg output "$SUNSHINE_TABLET_OUTPUT" '
+    .[].[]? | select(.name == $output)
+  ' >/dev/null 2>&1
+}
+
+awww_outputs_except_sunshine_tablet() {
+  awww_query_json | jq -r --arg output "$SUNSHINE_TABLET_OUTPUT" '
+    [.[].[]? | .name | select(. != $output)] | join(",")
+  ' 2>/dev/null
+}
+
 prepare_awww_static_wallpaper() {
   local ext target
 
@@ -74,18 +104,35 @@ apply_static_wallpaper() {
     exit 1
   fi
 
-  local display_paper
+  local display_paper target_outputs=""
   if ! display_paper="$(prepare_awww_static_wallpaper)"; then
     display_paper="$PAPER"
   fi
 
-  awww img "$display_paper" \
-      --resize "$AWWW_RESIZE" \
-      -t "$TRANSITION" \
-      --transition-fps "$TRANSITION_FPS" \
-      --transition-duration "$TRANSITION_DURATION" \
-      --transition-bezier "$TRANSITION_BEZIER" \
-      >/dev/null 2>&1 || true
+  if sunshine_tablet_awww_active; then
+    target_outputs="$(awww_outputs_except_sunshine_tablet || true)"
+  fi
+
+  if [[ -n "$target_outputs" ]]; then
+    awww img "$display_paper" \
+        --outputs "$target_outputs" \
+        --resize "$AWWW_RESIZE" \
+        -t "$TRANSITION" \
+        --transition-fps "$TRANSITION_FPS" \
+        --transition-duration "$TRANSITION_DURATION" \
+        --transition-bezier "$TRANSITION_BEZIER" \
+        >/dev/null 2>&1 || true
+  elif ! sunshine_tablet_awww_active; then
+    awww img "$display_paper" \
+        --resize "$AWWW_RESIZE" \
+        -t "$TRANSITION" \
+        --transition-fps "$TRANSITION_FPS" \
+        --transition-duration "$TRANSITION_DURATION" \
+        --transition-bezier "$TRANSITION_BEZIER" \
+        >/dev/null 2>&1 || true
+  fi
+
+  refresh_sunshine_tablet_wallpaper "$display_paper"
 }
 
 apply_dynamic_wallpaper() {
@@ -98,6 +145,7 @@ apply_dynamic_wallpaper() {
   mkdir -p "$PID_DIR"
   mpvpaper -o "$MPVPAPER_OPTS" "$MPVPAPER_OUTPUT" "$PAPER" >/dev/null 2>&1 &
   printf '%s\n' "$!" >"$MPVPAPER_PID_FILE"
+  refresh_sunshine_tablet_wallpaper "$COLOR_SOURCE"
 }
 
 extract_frame() {

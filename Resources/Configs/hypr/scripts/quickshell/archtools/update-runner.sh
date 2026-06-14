@@ -12,6 +12,8 @@ CURRENT_CMD_PID_FILE="$HOME/.cache/quickshell/archtools_update.current-pid"
 CURRENT_CMD_PGID_FILE="$HOME/.cache/quickshell/archtools_update.current-pgid"
 CURRENT_CMD_SID_FILE="$HOME/.cache/quickshell/archtools_update.current-sid"
 CURRENT_CMD_ARGS_FILE="$HOME/.cache/quickshell/archtools_update.current-args"
+AUR_REVIEW_DIR="$HOME/.cache/quickshell/archtools-aur-review"
+AUR_REVIEW_FILE="$AUR_REVIEW_DIR/pkgbuild-diff.txt"
 MAX_ERROR_LINES="${ARCHTOOLS_UPDATE_MAX_ERROR_LINES:-40}"
 PROGRESS_MAX_LINES="${ARCHTOOLS_UPDATE_PROGRESS_MAX_LINES:-200}"
 PROGRESS_MAX_BYTES="${ARCHTOOLS_UPDATE_PROGRESS_MAX_BYTES:-65536}"
@@ -1040,8 +1042,255 @@ run_pacman() {
     emit pacman done "count=$n_before" "detail=Updated $n_before packages"
 }
 
+aur_review_build_dir() {
+    local helper="$1" configured=""
+
+    if [[ "$helper" == "yay" || "$helper" == "paru" ]]; then
+        configured="$("$helper" -P -g 2>/dev/null | sed -n 's/^[[:space:]]*"buildDir":[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
+    fi
+
+    [[ -n "$configured" ]] || configured="${XDG_CACHE_HOME:-$HOME/.cache}/$helper"
+    configured="${configured/#\~/$HOME}"
+    printf '%s' "$configured"
+}
+
+find_cached_aur_dir() {
+    local pkg="$1" build_dir="$2" srcinfo
+    [[ -n "$pkg" && -d "$build_dir" ]] || return 1
+
+    if [[ -d "$build_dir/$pkg/.git" || -f "$build_dir/$pkg/PKGBUILD" ]]; then
+        printf '%s' "$build_dir/$pkg"
+        return 0
+    fi
+
+    while IFS= read -r srcinfo; do
+        if awk -F= -v pkg="$pkg" '
+            $1 ~ /^[[:space:]]*pkgname[[:space:]]*$/ {
+                value = $2
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+                if (value == pkg) found = 1
+            }
+            END { exit !found }
+        ' "$srcinfo"; then
+            dirname "$srcinfo"
+            return 0
+        fi
+    done < <(find "$build_dir" -mindepth 2 -maxdepth 2 -name .SRCINFO -type f 2>/dev/null)
+
+    return 1
+}
+
+aur_review_header() {
+    local report_file="$1" title="$2"
+    {
+        printf '\n'
+        printf '========================================================================\n'
+        printf '%s\n' "$title"
+        printf '========================================================================\n\n'
+    } >> "$report_file"
+}
+
+append_cached_aur_diff() {
+    local pkg="$1" dir="$2" report_file="$3"
+    local base old_ref old_short remote_ref remote_short
+    base="$(basename "$dir")"
+
+    aur_review_header "$report_file" "Package: $pkg | AUR base: $base"
+    {
+        printf 'Cache: %s\n' "$dir"
+        printf 'Mode: git diff from cached AUR checkout to fetched remote\n\n'
+    } >> "$report_file"
+
+    if ! git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        printf 'Could not read %s as a git checkout. Full cached PKGBUILD follows if present.\n\n' "$dir" >> "$report_file"
+        if [[ -f "$dir/PKGBUILD" ]]; then
+            sed 's/\x1b\[[0-9;]*m//g' "$dir/PKGBUILD" >> "$report_file"
+            printf '\n' >> "$report_file"
+        fi
+        return 1
+    fi
+
+    old_ref="$(git -C "$dir" rev-parse --verify HEAD 2>/dev/null || true)"
+    old_short="$(git -C "$dir" rev-parse --short HEAD 2>/dev/null || printf 'unknown')"
+
+    if ! git -C "$dir" fetch --quiet --prune origin >> "$LOG_FILE" 2>&1; then
+        printf 'Failed to fetch latest AUR git state for %s. Update is stopped so the package is not upgraded without review.\n' "$pkg" >> "$report_file"
+        return 1
+    fi
+
+    remote_ref="$(git -C "$dir" rev-parse --verify refs/remotes/origin/HEAD 2>/dev/null || true)"
+    [[ -n "$remote_ref" ]] || remote_ref="$(git -C "$dir" rev-parse --verify refs/remotes/origin/master 2>/dev/null || true)"
+    [[ -n "$remote_ref" ]] || remote_ref="$(git -C "$dir" rev-parse --verify FETCH_HEAD 2>/dev/null || true)"
+
+    if [[ -z "$old_ref" || -z "$remote_ref" ]]; then
+        printf 'Could not resolve local or remote git revision for %s.\n' "$pkg" >> "$report_file"
+        return 1
+    fi
+
+    remote_short="$(git -C "$dir" rev-parse --short "$remote_ref" 2>/dev/null || printf 'unknown')"
+    {
+        printf 'Old cached revision: %s\n' "$old_short"
+        printf 'Fetched revision:    %s\n\n' "$remote_short"
+    } >> "$report_file"
+
+    if [[ "$old_ref" == "$remote_ref" ]]; then
+        printf 'No git diff found between cached checkout and fetched remote for this AUR base.\n' >> "$report_file"
+        return 0
+    fi
+
+    git -C "$dir" diff --no-color --no-ext-diff --find-renames "$old_ref..$remote_ref" -- . >> "$report_file" 2>> "$LOG_FILE"
+    printf '\n' >> "$report_file"
+}
+
+append_remote_pkgbuild_snapshot() {
+    local helper="$1" pkg="$2" report_file="$3"
+
+    aur_review_header "$report_file" "Package: $pkg | no cached AUR checkout"
+    {
+        printf 'Mode: full remote PKGBUILD snapshot via %s -Gp\n' "$helper"
+        printf 'There is no cached checkout to diff against, so review the whole PKGBUILD below.\n\n'
+    } >> "$report_file"
+
+    if TERM=dumb NO_COLOR=1 "$helper" -Gp "$pkg" >> "$report_file" 2>> "$LOG_FILE"; then
+        printf '\n' >> "$report_file"
+        return 0
+    fi
+
+    printf 'Failed to download/print remote PKGBUILD for %s.\n' "$pkg" >> "$report_file"
+    return 1
+}
+
+prepare_aur_pkgbuild_review() {
+    local helper="$1" before="$2" report_file="$3"
+    local build_dir pkg cached_dir cache_key failures=0
+    local -a packages=()
+    local -A seen_review_dirs=()
+
+    mkdir -p "$AUR_REVIEW_DIR"
+    : > "$report_file"
+
+    mapfile -t packages < <(printf '%s\n' "$before" | awk 'NF {print $1}' | sort -u)
+    build_dir="$(aur_review_build_dir "$helper")"
+
+    {
+        printf 'ArchTools AUR PKGBUILD review\n'
+        printf 'Generated: %s\n' "$(date -Iseconds)"
+        printf 'Helper: %s\n' "$helper"
+        printf 'Build/cache dir: %s\n' "$build_dir"
+        printf 'Queued package count: %s\n\n' "${#packages[@]}"
+        printf 'The AUR update is paused until the notification action is selected.\n'
+        printf 'Review every package section before pressing Continua.\n'
+    } >> "$report_file"
+
+    for pkg in "${packages[@]}"; do
+        abort_if_cancelled
+        emit_stage_progress "aur" 4 "Preparing PKGBUILD review for $pkg..."
+
+        cached_dir="$(find_cached_aur_dir "$pkg" "$build_dir" 2>/dev/null || true)"
+        if [[ -n "$cached_dir" ]]; then
+            cache_key="$cached_dir"
+            if [[ -n "${seen_review_dirs[$cache_key]+x}" ]]; then
+                aur_review_header "$report_file" "Package: $pkg"
+                printf 'Already covered by cached AUR base: %s\n' "$(basename "$cached_dir")" >> "$report_file"
+                continue
+            fi
+            seen_review_dirs[$cache_key]=1
+            append_cached_aur_diff "$pkg" "$cached_dir" "$report_file" || failures=$((failures + 1))
+        else
+            append_remote_pkgbuild_snapshot "$helper" "$pkg" "$report_file" || failures=$((failures + 1))
+        fi
+    done
+
+    if (( failures > 0 )); then
+        {
+            printf '\n'
+            printf 'Review preparation failed for %s package(s). ArchTools will not continue the AUR update automatically.\n' "$failures"
+        } >> "$report_file"
+        return 1
+    fi
+
+    return 0
+}
+
+copy_aur_review_to_clipboard() {
+    local report_file="$1"
+
+    if has wl-copy; then
+        wl-copy < "$report_file" 2>> "$LOG_FILE"
+        return $?
+    fi
+    if has xclip; then
+        xclip -selection clipboard < "$report_file" 2>> "$LOG_FILE"
+        return $?
+    fi
+    if has xsel; then
+        xsel --clipboard --input < "$report_file" 2>> "$LOG_FILE"
+        return $?
+    fi
+
+    return 1
+}
+
+wait_for_aur_review_confirmation() {
+    local package_count="$1" report_file="$2" clipboard_status="$3" package_summary="$4"
+    local body action started_at ended_at elapsed empty_actions=0
+
+    body="${package_count} AUR package(s) queued for update."
+    if [[ -n "$package_summary" ]]; then
+        body+=$'\n'"Packages: $package_summary"
+    fi
+    body+=$'\n'"$clipboard_status"
+    body+=$'\n'"Report: $report_file"
+    body+=$'\n\n'"The update is paused. Press Continua to run yay, or Ferma to cancel."
+
+    emit_stage_progress "aur" 5 "Waiting for PKGBUILD review approval..."
+
+    if ! has notify-send; then
+        printf '[aur/review] notify-send not found; cannot request interactive approval.\n' >> "$LOG_FILE"
+        return 1
+    fi
+
+    while true; do
+        abort_if_cancelled
+        started_at="$(date +%s)"
+        action="$(notify-send -a "ArchTools" -i system-software-update -u critical -t 0 \
+            -A "continue=Continua" \
+            -A "stop=Ferma" \
+            "AUR PKGBUILD review" "$body" 2>> "$LOG_FILE" || true)"
+        ended_at="$(date +%s)"
+        elapsed=$((ended_at - started_at))
+
+        abort_if_cancelled
+        case "$action" in
+            continue)
+                emit_stage_progress "aur" 6 "PKGBUILD review approved; starting yay..."
+                return 0
+                ;;
+            stop)
+                printf '[aur/review] User stopped the update from the PKGBUILD review notification.\n' >> "$LOG_FILE"
+                touch "$CANCEL_FILE"
+                finish_cancelled
+                ;;
+        esac
+
+        if (( elapsed < 2 )); then
+            empty_actions=$((empty_actions + 1))
+        else
+            empty_actions=0
+        fi
+
+        if (( empty_actions >= 3 )); then
+            printf '[aur/review] Notification actions returned empty immediately; stopping for safety.\n' >> "$LOG_FILE"
+            return 1
+        fi
+
+        sleep 1
+    done
+}
+
 run_aur() {
     local helper=""
+    local err_output="" review_clipboard_status="" review_package_summary=""
     if   has yay;    then helper="yay"
     elif has paru;   then helper="paru"
     elif has pikaur; then helper="pikaur"
@@ -1067,11 +1316,49 @@ run_aur() {
         return 0
     fi
 
-    emit aur running "detail=Updating $n_before AUR packages..."
+    emit aur running "detail=Preparing PKGBUILD review for $n_before AUR packages..."
     AUR_EXPECTED_COUNT="$n_before"
     AUR_BUILD_INDEX=0
     AUR_BUILD_SEEN=()
     AUR_TRANSACTION_SECTION=""
+    review_package_summary="$(printf '%s\n' "$before" | awk '
+        NF {
+            count++
+            if (count <= 8) {
+                if (out != "") out = out ", "
+                out = out $1
+            }
+        }
+        END {
+            if (count > 8) out = out ", ..."
+            print out
+        }
+    ')"
+
+    if ! prepare_aur_pkgbuild_review "$helper" "$before" "$AUR_REVIEW_FILE"; then
+        err_output="Could not prepare AUR PKGBUILD review. See $AUR_REVIEW_FILE"
+        errors+=("aur($helper): $err_output")
+        emit aur error "detail=$err_output"
+        notify-send -a "ArchTools" -i software-update-urgent -u critical "AUR Update Stopped" "$err_output"
+        return 1
+    fi
+
+    if copy_aur_review_to_clipboard "$AUR_REVIEW_FILE"; then
+        review_clipboard_status="PKGBUILD diff copied to clipboard."
+    else
+        review_clipboard_status="Could not copy to clipboard; open the report file instead."
+        printf '[aur/review] Could not copy review report to clipboard.\n' >> "$LOG_FILE"
+    fi
+
+    if ! wait_for_aur_review_confirmation "$n_before" "$AUR_REVIEW_FILE" "$review_clipboard_status" "$review_package_summary"; then
+        err_output="AUR update stopped before PKGBUILD review approval. See $AUR_REVIEW_FILE"
+        errors+=("aur($helper): $err_output")
+        emit aur error "detail=$err_output"
+        notify-send -a "ArchTools" -i software-update-urgent -u critical "AUR Update Stopped" "$err_output"
+        return 1
+    fi
+
+    emit aur running "detail=Updating $n_before AUR packages..."
 
     if ! ensure_sudo "aur"; then
         return 1
