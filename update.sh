@@ -24,17 +24,6 @@ run_target_cmd() {
     fi
 }
 
-cleanup_deprecated_hypr_configs() {
-    local hypr_dir="$CONFIG_DIR/hypr"
-
-    run_target_cmd test -d "$hypr_dir" || return 0
-    run_target_cmd rm -f -- "$hypr_dir/hyprland.conf" "$hypr_dir/colors.conf"
-
-    if run_target_cmd test -d "$hypr_dir/conf"; then
-        run_target_cmd find "$hypr_dir/conf" -maxdepth 1 -type f -name "*.conf" -delete
-    fi
-}
-
 ensure_custom_hypr_config() {
     local custom_file="$CONFIG_DIR/hypr/conf/custom.lua"
 
@@ -75,7 +64,6 @@ case "${UPDATE_HYPR_CONF,,}" in
 esac
 
 run_target_cmd rsync -av --progress "${RSYNC_EXCLUDES[@]}" "$SCRIPT_DIR/Resources/Configs/" "$CONFIG_DIR/"
-cleanup_deprecated_hypr_configs
 
 run_target_cmd mkdir -p "$TARGET_HOME/Pictures/Wallpapers" "$TARGET_HOME/Pictures/Icons"
 run_target_cmd rsync -av --progress "$SCRIPT_DIR/Resources/Wallpapers/" "$TARGET_HOME/Pictures/Wallpapers/"

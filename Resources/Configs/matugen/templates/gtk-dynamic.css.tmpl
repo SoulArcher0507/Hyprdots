@@ -1,0 +1,353 @@
+/* GTK role colors generated from the same semantic palette as Dynamic.colors. */
+
+/* [Colors:Window] */
+@define-color window_bg_color {{window_bg}};
+@define-color window_fg_color {{fg}};
+@define-color theme_bg_color {{window_bg}};
+@define-color theme_fg_color {{fg}};
+@define-color theme_unfocused_bg_color {{window_bg}};
+@define-color theme_unfocused_fg_color {{muted}};
+@define-color theme_unfocused_base_color {{alt_bg}};
+@define-color theme_unfocused_text_color {{muted}};
+
+/* [Colors:View] */
+@define-color view_bg_color {{view_bg}};
+@define-color view_fg_color {{fg}};
+@define-color theme_base_color {{view_bg}};
+@define-color theme_text_color {{fg}};
+@define-color content_view_bg {{view_bg}};
+
+/* [Colors:Button] */
+@define-color button_bg_color {{button_bg}};
+@define-color button_fg_color {{button_fg}};
+@define-color theme_button_bg_color {{button_bg}};
+@define-color theme_button_fg_color {{button_fg}};
+@define-color theme_button_hover_bg_color {{button_alt_bg}};
+
+/* [Colors:Header] and [WM] */
+@define-color headerbar_bg_color {{header_bg}};
+@define-color headerbar_fg_color {{header_fg}};
+@define-color headerbar_backdrop_color {{inactive_title_bg}};
+@define-color headerbar_border_color {{button_bg}};
+@define-color titlebar_bg_color {{active_title_bg}};
+@define-color titlebar_fg_color {{active_title_fg}};
+@define-color titlebar_backdrop_bg_color {{inactive_title_bg}};
+@define-color titlebar_backdrop_fg_color {{muted}};
+
+/* [Colors:Selection] */
+@define-color accent_color {{accent}};
+@define-color accent_bg_color {{selection_bg}};
+@define-color accent_fg_color {{selection_fg}};
+@define-color theme_selected_bg_color {{selection_bg}};
+@define-color theme_selected_fg_color {{selection_fg}};
+@define-color theme_unfocused_selected_bg_color {{selection_alt_bg}};
+@define-color theme_unfocused_selected_fg_color {{selection_fg}};
+
+/* [Colors:Tooltip] */
+@define-color popover_bg_color {{tooltip_bg}};
+@define-color popover_fg_color {{fg}};
+@define-color tooltip_bg_color {{tooltip_bg}};
+@define-color tooltip_fg_color {{fg}};
+
+/* [Colors:Complementary] */
+@define-color card_bg_color {{panel_bg}};
+@define-color card_fg_color {{fg}};
+@define-color sidebar_bg_color {{comp_bg}};
+@define-color sidebar_fg_color {{fg}};
+@define-color secondary_sidebar_bg_color {{alt_bg}};
+@define-color secondary_sidebar_fg_color {{fg}};
+
+/* KDE semantic foreground roles */
+@define-color destructive_color {{danger}};
+@define-color destructive_bg_color {{danger}};
+@define-color destructive_fg_color {{selection_fg}};
+@define-color error_color {{danger}};
+@define-color error_bg_color {{danger}};
+@define-color error_fg_color {{selection_fg}};
+@define-color success_color {{success}};
+@define-color success_bg_color {{success}};
+@define-color success_fg_color {{selection_fg}};
+@define-color warning_color {{warning}};
+@define-color warning_bg_color {{warning}};
+@define-color warning_fg_color {{selection_fg}};
+@define-color link_color {{accent2}};
+@define-color link_visited_color {{c5}};
+
+/* Disabled, borders and separators */
+@define-color borders alpha({{fg}}, 0.18);
+@define-color border_color alpha({{fg}}, 0.18);
+@define-color shade_color alpha({{fg}}, 0.12);
+@define-color scrollbar_outline_color alpha({{fg}}, 0.18);
+@define-color insensitive_bg_color {{alt_bg}};
+@define-color insensitive_fg_color {{muted}};
+@define-color insensitive_base_color {{alt_bg}};
+@define-color dim_label_color {{muted}};
+
+/* GTK and libadwaita hardcode many widget colors, so mirror KDE roles here. */
+.background,
+window,
+dialog,
+messagedialog,
+assistant,
+applicationwindow {
+  background-color: @theme_bg_color;
+  color: @theme_fg_color;
+}
+
+window:backdrop,
+dialog:backdrop,
+applicationwindow:backdrop {
+  background-color: @theme_unfocused_bg_color;
+  color: @theme_unfocused_fg_color;
+}
+
+headerbar,
+.titlebar,
+windowhandle,
+.toolbar {
+  background-color: @headerbar_bg_color;
+  color: @headerbar_fg_color;
+  border-color: @headerbar_border_color;
+}
+
+headerbar:backdrop,
+.titlebar:backdrop {
+  background-color: @headerbar_backdrop_color;
+  color: @titlebar_backdrop_fg_color;
+  border-color: @borders;
+}
+
+.view,
+iconview,
+textview > text,
+textview text,
+treeview.view,
+columnview.view,
+gridview,
+listview,
+viewport,
+scrolledwindow,
+entry,
+spinbutton:not(.vertical),
+spinbutton.vertical > text {
+  background-color: @theme_base_color;
+  color: @theme_text_color;
+}
+
+entry:focus,
+entry:focus-within,
+spinbutton:focus:not(.vertical),
+spinbutton:focus-within:not(.vertical),
+spinbutton.vertical > text:focus-within {
+  border-color: @accent_bg_color;
+  box-shadow: inset 0 0 0 1px @accent_bg_color;
+}
+
+entry:disabled,
+spinbutton:disabled:not(.vertical),
+spinbutton.vertical > text:disabled,
+.view:disabled,
+iconview:disabled,
+textview > text:disabled {
+  background-color: @insensitive_base_color;
+  color: @insensitive_fg_color;
+}
+
+selection,
+*:selected,
+row:selected,
+modelbutton:selected,
+.view:selected,
+iconview:selected,
+textview > text > selection,
+textview text selection,
+label selection,
+entry selection {
+  background-color: @theme_selected_bg_color;
+  color: @theme_selected_fg_color;
+}
+
+button,
+menubutton > button,
+dropdown > button,
+combobox > box > button,
+notebook > header > tabs > arrow {
+  background-color: @theme_button_bg_color;
+  background-image: none;
+  color: @theme_button_fg_color;
+  border-color: @borders;
+}
+
+button:hover,
+menubutton > button:hover,
+dropdown > button:hover,
+combobox > box > button:hover,
+notebook > header > tabs > arrow:hover {
+  background-color: @theme_button_hover_bg_color;
+  background-image: none;
+  color: @theme_button_fg_color;
+}
+
+button:active,
+button:checked,
+button.keyboard-activating,
+menubutton > button:active,
+dropdown > button:active,
+combobox > box > button:active,
+notebook > header > tabs > arrow:active,
+notebook > header > tabs > arrow:checked {
+  background-color: @accent_bg_color;
+  background-image: none;
+  color: @accent_fg_color;
+  border-color: @accent_bg_color;
+}
+
+button.flat,
+button.sidebar-button,
+windowcontrols button,
+.toolbar button {
+  background-color: transparent;
+  background-image: none;
+  border-color: transparent;
+  color: inherit;
+}
+
+button.flat:hover,
+button.sidebar-button:hover,
+windowcontrols button:hover,
+.toolbar button:hover {
+  background-color: @theme_button_hover_bg_color;
+  background-image: none;
+  color: @theme_button_fg_color;
+}
+
+button:disabled,
+button.flat:disabled,
+menubutton > button:disabled,
+dropdown > button:disabled,
+combobox > box > button:disabled {
+  background-color: @insensitive_base_color;
+  background-image: none;
+  color: @insensitive_fg_color;
+  border-color: @borders;
+}
+
+button.suggested-action,
+button.suggested-action:hover,
+button.suggested-action:active,
+button.suggested-action:checked {
+  background-color: @accent_bg_color;
+  background-image: none;
+  color: @accent_fg_color;
+  border-color: @accent_bg_color;
+}
+
+button.destructive-action,
+button.destructive-action:hover,
+button.destructive-action:active,
+button.destructive-action:checked {
+  background-color: @destructive_bg_color;
+  background-image: none;
+  color: @destructive_fg_color;
+  border-color: @destructive_bg_color;
+}
+
+popover,
+popover.background,
+popover > contents,
+tooltip,
+tooltip.background,
+menu,
+context-menu {
+  background-color: @tooltip_bg_color;
+  color: @tooltip_fg_color;
+  border-color: @borders;
+}
+
+sidebar,
+.sidebar,
+.navigation-sidebar,
+stacksidebar,
+stacksidebar row,
+list.sidebar,
+list.navigation-sidebar {
+  background-color: @sidebar_bg_color;
+  color: @sidebar_fg_color;
+}
+
+sidebar row:hover,
+.sidebar row:hover,
+.navigation-sidebar row:hover,
+stacksidebar row:hover {
+  background-color: @theme_button_hover_bg_color;
+  color: @theme_button_fg_color;
+}
+
+sidebar row:selected,
+.sidebar row:selected,
+.navigation-sidebar row:selected,
+stacksidebar row:selected {
+  background-color: @theme_selected_bg_color;
+  color: @theme_selected_fg_color;
+}
+
+frame,
+frame > border,
+.card,
+.boxed-list,
+list,
+row,
+notebook,
+notebook > stack,
+notebook > header,
+expander,
+preferencesgroup {
+  background-color: @card_bg_color;
+  color: @card_fg_color;
+  border-color: @borders;
+}
+
+row:hover {
+  background-color: @theme_button_hover_bg_color;
+}
+
+scale trough,
+progressbar trough,
+levelbar trough {
+  background-color: @theme_unfocused_base_color;
+  border-color: @borders;
+}
+
+scale highlight,
+progressbar progress,
+levelbar block.filled,
+switch:checked,
+checkbutton check:checked,
+radiobutton radio:checked {
+  background-color: @accent_bg_color;
+  color: @accent_fg_color;
+  border-color: @accent_bg_color;
+}
+
+switch,
+checkbutton check,
+radiobutton radio {
+  background-color: @theme_button_bg_color;
+  color: @theme_button_fg_color;
+  border-color: @borders;
+}
+
+scrollbar slider {
+  background-color: alpha({{fg}}, 0.28);
+}
+
+scrollbar slider:hover {
+  background-color: alpha({{fg}}, 0.42);
+}
+
+.dim-label,
+label.separator,
+entry placeholder,
+spinbutton placeholder {
+  color: @dim_label_color;
+}

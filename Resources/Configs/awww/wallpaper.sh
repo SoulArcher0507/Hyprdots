@@ -181,8 +181,8 @@ if command -v magick >/dev/null 2>&1; then
 fi
 
 run_dynamic_colors() {
-  if [[ -x "$HOME/.config/wal/colors.sh" ]]; then
-    "$HOME/.config/wal/colors.sh" "$PAPER" || true
+  if [[ -x "$HOME/.config/matugen/colors.sh" ]]; then
+    "$HOME/.config/matugen/colors.sh" "$PAPER" || true
   elif command -v matugen >/dev/null 2>&1; then
     matugen image "$COLOR_SOURCE" -m dark >/dev/null 2>&1 || true
   fi

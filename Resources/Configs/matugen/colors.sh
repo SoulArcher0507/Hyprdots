@@ -11,14 +11,23 @@ DEPRECATED_HYPR_COLORS="$HOME/.config/hypr/colors.conf"
 QS_JSON="$HOME/.config/quickshell/colors.json"
 KDE_COLORS="$HOME/.local/share/color-schemes/Dynamic.colors"
 KITTY_COLORS="$HOME/.config/kitty/colors.conf"
-WAL_CACHE_JSON="$HOME/.cache/wal/colors.json"
-MATUGEN_CONFIG="${MATUGEN_CONFIG:-$SCRIPT_DIR/matugen/config.toml}"
+MATUGEN_PALETTE_JSON="$HOME/.cache/matugen/colors.json"
+MATUGEN_CONFIG="${MATUGEN_CONFIG:-$SCRIPT_DIR/config.toml}"
 MATUGEN_MODE="${MATUGEN_MODE:-dark}"
 QT6CT_CONF="$HOME/.config/qt6ct/qt6ct.conf"
 PLASMARC="$HOME/.config/plasmarc"
 KDEGLOBALS="$HOME/.config/kdeglobals"
 GTK3_SETTINGS="$HOME/.config/gtk-3.0/settings.ini"
 GTK4_SETTINGS="$HOME/.config/gtk-4.0/settings.ini"
+GTK_THEME_NAME="Dynamic"
+GTK_THEME_DIR="$HOME/.themes/$GTK_THEME_NAME"
+GTK_THEME_INDEX="$GTK_THEME_DIR/index.theme"
+GTK_THEME_COLORS="$GTK_THEME_DIR/colors.css"
+GTK3_THEME_CSS="$GTK_THEME_DIR/gtk-3.0/gtk.css"
+GTK3_THEME_DARK_CSS="$GTK_THEME_DIR/gtk-3.0/gtk-dark.css"
+GTK4_THEME_CSS="$GTK_THEME_DIR/gtk-4.0/gtk.css"
+GTK4_THEME_DARK_CSS="$GTK_THEME_DIR/gtk-4.0/gtk-dark.css"
+GTK4_USER_CSS="$HOME/.config/gtk-4.0/gtk.css"
 ICON_THEME_NAME="Dynamic"
 ICON_THEME_DIR="$HOME/.local/share/icons/$ICON_THEME_NAME"
 ICON_THEME_BASE_DIR="$(dirname "$ICON_THEME_DIR")"
@@ -107,10 +116,10 @@ extract_frame_for_matugen() {
 
 run_matugen() {
   local image="$1"
-  mkdir -p "$(dirname "$WAL_CACHE_JSON")"
-  rm -f -- "$WAL_CACHE_JSON"
+  mkdir -p "$(dirname "$MATUGEN_PALETTE_JSON")"
+  rm -f -- "$MATUGEN_PALETTE_JSON"
   matugen image "$image" -m "$MATUGEN_MODE" -b wal -c "$MATUGEN_CONFIG" --dry-run --continue-on-error >/dev/null 2>&1 || true
-  python3 "$SCRIPT_DIR/generate_pywal_palette.py" "$image" "$WAL_CACHE_JSON"
+  python3 "$SCRIPT_DIR/generate_palette.py" "$image" "$MATUGEN_PALETTE_JSON"
 }
 
 run_matugen_for_dynamic_wallpaper() {
@@ -152,7 +161,7 @@ run_matugen_for_wallpaper() {
 }
 
 for helper in \
-  "$SCRIPT_DIR/generate_pywal_palette.py" \
+  "$SCRIPT_DIR/generate_palette.py" \
   "$SCRIPT_DIR/render_templates.py" \
   "$SCRIPT_DIR/set_generic_ini_key.py" \
   "$SCRIPT_DIR/update_index_theme.py" \
@@ -174,14 +183,14 @@ if [[ -n "$WALLPAPER" ]]; then
   }
   run_matugen_for_wallpaper
 else
-  [[ -f "$WAL_CACHE_JSON" ]] || {
-    echo "Errore: nessun wallpaper passato e cache colori non trovata: $WAL_CACHE_JSON" >&2
+  [[ -f "$MATUGEN_PALETTE_JSON" ]] || {
+    echo "Errore: nessun wallpaper passato e cache colori non trovata: $MATUGEN_PALETTE_JSON" >&2
     exit 1
   }
 fi
 
-if [[ ! -f "$WAL_CACHE_JSON" ]]; then
-  echo "Errore: matugen non ha generato $WAL_CACHE_JSON" >&2
+if [[ ! -f "$MATUGEN_PALETTE_JSON" ]]; then
+  echo "Errore: matugen non ha generato $MATUGEN_PALETTE_JSON" >&2
   exit 1
 fi
 
@@ -191,8 +200,8 @@ jq -e '
   .colors.color4 and .colors.color5 and .colors.color6 and .colors.color7 and
   .colors.color8 and .colors.color9 and .colors.color10 and .colors.color11 and
   .colors.color12 and .colors.color13 and .colors.color14 and .colors.color15
-' "$WAL_CACHE_JSON" >/dev/null || {
-  echo "Errore: cache matugen incompleta o non compatibile: $WAL_CACHE_JSON" >&2
+' "$MATUGEN_PALETTE_JSON" >/dev/null || {
+  echo "Errore: cache matugen incompleta o non compatibile: $MATUGEN_PALETTE_JSON" >&2
   exit 1
 }
 
@@ -367,16 +376,40 @@ apply_icon_theme() {
   fi
 }
 
-apply_gtk_dark_theme() {
-  update_gtk_setting_file "$GTK3_SETTINGS" gtk-theme-name Adwaita-dark
-  update_gtk_setting_file "$GTK4_SETTINGS" gtk-theme-name Adwaita-dark
+install_gtk_dynamic_theme() {
+  mkdir -p \
+    "$GTK_THEME_DIR/gtk-3.0" \
+    "$GTK_THEME_DIR/gtk-4.0" \
+    "$(dirname "$GTK4_USER_CSS")"
+
+  printf '@import url("resource:///org/gtk/libgtk/theme/Adwaita/gtk-contained-dark.css");\n@import url("../colors.css");\n' > "$GTK3_THEME_CSS"
+  cp -f -- "$GTK3_THEME_CSS" "$GTK3_THEME_DARK_CSS"
+
+  printf '@import url("resource:///org/gtk/libgtk/theme/Default/Default-dark.css");\n@import url("../colors.css");\n' > "$GTK4_THEME_CSS"
+  cp -f -- "$GTK4_THEME_CSS" "$GTK4_THEME_DARK_CSS"
+
+  {
+    printf '@import url("resource:///org/gtk/libgtk/theme/Default/Default-dark.css");\n\n'
+    cat "$GTK_THEME_COLORS"
+  } > "$GTK4_USER_CSS"
+
+  printf '[Desktop Entry]\nType=X-GNOME-Metatheme\nName=%s\nComment=Hyprdots dynamic GTK theme\nEncoding=UTF-8\n' "$GTK_THEME_NAME" > "$GTK_THEME_INDEX"
+}
+
+apply_gtk_dynamic_theme() {
+  install_gtk_dynamic_theme
+
+  update_gtk_setting_file "$GTK3_SETTINGS" gtk-theme-name "$GTK_THEME_NAME"
+  update_gtk_setting_file "$GTK4_SETTINGS" gtk-theme-name "$GTK_THEME_NAME"
   update_gtk_setting_file "$GTK3_SETTINGS" gtk-application-prefer-dark-theme 1
   update_gtk_setting_file "$GTK4_SETTINGS" gtk-application-prefer-dark-theme 1
 
   if command -v gsettings >/dev/null 2>&1; then
     gsettings set org.gnome.desktop.interface color-scheme prefer-dark >/dev/null 2>&1 || true
-    gsettings set org.gnome.desktop.interface gtk-theme Adwaita-dark >/dev/null 2>&1 || true
+    gsettings set org.gnome.desktop.interface gtk-theme "$GTK_THEME_NAME" >/dev/null 2>&1 || true
   fi
+
+  echo "[OK] GTK theme dinamico scritto in: $GTK_THEME_DIR"
 }
 
 hard_reload_plasmashell() {
@@ -492,12 +525,13 @@ update_dynamic_icon_theme() {
 }
 
 python3 "$SCRIPT_DIR/render_templates.py" \
-  "$WAL_CACHE_JSON" \
+  "$MATUGEN_PALETTE_JSON" \
   "$SCRIPT_DIR/templates" \
   "$HYPR_LUA" \
   "$QS_JSON" \
   "$KITTY_COLORS" \
-  "$KDE_COLORS"
+  "$KDE_COLORS" \
+  "$GTK_THEME_COLORS"
 
 rm -f -- "$DEPRECATED_HYPR_COLORS"
 echo "[OK] Hyprland Lua palette scritta in: $HYPR_LUA"
@@ -561,7 +595,7 @@ fi
 set_generic_ini_key "$QT6CT_CONF" "Appearance" "color_scheme_path" "$KDE_COLORS"
 echo "[OK] qt6ct aggiornato: $QT6CT_CONF"
 
-apply_gtk_dark_theme
+apply_gtk_dynamic_theme
 reapply_plasma_theme
 notify_kglobalsettings
 reconfigure_kwin

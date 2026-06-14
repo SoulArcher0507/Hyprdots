@@ -91,7 +91,7 @@ def build_palette(image: Path) -> dict:
 
 def main() -> int:
     if len(sys.argv) != 3:
-        print("Usage: generate_pywal_palette.py <image> <output.json>", file=sys.stderr)
+        print("Usage: generate_palette.py <image> <output.json>", file=sys.stderr)
         return 1
 
     image = Path(sys.argv[1])

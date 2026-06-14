@@ -116,9 +116,9 @@ def render_template(template_path: Path, context: dict[str, str]) -> str:
 
 
 def main() -> int:
-    if len(sys.argv) != 7:
+    if len(sys.argv) != 8:
         print(
-            "Usage: render_templates.py <palette.json> <templates_dir> <hypr.lua> <quickshell.json> <kitty.conf> <kde.colors>",
+            "Usage: render_templates.py <palette.json> <templates_dir> <hypr.lua> <quickshell.json> <kitty.conf> <kde.colors> <gtk.css>",
             file=sys.stderr,
         )
         return 1
@@ -130,6 +130,7 @@ def main() -> int:
         "quickshell-colors.json.tmpl": Path(sys.argv[4]),
         "kitty-colors.conf.tmpl": Path(sys.argv[5]),
         "kde-dynamic.colors.tmpl": Path(sys.argv[6]),
+        "gtk-dynamic.css.tmpl": Path(sys.argv[7]),
     }
 
     context = build_context(palette_path)

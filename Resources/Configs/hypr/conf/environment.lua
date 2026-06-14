@@ -21,7 +21,6 @@ local env = {
     { "XDG_SESSION_DESKTOP", "Hyprland" },
 
     -- Theme
-    { "GTK_THEME", "Adwaita:dark" },
     { "GTK_APPLICATION_PREFER_DARK_THEME", "1" },
     { "QT_QPA_PLATFORMTHEME", "qt6ct" },
     { "QT_QPA_PLATFORM", "wayland" },
