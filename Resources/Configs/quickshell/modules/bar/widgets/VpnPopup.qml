@@ -873,6 +873,8 @@ Item {
         implicitWidth: label === "" ? 32 : 118
         implicitHeight: 40
         radius: 12
+        clip: true
+        antialiasing: true
         color: enabled ? (hovered ? "#20ffffff" : "#10ffffff") : "#08ffffff"
         border.color: enabled ? (hovered ? root.accent : "#24ffffff") : "#12ffffff"
         border.width: 1
@@ -882,6 +884,7 @@ Item {
         Behavior on border.color { ColorAnimation { duration: 150 } }
         scale: pressed && enabled ? 0.96 : 1.0
         Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutBack } }
+        onBusyChanged: if (!busy) actionButtonIcon.rotation = 0
 
         RowLayout {
             anchors.centerIn: parent
@@ -899,6 +902,8 @@ Item {
                 verticalAlignment: Text.AlignVCenter
                 color: actionBtn.hovered && actionBtn.enabled ? root.accent : root.text
                 text: busy ? "󰑮" : icon
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
                 RotationAnimation on rotation {
                     from: 0
                     to: 360
@@ -920,6 +925,8 @@ Item {
                 Layout.fillWidth: true
                 Layout.minimumWidth: 0
                 visible: label !== ""
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignVCenter
                 text: label
                 font.family: root.textFont
                 font.weight: Font.Black
@@ -927,6 +934,7 @@ Item {
                 color: actionBtn.hovered && actionBtn.enabled ? root.accent : root.text
                 elide: Text.ElideRight
                 maximumLineCount: 1
+                clip: true
             }
         }
 
@@ -959,6 +967,7 @@ Item {
         implicitWidth: 40
         implicitHeight: 40
         radius: 12
+        antialiasing: true
         color: enabled ? (hovered ? "#20ffffff" : "#10ffffff") : "#08ffffff"
         border.color: enabled ? (hovered ? root.accent : "#24ffffff") : "#12ffffff"
         border.width: 1
@@ -978,6 +987,7 @@ Item {
                 width: 16
                 height: 16
                 radius: 8
+                antialiasing: true
                 color: "transparent"
                 border.color: pingBtn.hovered && pingBtn.enabled ? root.accent : root.text
                 border.width: 1
@@ -986,9 +996,10 @@ Item {
 
             Rectangle {
                 anchors.centerIn: parent
-                width: 11
-                height: 11
-                radius: 5.5
+                width: 10
+                height: 10
+                radius: 5
+                antialiasing: true
                 color: "transparent"
                 border.color: pingBtn.hovered && pingBtn.enabled ? root.accent : root.text
                 border.width: 1
@@ -1000,6 +1011,7 @@ Item {
                 width: 4
                 height: 4
                 radius: 2
+                antialiasing: true
                 color: pingBtn.hovered && pingBtn.enabled ? root.accent : root.text
                 opacity: 0.95
             }

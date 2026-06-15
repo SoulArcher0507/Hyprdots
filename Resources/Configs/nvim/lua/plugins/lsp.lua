@@ -39,6 +39,7 @@ return {
             vim.opt.signcolumn = 'yes'
         end,
         config = function()
+            local indent = require("core.indent")
             local lsp_defaults = require('lspconfig').util.default_config
             local lspconfig = require('lspconfig')
             local format_augroup = vim.api.nvim_create_augroup('LspFormatOnSave', { clear = true })
@@ -85,7 +86,10 @@ return {
                         vim.lsp.buf.signature_help({ border = border })
                     end, opts)
                     vim.keymap.set('n', 'rn', '<cmd>lua vim.lsp.buf.rename()<cr>', opts)
-                    vim.keymap.set({ 'n', 'x' }, '<F3>', '<cmd>lua vim.lsp.buf.format({async = true})<cr>', opts)
+                    vim.keymap.set({ 'n', 'x' }, '<F3>', function()
+                        indent.apply(event.buf)
+                        vim.lsp.buf.format({ async = true })
+                    end, opts)
                     vim.keymap.set('n', 'vca', '<cmd>lua vim.lsp.buf.code_action()<cr>', opts)
                     vim.keymap.set('n', '<leader>vd', '<cmd>lua vim.diagnostic.open_float()<cr>')
 
@@ -102,6 +106,7 @@ return {
                                 return
                             end
 
+                            indent.apply(event.buf)
                             vim.lsp.buf.format({
                                 async = false,
                             })

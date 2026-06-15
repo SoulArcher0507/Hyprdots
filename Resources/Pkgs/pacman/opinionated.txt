@@ -8,6 +8,7 @@ dosfstools
 dotnet-sdk
 easyeffects
 element-desktop
+feishin
 firewall-config
 gwenview
 icoutils
@@ -15,6 +16,7 @@ kompare
 lact
 libappimage
 libvlc
+localsend
 lsp-plugins
 man-db
 moonlight-qt
@@ -24,12 +26,14 @@ obs-studio
 obsidian
 okular
 openmpi
+otf-latin-modern
 partitionmanager
 prismlauncher
 qalculate-qt
 radeontop
 solaar
 steam
+sunshine
 syncthing
 timeshift
 tor
@@ -40,6 +44,7 @@ typst
 vlc
 vlc-plugin-ffmpeg
 vorta
+webapp-manager
 wine
 winetricks
 wireshark-qt

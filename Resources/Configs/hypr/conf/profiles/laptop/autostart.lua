@@ -28,6 +28,7 @@ hl.on("hyprland.start", function()
 
         -- AutoRun apps
         "kdeconnect-indicator &",
+        "sh -c 'command -v sunshine >/dev/null 2>&1 && exec sunshine' &",
         "sh -c 'command -v localsend >/dev/null 2>&1 && exec localsend --hidden' &",
     }
 
