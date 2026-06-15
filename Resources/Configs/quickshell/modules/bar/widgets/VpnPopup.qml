@@ -73,6 +73,7 @@ Item {
     property string messageText: ""
     property string actionHeadline: ""
     property string actionDetail: ""
+    property string runningAction: ""
     property bool showOffline: true
     property string selectedId: ""
     property string selectedName: ""
@@ -271,6 +272,7 @@ Item {
         let cmd = ["bash", root.vpnScriptPath];
         for (let i = 0; i < args.length; i++)
             cmd.push(args[i]);
+        root.runningAction = args.length > 0 ? args[0] : "";
         root.actionHeadline = "Working...";
         root.actionDetail = cmd.slice(2).join(" ");
         actionRunner.command = cmd;
@@ -328,6 +330,7 @@ Item {
                 root.actionHeadline = exitCode === 0 ? (raw === "" ? "Action finished" : raw) : "Action failed";
                 root.actionDetail = err !== "" ? err : raw;
             }
+            root.runningAction = "";
             if (!statusPoller.running)
                 statusPoller.running = true;
         }
@@ -589,7 +592,7 @@ Item {
                         icon: "󰓅"
                         label: root.hasSelectedPeer ? "Ping " + root.selectedName : "Ping Device"
                         enabled: root.hasSelectedPeer && root.selectedOnline && !actionRunner.running
-                        busy: actionRunner.running
+                        busy: actionRunner.running && root.runningAction === "--ping"
                         onActivated: root.runAction(["--ping", root.selectedTarget])
                     }
                     ActionButton {
@@ -604,7 +607,7 @@ Item {
                         icon: "󰀂"
                         label: "Netcheck"
                         enabled: root.vpnActive && !actionRunner.running
-                        busy: actionRunner.running
+                        busy: actionRunner.running && root.runningAction === "--netcheck"
                         onActivated: root.runAction(["--netcheck"])
                     }
                 }
@@ -626,6 +629,7 @@ Item {
                         anchors.margins: 12
                         spacing: 10
                         Text {
+                            id: actionResultIcon
                             font.family: "Iosevka Nerd Font"
                             font.pixelSize: 18
                             color: root.accent
@@ -636,6 +640,7 @@ Item {
                                 duration: 900
                                 loops: Animation.Infinite
                                 running: actionRunner.running && ThemePkg.Theme.edgeAnimationsEnabled
+                                onStopped: actionResultIcon.rotation = 0
                             }
                         }
                         ColumnLayout {
@@ -872,6 +877,7 @@ Item {
         border.color: enabled ? (hovered ? root.accent : "#24ffffff") : "#12ffffff"
         border.width: 1
         opacity: enabled ? 1.0 : 0.45
+        clip: true
         Behavior on color { ColorAnimation { duration: 150 } }
         Behavior on border.color { ColorAnimation { duration: 150 } }
         scale: pressed && enabled ? 0.96 : 1.0
@@ -879,10 +885,18 @@ Item {
 
         RowLayout {
             anchors.centerIn: parent
+            width: Math.min(implicitWidth, Math.max(0, actionBtn.width - (label === "" ? 0 : 20)))
+            height: actionBtn.height
             spacing: label === "" ? 0 : 7
             Text {
+                id: actionIconText
+                Layout.fillWidth: label === ""
+                Layout.preferredWidth: label === "" ? actionBtn.width : 18
+                Layout.alignment: Qt.AlignVCenter
                 font.family: "Iosevka Nerd Font"
                 font.pixelSize: 16
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
                 color: actionBtn.hovered && actionBtn.enabled ? root.accent : root.text
                 text: busy ? "󰑮" : icon
                 RotationAnimation on rotation {
@@ -891,9 +905,20 @@ Item {
                     duration: 900
                     loops: Animation.Infinite
                     running: busy && ThemePkg.Theme.edgeAnimationsEnabled
+                    onStopped: actionIconText.rotation = 0
+                }
+
+                Connections {
+                    target: actionBtn
+                    function onBusyChanged() {
+                        if (!actionBtn.busy)
+                            actionIconText.rotation = 0;
+                    }
                 }
             }
             Text {
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
                 visible: label !== ""
                 text: label
                 font.family: root.textFont
