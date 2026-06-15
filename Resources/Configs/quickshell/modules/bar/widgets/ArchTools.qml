@@ -31,6 +31,8 @@ Item {
     readonly property real barPanelCenterY: barPanelHeight / 2
     readonly property int overlayEnterDuration: 515
     readonly property int overlayExitDuration: 375
+    readonly property bool keepWarmOnClose: true
+    readonly property bool overlayOwnsOpenAnimation: true
     readonly property bool overlayOwnsCloseAnimation: true
     readonly property int detailsExpandDuration: 360
     readonly property int detailsCollapseDuration: 240
@@ -74,14 +76,20 @@ Item {
 
     readonly property string cacheFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_cache.json"
     readonly property int updatesListCacheTtlMs: 60 * 1000
+    readonly property int startupUpdatesMinIntervalMs: 5 * 60 * 1000
+    readonly property int startupDotfilesFetchMinIntervalMs: 30 * 60 * 1000
     readonly property string progressFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_update.jsonl"
     readonly property string updateLogFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_update.log"
     readonly property string updateCancelFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_update.cancel"
     readonly property string updatePidFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_update.pid"
     readonly property string updateLockFile: Quickshell.env("HOME") + "/.cache/quickshell/archtools_update.lock"
     property int _lastProgressLineCount: 0
+    property string _lastProgressTailLine: ""
     property bool startupRefreshStarted: false
+    property bool startupWorkStarted: false
     property real lastCacheSaveMs: 0
+    property real updatesDaemonLastOkMs: 0
+    property real dotfilesDaemonLastOkMs: 0
 
     property int upHours: 0
     property int upMins: 0
@@ -279,20 +287,9 @@ Item {
     }
 
     Component.onCompleted: {
-        root.restoreUpdateStateFromSwitcher();
-        root.syncNotificationCountsFromState();
-        root.syncUpdateCountsFromState();
-        popupTargetVisible = true;
-        introState = 1.0;
-        archPanel.visible = true;
-        loadCacheProc.running = true;
         root._lastProgressLineCount = 0;
-        root.startImmediateStartupRefreshes();
-        if (ThemePkg.Theme.popupAnimationsEnabled)
-            popupEnterAnim.start();
-        else
-            root.openInstant();
-        startupRefreshTimer.start();
+        root._lastProgressTailLine = "";
+        root.beginOverlayOpen();
     }
 
     onSwitcherChanged: {
@@ -604,6 +601,15 @@ Item {
         if (!popupTargetVisible)
             return;
         popupTargetVisible = false;
+        root.resetResourceDetails();
+        startupWorkTimer.stop();
+        startupRefreshTimer.stop();
+        startupUptimeRefresh.stop();
+        startupAutolockRefresh.stop();
+        startupProgressRefresh.stop();
+        startupResourceRefresh.stop();
+        startupUpdatesRefresh.stop();
+        startupNotificationsRefresh.stop();
         popupEnterAnim.stop();
         if (!ThemePkg.Theme.popupAnimationsEnabled) {
             root.closeInstant();
@@ -614,14 +620,39 @@ Item {
     }
 
     function cancelOverlayClose() {
-        popupTargetVisible = true;
         popupExitAnim.stop();
         popupEnterAnim.stop();
         if (!ThemePkg.Theme.popupAnimationsEnabled) {
             root.openInstant();
             return;
         }
+        popupTargetVisible = true;
         popupEnterAnim.start();
+        if (!root.startupWorkStarted)
+            startupWorkTimer.start();
+        else if (!root.startupRefreshStarted)
+            startupRefreshTimer.start();
+    }
+
+    function beginOverlayOpen() {
+        root.restoreUpdateStateFromSwitcher();
+        root.syncNotificationCountsFromState();
+        root.syncUpdateCountsFromState();
+        root.resetResourceDetails();
+        popupTargetVisible = true;
+        introState = 1.0;
+        archPanel.visible = true;
+        popupExitAnim.stop();
+        popupEnterAnim.stop();
+        if (ThemePkg.Theme.popupAnimationsEnabled)
+            popupEnterAnim.start();
+        else
+            root.openInstant();
+
+        if (!root.startupWorkStarted)
+            startupWorkTimer.start();
+        else if (!root.startupRefreshStarted)
+            startupRefreshTimer.start();
     }
 
     function openInstant() {
@@ -843,15 +874,10 @@ Item {
     function refreshArchToolNotifications() {
         if (!archNewsFetchProc.running)
             archNewsFetchProc.running = true;
-        if (!dotfilesBootCheckProc.running)
+        if (root.shouldRefreshDotfilesFetch() && !dotfilesBootCheckProc.running)
             dotfilesBootCheckProc.running = true;
-    }
-
-    function startImmediateStartupRefreshes() {
-        if (!uptimeProc.running)
-            uptimeProc.running = true;
-        if (!updateProgressInitProc.running)
-            updateProgressInitProc.running = true;
+        else if (!dotfilesStatusProc.running)
+            dotfilesStatusProc.running = true;
     }
 
     function startStartupRefreshes() {
@@ -862,8 +888,48 @@ Item {
         startupAutolockRefresh.start();
         startupProgressRefresh.start();
         startupResourceRefresh.start();
-        startupUpdatesRefresh.start();
+        if (root.shouldRefreshUpdates())
+            startupUpdatesRefresh.start();
         startupNotificationsRefresh.start();
+    }
+
+    function startDeferredStartupWork() {
+        if (root.startupWorkStarted)
+            return;
+        root.startupWorkStarted = true;
+
+        if (!loadCacheProc.running)
+            loadCacheProc.running = true;
+        startupRefreshTimer.start();
+    }
+
+    function latestUpdateCheckMs() {
+        return Math.max(
+            Number(ArchState.ArchToolsState.updatesLastMs || 0),
+            Number(root.updatesDaemonLastOkMs || 0),
+            Number(root.switcher ? root.switcher._updLastMs || 0 : 0)
+        );
+    }
+
+    function shouldRefreshUpdates() {
+        var last = root.latestUpdateCheckMs();
+        var minInterval = Math.max(
+            Number(root.startupUpdatesMinIntervalMs || 0),
+            Number(root.switcher ? root.switcher.updatesMinIntervalMs || 0 : 0)
+        );
+        return last <= 0 || (Date.now() - last) >= minInterval;
+    }
+
+    function shouldRefreshDotfilesFetch() {
+        var last = Number(root.dotfilesDaemonLastOkMs || 0);
+        return last <= 0 || (Date.now() - last) >= root.startupDotfilesFetchMinIntervalMs;
+    }
+
+    Timer {
+        id: startupWorkTimer
+        interval: 180
+        repeat: false
+        onTriggered: root.startDeferredStartupWork()
     }
 
     Timer {
@@ -883,7 +949,7 @@ Item {
 
     Timer {
         id: startupAutolockRefresh
-        interval: 120
+        interval: 180
         repeat: false
         onTriggered: if (!autolockStatusProc.running)
             autolockStatusProc.running = true
@@ -891,7 +957,7 @@ Item {
 
     Timer {
         id: startupProgressRefresh
-        interval: 260
+        interval: 420
         repeat: false
         onTriggered: if (!updateProgressInitProc.running)
             updateProgressInitProc.running = true
@@ -899,7 +965,7 @@ Item {
 
     Timer {
         id: startupResourceRefresh
-        interval: 430
+        interval: 850
         repeat: false
         onTriggered: if (!resProc.running)
             resProc.running = true
@@ -907,15 +973,15 @@ Item {
 
     Timer {
         id: startupUpdatesRefresh
-        interval: 650
+        interval: 1450
         repeat: false
-        onTriggered: if (!updatesCheckProc.running)
+        onTriggered: if (root.shouldRefreshUpdates() && !updatesCheckProc.running)
             updatesCheckProc.running = true
     }
 
     Timer {
         id: startupNotificationsRefresh
-        interval: 920
+        interval: 1900
         repeat: false
         onTriggered: root.refreshArchToolNotifications()
     }
@@ -941,6 +1007,17 @@ Item {
         root.expandedResourceLoading = false;
         root.detailRefreshQueued = false;
         detailsCloseCleanup.restart();
+    }
+
+    function resetResourceDetails() {
+        detailsCloseCleanup.stop();
+        root.expandedResourceKey = "";
+        root.detailsDisplayKey = "";
+        root.pendingDetailKey = "";
+        root.expandedResourceLoading = false;
+        root.detailRefreshQueued = false;
+        root.expandedResourceError = "";
+        root.expandedResourceData = ({});
     }
 
     function refreshExpandedResource() {
@@ -1062,11 +1139,15 @@ Item {
 
     Io.Process {
         id: loadCacheProc
-        command: ["bash", "-c", "cat " + root.cacheFile + " 2>/dev/null || echo '{}'"]
+        command: ["bash", "-lc", "cat -- \"$1\" 2>/dev/null || printf '{}\\n'", "archtools-cache-load", root.cacheFile]
         stdout: Io.StdioCollector {
             onStreamFinished: {
                 try {
                     var obj = JSON.parse(text.trim());
+                    if (obj.updatesDaemonLastOkMs !== undefined)
+                        root.updatesDaemonLastOkMs = Number(obj.updatesDaemonLastOkMs || 0);
+                    if (obj.dotfilesDaemonLastOkMs !== undefined)
+                        root.dotfilesDaemonLastOkMs = Number(obj.dotfilesDaemonLastOkMs || 0);
                     var loadedUpdateCounts = false;
                     if (obj.updPacman !== undefined) {
                         root.updPacman = obj.updPacman;
@@ -1178,9 +1259,18 @@ Item {
             netUp: root.statNetUp,
             netTotal: root.statNetTotal,
             unreadNews: root.unreadNews,
-            unreadDotfiles: root.unreadDotfiles
+            unreadDotfiles: root.unreadDotfiles,
+            updatesDaemonLastOkMs: root.updatesDaemonLastOkMs,
+            dotfilesDaemonLastOkMs: root.dotfilesDaemonLastOkMs
         };
-        saveCacheProc.command = ["bash", "-c", "mkdir -p $(dirname " + root.cacheFile + ") && echo '" + JSON.stringify(obj) + "' > " + root.cacheFile];
+        saveCacheProc.command = [
+            "bash",
+            "-lc",
+            "cache_file=$1; json=$2; mkdir -p -- \"$(dirname -- \"$cache_file\")\" && printf '%s\\n' \"$json\" > \"$cache_file\"",
+            "archtools-cache-save",
+            root.cacheFile,
+            JSON.stringify(obj)
+        ];
         saveCacheProc.running = true;
     }
     Io.Process {
@@ -1203,7 +1293,7 @@ Item {
     }
     Timer {
         interval: 1000
-        running: root.startupRefreshStarted
+        running: root.startupRefreshStarted && root.popupTargetVisible
         repeat: true
         onTriggered: if (!uptimeProc.running)
             uptimeProc.running = true
@@ -1223,7 +1313,7 @@ Item {
     }
     Timer {
         interval: 3000
-        running: root.startupRefreshStarted
+        running: root.startupRefreshStarted && root.popupTargetVisible
         repeat: true
         onTriggered: if (!autolockStatusProc.running)
             autolockStatusProc.running = true
@@ -1276,7 +1366,7 @@ Item {
     }
     Timer {
         interval: 15 * 60 * 1000
-        running: root.startupRefreshStarted
+        running: root.startupRefreshStarted && root.popupTargetVisible
         repeat: true
         onTriggered: updatesCheckProc.running = true
     }
@@ -1304,7 +1394,7 @@ Item {
     }
     Timer {
         interval: 3600000
-        running: root.startupRefreshStarted
+        running: root.startupRefreshStarted && root.popupTargetVisible
         repeat: true
         onTriggered: archNewsFetchProc.running = true
     }
@@ -1352,7 +1442,7 @@ Item {
     }
     Timer {
         interval: 15000
-        running: root.startupRefreshStarted
+        running: root.startupRefreshStarted && root.popupTargetVisible
         repeat: true
         onTriggered: if (!dotfilesStatusProc.running)
             dotfilesStatusProc.running = true
@@ -1401,7 +1491,7 @@ Item {
         }
     }
     Timer {
-        running: root.startupRefreshStarted
+        running: root.startupRefreshStarted && root.popupTargetVisible
         repeat: true
         interval: 1500
         onTriggered: if (!resProc.running)
@@ -1442,7 +1532,7 @@ Item {
         id: resourceDetailsTimer
         interval: 2200
         repeat: true
-        running: root.detailsOpen
+        running: root.detailsOpen && root.popupTargetVisible
         onTriggered: root.refreshExpandedResource()
     }
 
@@ -1570,6 +1660,7 @@ Item {
         root.updateStageFlatpak = "";
         root.updateRestoredFromSwitcher = false;
         root._lastProgressLineCount = 0;
+        root._lastProgressTailLine = "";
         root._notificationSentForRun = false;
         updateDisplayClearTimer.stop();
         root.persistUpdateStateToSwitcher();
@@ -1860,12 +1951,15 @@ Item {
             }
             root.updateRestoredFromSwitcher = false;
             var lines = raw.split("\n");
-            if (root._lastProgressLineCount > lines.length)
-                root._lastProgressLineCount = 0;
-            for (var i = root._lastProgressLineCount; i < lines.length; i++) {
+            var tailLine = lines.length > 0 ? lines[lines.length - 1] : "";
+            var startLine = root._lastProgressLineCount;
+            if (startLine > lines.length || (startLine >= lines.length && tailLine !== root._lastProgressTailLine))
+                startLine = 0;
+            for (var i = startLine; i < lines.length; i++) {
                 root.handleUpdateLine(lines[i]);
             }
             root._lastProgressLineCount = lines.length;
+            root._lastProgressTailLine = tailLine;
         }
     }
 
@@ -1928,6 +2022,7 @@ Item {
                 root.handleUpdateLine(lines[i], true);
             }
             root._lastProgressLineCount = lines.length;
+            root._lastProgressTailLine = lines.length > 0 ? lines[lines.length - 1] : "";
             if (root.updateRunning && root.updateStage !== "complete") {
                 updateProgressPoller.start();
             } else if (root.updateStage === "complete" && root.updateFinishedTimestamp > 0) {

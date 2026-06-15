@@ -24,6 +24,23 @@ local function move_workspace_windows(target_workspace)
     end
 end
 
+local function move_window_to_next_empty_workspace()
+    return function()
+        local workspace = hl.get_active_workspace()
+        if not workspace then
+            return
+        end
+
+        for target_workspace = workspace.id + 1, workspace.id + 100 do
+            local windows = hl.get_workspace_windows(target_workspace)
+            if not windows or #windows == 0 then
+                hl.dispatch(hl.dsp.window.move({ workspace = target_workspace }))
+                return
+            end
+        end
+    end
+end
+
 -- Quickshell
 -- @bind Quickshell :: SUPER + CTRL + space :: hl.dsp.exec_cmd([[qs ipc -p ~/.config/quickshell/launcher call launcher toggle]]) :: Open Launcher
 bind(mainMod .. " + CTRL + space", hl.dsp.exec_cmd("qs ipc -p ~/.config/quickshell/launcher call launcher toggle"))
@@ -51,7 +68,7 @@ bind(mainMod .. " + O", hl.dsp.exec_cmd("qs ipc call arch toggle"))
 -- @bind Quickshell :: SUPER + CTRL + F :: hl.dsp.exec_cmd([[qs ipc call focustime toggle]]) :: Open Focus Time Popup
 bind(mainMod .. " + CTRL + F", hl.dsp.exec_cmd("qs ipc call focustime toggle"))
 -- @bind Quickshell :: SUPER + CTRL + M :: hl.dsp.exec_cmd([[qs ipc call monitor toggle]]) :: Open Monitor Settings
-bind(mainMod .. " + CTRL + M", hl.dsp.exec_cmd("qs ipc call monitor toggle"))
+bind(mainMod .. " + SHIFT + M", hl.dsp.exec_cmd("qs ipc call monitor toggle"))
 -- @bind Quickshell :: SUPER + SHIFT + B :: hl.dsp.exec_cmd([[qs ipc call battery toggle]]) :: Open Battery Popup
 bind(mainMod .. " + SHIFT + B", hl.dsp.exec_cmd("qs ipc call battery toggle"))
 -- @bind Quickshell :: SUPER + N :: hl.dsp.exec_cmd([[qs ipc call notifications toggle]]) :: Open Notification Popup
@@ -161,6 +178,8 @@ end
 bind(mainMod .. " + Tab", hl.dsp.focus({ workspace = "m+1" }))
 -- @bind Workspaces :: SUPER + SHIFT + Tab :: hl.dsp.focus({ workspace = [[m-1]] }) :: Open Previous Workspace
 bind(mainMod .. " + SHIFT + Tab", hl.dsp.focus({ workspace = "m-1" }))
+-- @bind Workspaces :: SUPER + CTRL + Tab :: move_window_to_next_empty_workspace() :: Move Active Window to Next Empty Workspace
+bind(mainMod .. " + CTRL + Tab", move_window_to_next_empty_workspace())
 
 for i = 1, 10 do
     local key = i % 10

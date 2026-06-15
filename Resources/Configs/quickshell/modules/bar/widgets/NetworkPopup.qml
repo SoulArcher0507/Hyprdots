@@ -25,8 +25,11 @@ Item {
     readonly property real barPanelCenterY: barPanelHeight / 2
     readonly property int overlayEnterDuration: 515
     readonly property int overlayExitDuration: 375
+    readonly property bool keepWarmOnClose: true
+    readonly property bool overlayOwnsOpenAnimation: true
     readonly property bool overlayOwnsCloseAnimation: true
     property bool popupTargetVisible: false
+    property bool startupWorkStarted: false
     property var overlaySwitcher: null
     property real popupCardOpacity: 0.0
     property real popupCardScaleX: 0.42
@@ -81,7 +84,7 @@ Item {
     Process {
         id: cacheReader
         command: ["bash", "-c", "cat ~/.cache/quickshell/network_cache.json 2>/dev/null"]
-        running: true
+        running: false
         stdout: StdioCollector {
             onStreamFinished: {
                 let text = this.text.trim();
@@ -128,28 +131,14 @@ Item {
 
     Timer {
         interval: 100
-        running: true
+        running: window.popupTargetVisible
         repeat: true
         onTriggered: modeReader.running = true
     }
 
     Component.onCompleted: {
-        popupTargetVisible = true;
-        Quickshell.execDetached(["bash", "-c", "if [ ! -f /tmp/qs_network_mode ]; then echo '" + activeMode + "' > /tmp/qs_network_mode; fi"]);
         window.resetSpeedtestState();
-        if (cache.lastWifiJson !== "")
-            processWifiJson(cache.lastWifiJson);
-        if (cache.lastBtJson !== "")
-            processBtJson(cache.lastBtJson);
-        syncCores();
-        introState = 1.0;
-        trafficPoller.running = true;
-        speedtestPollerProc.running = true;
-        tailscalePoller.running = true;
-        if (ThemePkg.Theme.popupAnimationsEnabled)
-            popupEnterAnim.start();
-        else
-            window.openInstant();
+        window.beginOverlayOpen();
     }
 
     Component.onDestruction: {
@@ -516,7 +505,7 @@ Item {
             clearSpeedtestSession();
         }
         if (currentConn) {
-            if (window.activeMode === "wifi" && !speedtestPollerProc.running)
+            if (window.popupTargetVisible && window.activeMode === "wifi" && !speedtestPollerProc.running)
                 speedtestPollerProc.running = true;
             updateInfoNodes();
         }
@@ -538,7 +527,7 @@ Item {
         syncCores();
         window.showInfoView = window.currentConn;
         if (window.showInfoView) {
-            if (window.activeMode === "wifi" && !speedtestPollerProc.running)
+            if (window.popupTargetVisible && window.activeMode === "wifi" && !speedtestPollerProc.running)
                 speedtestPollerProc.running = true;
             window.updateInfoNodes();
         }
@@ -1154,7 +1143,7 @@ Item {
     Process {
         id: wifiPoller
         command: ["bash", window.scriptsDir + "/wifi_panel_logic.sh"]
-        running: true
+        running: false
         stdout: StdioCollector {
             onStreamFinished: {
                 cache.lastWifiJson = this.text.trim();
@@ -1165,7 +1154,7 @@ Item {
     Process {
         id: btPoller
         command: ["bash", window.scriptsDir + "/bluetooth_panel_logic.sh", "--status"]
-        running: true
+        running: false
         stdout: StdioCollector {
             onStreamFinished: {
                 cache.lastBtJson = this.text.trim();
@@ -1206,7 +1195,7 @@ Item {
         repeat: true
         running: false
         onTriggered: {
-            if (!speedtestPollerProc.running)
+            if (window.popupTargetVisible && !speedtestPollerProc.running)
                 speedtestPollerProc.running = true;
         }
     }
@@ -1249,7 +1238,7 @@ Item {
     }
     Timer {
         interval: window.recentAction ? 500 : ((Object.keys(window.busyTasks).length > 0 || Object.keys(window.disconnectingDevices).length > 0) ? 1000 : 3000)
-        running: true
+        running: window.popupTargetVisible
         repeat: true
         onTriggered: {
             if (!wifiPoller.running)
@@ -1260,7 +1249,7 @@ Item {
     }
     Timer {
         interval: 1000
-        running: true
+        running: window.popupTargetVisible
         repeat: true
         onTriggered: {
             if (window.activeMode === "wifi" && window.currentConn) {
@@ -1275,7 +1264,7 @@ Item {
     }
     Timer {
         interval: 7000
-        running: true
+        running: window.popupTargetVisible
         repeat: true
         onTriggered: {
             if (!tailscalePoller.running)
@@ -1289,18 +1278,22 @@ Item {
         to: Math.PI * 2
         duration: 200000
         loops: Animation.Infinite
-        running: ThemePkg.Theme.rotationalAnimationsEnabled
+        running: window.popupTargetVisible && ThemePkg.Theme.rotationalAnimationsEnabled
     }
     property real introState: 0.0
+    property bool introAnimationEnabled: true
+    property int openAnimationGeneration: 0
     Behavior on introState {
+        enabled: window.introAnimationEnabled
         NumberAnimation {
-            duration: 1500
-            easing.type: Easing.OutCubic
+            duration: 410
+            easing.type: Easing.OutExpo
         }
     }
 
     onHostLoaderOpacityChanged: {
         if (hostLoaderOpacity < lastHostLoaderOpacity - 0.001 && popupTargetVisible) {
+            window.pauseBackgroundWork();
             popupTargetVisible = false;
             popupEnterAnim.stop();
             if (!ThemePkg.Theme.popupAnimationsEnabled) {
@@ -1314,10 +1307,74 @@ Item {
         lastHostLoaderOpacity = hostLoaderOpacity;
     }
 
+    function pauseBackgroundWork() {
+        startupWorkTimer.stop();
+        networkOpenRefreshTimer.stop();
+        speedtestPollerTimer.stop();
+    }
+
+    function startDeferredStartupWork() {
+        if (window.startupWorkStarted)
+            return;
+        window.startupWorkStarted = true;
+
+        Quickshell.execDetached(["bash", "-c", "if [ ! -f /tmp/qs_network_mode ]; then echo '" + activeMode + "' > /tmp/qs_network_mode; fi"]);
+        if (!cacheReader.running)
+            cacheReader.running = true;
+        if (!modeReader.running)
+            modeReader.running = true;
+        networkOpenRefreshTimer.restart();
+    }
+
+    function startOpenRefreshes() {
+        if (!window.popupTargetVisible)
+            return;
+        if (!wifiPoller.running)
+            wifiPoller.running = true;
+        if (!btPoller.running)
+            btPoller.running = true;
+        if (!tailscalePoller.running)
+            tailscalePoller.running = true;
+        if (window.activeMode === "wifi" && window.currentConn && !trafficPoller.running)
+            trafficPoller.running = true;
+        if (window.activeMode === "wifi" && window.currentConn && !speedtestPollerProc.running)
+            speedtestPollerProc.running = true;
+    }
+
+    Timer {
+        id: startupWorkTimer
+        interval: 180
+        repeat: false
+        onTriggered: window.startDeferredStartupWork()
+    }
+
+    Timer {
+        id: networkOpenRefreshTimer
+        interval: window.overlayEnterDuration + 80
+        repeat: false
+        onTriggered: window.startOpenRefreshes()
+    }
+
+    function setIntroStateInstant(value) {
+        introAnimationEnabled = false;
+        introState = value;
+        introAnimationEnabled = true;
+    }
+
+    function restartIntroAnimation() {
+        openAnimationGeneration += 1;
+        setIntroStateInstant(0.0);
+        Qt.callLater(function() {
+            if (window.popupTargetVisible)
+                window.introState = 1.0;
+        });
+    }
+
     function beginOverlayClose() {
         if (!popupTargetVisible)
             return;
         popupTargetVisible = false;
+        window.pauseBackgroundWork();
         popupEnterAnim.stop();
         if (!ThemePkg.Theme.popupAnimationsEnabled) {
             window.closeInstant();
@@ -1328,14 +1385,42 @@ Item {
     }
 
     function cancelOverlayClose() {
-        popupTargetVisible = true;
         popupExitAnim.stop();
         popupEnterAnim.stop();
         if (!ThemePkg.Theme.popupAnimationsEnabled) {
             window.openInstant();
             return;
         }
+        restartIntroAnimation();
+        globalOrbitAngle = 0.0;
+        popupTargetVisible = true;
         popupEnterAnim.start();
+        if (!window.startupWorkStarted)
+            startupWorkTimer.start();
+        else
+            networkOpenRefreshTimer.restart();
+    }
+
+    function beginOverlayOpen() {
+        restartIntroAnimation();
+        globalOrbitAngle = 0.0;
+        popupTargetVisible = true;
+        if (cache.lastWifiJson !== "")
+            processWifiJson(cache.lastWifiJson);
+        if (cache.lastBtJson !== "")
+            processBtJson(cache.lastBtJson);
+        syncCores();
+        popupExitAnim.stop();
+        popupEnterAnim.stop();
+        if (ThemePkg.Theme.popupAnimationsEnabled)
+            popupEnterAnim.start();
+        else
+            window.openInstant();
+
+        if (!window.startupWorkStarted)
+            startupWorkTimer.start();
+        else
+            networkOpenRefreshTimer.restart();
     }
 
     function popupOriginLift() {
@@ -1346,6 +1431,7 @@ Item {
         popupExitAnim.stop();
         popupEnterAnim.stop();
         popupTargetVisible = true;
+        setIntroStateInstant(1.0);
         ThemePkg.Theme.setPopupCardOpen(window);
     }
 
@@ -1353,6 +1439,7 @@ Item {
         popupEnterAnim.stop();
         popupExitAnim.stop();
         popupTargetVisible = false;
+        setIntroStateInstant(0.0);
         ThemePkg.Theme.setPopupCardClosed(window);
     }
 
@@ -1718,14 +1805,48 @@ Item {
                         property bool isPrimary: index === 0
                         property bool hasDevice: myDevice !== null
                         property bool isReallyActive: hasDevice || (isPrimary && window.activeCoreCount === 0)
-                        property real activeTransition: isReallyActive ? 1.0 : 0.0
-                        Behavior on activeTransition {
-                            enabled: window.introState >= 1.0
+                        property bool openIntroAnimationEnabled: true
+                        property bool openIntroComplete: false
+                        property real openTransition: openIntroComplete ? 1.0 : 0.0
+                        Behavior on openTransition {
+                            enabled: coreContainer.openIntroAnimationEnabled
+                            NumberAnimation {
+                                duration: 460
+                                easing.type: Easing.OutBack
+                            }
+                        }
+                        property real visibleTransition: isReallyActive ? 1.0 : 0.0
+                        Behavior on visibleTransition {
+                            enabled: coreContainer.openTransition >= 1.0
                             NumberAnimation {
                                 duration: 1400
                                 easing.type: Easing.OutExpo
                             }
                         }
+                        property real activeTransition: visibleTransition * openTransition
+                        function replayOpenAnimation() {
+                            openIntroAnimationEnabled = false;
+                            openIntroComplete = false;
+                            openIntroAnimationEnabled = true;
+                            coreOpenTimer.restart();
+                        }
+                        Timer {
+                            id: coreOpenTimer
+                            running: false
+                            repeat: false
+                            interval: 18 + (index * 32)
+                            onTriggered: {
+                                if (window.popupTargetVisible)
+                                    coreContainer.openIntroComplete = true;
+                            }
+                        }
+                        Connections {
+                            target: window
+                            function onOpenAnimationGenerationChanged() {
+                                coreContainer.replayOpenAnimation();
+                            }
+                        }
+                        Component.onCompleted: replayOpenAnimation()
                         property real multiShift: window.activeMode === "wifi" ? 0.0 : window.multiTransitionState
                         width: window.currentPower ? (200 - (30 * multiShift) - (15 * Math.max(0, window.smoothedActiveCoreCount - 2))) : 160
                         height: width
@@ -2118,15 +2239,23 @@ Item {
                             MouseArea {
                                 id: coreMa
                                 anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: window.currentConn && !isMyDisconnecting && !centralCore.isEthOnly ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                enabled: window.currentConn && !isMyDisconnecting && !centralCore.isEthOnly
+                                hoverEnabled: enabled
+                                preventStealing: true
+                                cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                                 onPressed: {
-                                    if (window.currentConn && !isMyDisconnecting && !centralCore.disconnectTriggered && !centralCore.isEthOnly) {
+                                    if (!centralCore.disconnectTriggered) {
                                         coreDrainAnim.stop();
                                         coreFillAnim.start();
                                     }
                                 }
                                 onReleased: {
+                                    if (!centralCore.disconnectTriggered && !isMyDisconnecting) {
+                                        coreFillAnim.stop();
+                                        coreDrainAnim.start();
+                                    }
+                                }
+                                onCanceled: {
                                     if (!centralCore.disconnectTriggered && !isMyDisconnecting) {
                                         coreFillAnim.stop();
                                         coreDrainAnim.start();
@@ -2191,30 +2320,48 @@ Item {
                             width: 210
                             height: 100
                             property bool isLoaded: false
+                            property bool entryAnimationEnabled: true
                             opacity: isLoaded ? 1.0 : 0.0
                             Behavior on opacity {
+                                enabled: floatCardDelegateContainer.entryAnimationEnabled
                                 NumberAnimation {
-                                    duration: 400
+                                    duration: 340
                                     easing.type: Easing.OutQuint
                                 }
                             }
                             property real entryAnim: isLoaded ? 1.0 : 0.0
                             Behavior on entryAnim {
+                                enabled: floatCardDelegateContainer.entryAnimationEnabled
                                 NumberAnimation {
-                                    duration: 600
+                                    duration: 540
                                     easing.type: Easing.OutBack
                                 }
                             }
                             layer.enabled: opacity > 0 && opacity < 1 || entryAnim < 1.0
                             layer.smooth: true
                             Timer {
-                                running: true
-                                interval: 40 + (index * 30)
+                                id: entryTimer
+                                running: false
+                                interval: 30 + (index * 30)
                                 onTriggered: {
                                     floatCardDelegateContainer.isLoaded = true;
                                     nodeLinesCanvas.requestPaint();
                                 }
                             }
+                            function replayOpenAnimation() {
+                                entryAnimationEnabled = false;
+                                isLoaded = false;
+                                entryAnimationEnabled = true;
+                                entryTimer.restart();
+                                nodeLinesCanvas.requestPaint();
+                            }
+                            Connections {
+                                target: window
+                                function onOpenAnimationGenerationChanged() {
+                                    floatCardDelegateContainer.replayOpenAnimation();
+                                }
+                            }
+                            Component.onCompleted: replayOpenAnimation()
                             onXChanged: {
                                 if (!ThemePkg.Theme.edgeAnimationsEnabled && isLoaded)
                                     nodeLinesCanvas.requestPaint();
@@ -2313,8 +2460,9 @@ Item {
                             y: Math.round(targetY + liveBob)
                             scale: (!isLoaded ? 0.0 : (floatMa.pressed ? dynamicScale * 0.95 : dynamicScale)) * floatCard.bumpScale
                             Behavior on scale {
+                                enabled: floatCardDelegateContainer.entryAnimationEnabled
                                 NumberAnimation {
-                                    duration: 400
+                                    duration: 340
                                     easing.type: Easing.OutQuart
                                 }
                             }
@@ -2862,8 +3010,10 @@ Item {
                                         MouseArea {
                                             id: forgetMa
                                             anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: (forgetBtnRect.forgetTriggered) ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                            enabled: !forgetBtnRect.forgetTriggered
+                                            hoverEnabled: enabled
+                                            preventStealing: true
+                                            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                                             onContainsMouseChanged: {
                                                 if (containsMouse) {
                                                     floatCard.forgetActive = true;
@@ -2879,6 +3029,12 @@ Item {
                                                 }
                                             }
                                             onReleased: {
+                                                if (!forgetBtnRect.forgetTriggered && forgetBtnRect.forgetFill < 1.0) {
+                                                    forgetFillAnim.stop();
+                                                    forgetDrainAnim.start();
+                                                }
+                                            }
+                                            onCanceled: {
                                                 if (!forgetBtnRect.forgetTriggered && forgetBtnRect.forgetFill < 1.0) {
                                                     forgetFillAnim.stop();
                                                     forgetDrainAnim.start();
@@ -3028,19 +3184,23 @@ Item {
                                 MouseArea {
                                     id: floatMa
                                     anchors.fill: parent
-                                    hoverEnabled: floatCard.isInteractable && !floatCard.askingPassword
+                                    enabled: floatCard.isInteractable && !floatCard.askingPassword
+                                    hoverEnabled: enabled
+                                    preventStealing: true
                                     cursorShape: (floatCard.triggered || floatCard.isMyBusy || floatCard.renderFill === 1.0 || !floatCard.isInteractable || floatCard.askingPassword) ? Qt.ArrowCursor : Qt.PointingHandCursor
                                     onPressed: {
-                                        if (floatCard.askingPassword)
-                                            return;
                                         if (floatCard.isInteractable && !floatCard.triggered && !floatCard.isMyBusy && floatCard.fillLevel === 0.0) {
                                             drainAnim.stop();
                                             fillAnim.start();
                                         }
                                     }
                                     onReleased: {
-                                        if (floatCard.askingPassword)
-                                            return;
+                                        if (floatCard.isInteractable && !floatCard.triggered && !floatCard.isMyBusy && floatCard.fillLevel < 1.0) {
+                                            fillAnim.stop();
+                                            drainAnim.start();
+                                        }
+                                    }
+                                    onCanceled: {
                                         if (floatCard.isInteractable && !floatCard.triggered && !floatCard.isMyBusy && floatCard.fillLevel < 1.0) {
                                             fillAnim.stop();
                                             drainAnim.start();

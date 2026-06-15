@@ -12,6 +12,9 @@ CURRENT_CMD_PID_FILE="$HOME/.cache/quickshell/archtools_update.current-pid"
 CURRENT_CMD_PGID_FILE="$HOME/.cache/quickshell/archtools_update.current-pgid"
 CURRENT_CMD_SID_FILE="$HOME/.cache/quickshell/archtools_update.current-sid"
 CURRENT_CMD_ARGS_FILE="$HOME/.cache/quickshell/archtools_update.current-args"
+AUR_REVIEW_DIFF_FILE="$HOME/.cache/quickshell/archtools_aur_pkgbuild_diff.txt"
+AUR_REVIEW_TMP_DIR="/tmp/archtools_aur_pkgbuild_review_$$"
+AUR_REVIEW_NOTIFY_CHARS="${ARCHTOOLS_AUR_REVIEW_NOTIFY_CHARS:-3500}"
 MAX_ERROR_LINES="${ARCHTOOLS_UPDATE_MAX_ERROR_LINES:-40}"
 PROGRESS_MAX_LINES="${ARCHTOOLS_UPDATE_PROGRESS_MAX_LINES:-200}"
 PROGRESS_MAX_BYTES="${ARCHTOOLS_UPDATE_PROGRESS_MAX_BYTES:-65536}"
@@ -22,6 +25,7 @@ PACMAN_CANCEL_GRACE_SECONDS="${ARCHTOOLS_PACMAN_CANCEL_GRACE_SECONDS:-45}"
 [[ "$PROGRESS_MAX_LINES" =~ ^[0-9]+$ ]] && (( PROGRESS_MAX_LINES > 0 )) || PROGRESS_MAX_LINES=200
 [[ "$PROGRESS_MAX_BYTES" =~ ^[0-9]+$ ]] && (( PROGRESS_MAX_BYTES > 0 )) || PROGRESS_MAX_BYTES=65536
 [[ "$PACMAN_CANCEL_GRACE_SECONDS" =~ ^[0-9]+$ ]] && (( PACMAN_CANCEL_GRACE_SECONDS > 0 )) || PACMAN_CANCEL_GRACE_SECONDS=45
+[[ "$AUR_REVIEW_NOTIFY_CHARS" =~ ^[0-9]+$ ]] && (( AUR_REVIEW_NOTIFY_CHARS > 0 )) || AUR_REVIEW_NOTIFY_CHARS=3500
 
 if [[ -z "$AUR_BUILD_JOBS" ]]; then
     cpu_count="$(nproc 2>/dev/null || echo 1)"
@@ -58,7 +62,7 @@ cleanup() {
         kill "$SUDO_KEEPALIVE_PID" >/dev/null 2>&1 || true
     fi
     rm -f "/tmp/quickshell_sudo_pass_$$" "/tmp/quickshell_sudo_cache_$$" "/tmp/quickshell_sudo_cache_ok_$$" "/tmp/quickshell_askpass_$$" "/tmp/quickshell_auth_cancel_$$"
-    rm -rf "/tmp/archtools_sudo_path_$$"
+    rm -rf "/tmp/archtools_sudo_path_$$" "$AUR_REVIEW_TMP_DIR"
     rm -f "$PID_FILE" "$CURRENT_CMD_PID_FILE" "$CURRENT_CMD_PGID_FILE" "$CURRENT_CMD_SID_FILE" "$CURRENT_CMD_ARGS_FILE" "$CANCEL_FILE"
 }
 trap cleanup EXIT
@@ -92,7 +96,11 @@ PACMAN_TRANSACTION_SECTION=""
 AUR_TRANSACTION_SECTION=""
 AUR_EXPECTED_COUNT=0
 AUR_BUILD_INDEX=0
+FLATPAK_EXPECTED_COUNT=0
+FLATPAK_SEEN_COUNT=0
+FLATPAK_FRACTION_PERCENT=0
 declare -A AUR_BUILD_SEEN=()
+declare -A FLATPAK_SEEN_REFS=()
 
 clamp_percent() {
     local raw="${1:-0}"
@@ -227,7 +235,7 @@ emit_weighted_stage_progress() {
 
 record_fraction_percent() {
     local record="$1" mode="${2:-step}" numerator denominator pct completed
-    if [[ "$record" =~ \(([0-9]+)[[:space:]]*/[[:space:]]*([0-9]+)\) ]]; then
+    if [[ "$record" =~ \([[:space:]]*([0-9]+)[[:space:]]*/[[:space:]]*([0-9]+)[[:space:]]*\) ]]; then
         numerator="${BASH_REMATCH[1]}"
         denominator="${BASH_REMATCH[2]}"
         [[ "$denominator" =~ ^[0-9]+$ ]] && (( denominator > 0 )) || return 1
@@ -244,6 +252,66 @@ record_fraction_percent() {
         fi
 
         printf '%s' $(( numerator * 100 / denominator ))
+        return 0
+    fi
+    return 1
+}
+
+record_item_percent() {
+    local record="$1" numerator denominator pct completed
+    if [[ "$record" =~ \([[:space:]]*([0-9]+)[[:space:]]*/[[:space:]]*([0-9]+)[[:space:]]*\) ]]; then
+        numerator="${BASH_REMATCH[1]}"
+        denominator="${BASH_REMATCH[2]}"
+        [[ "$denominator" =~ ^[0-9]+$ ]] && (( denominator > 0 )) || return 1
+
+        completed="$numerator"
+        if pct="$(last_percent_in_text "$record")" && (( pct < 100 )); then
+            completed=$(( numerator > 0 ? numerator - 1 : 0 ))
+        fi
+        (( completed < 0 )) && completed=0
+        (( completed > denominator )) && completed="$denominator"
+        printf '%s' $(( completed * 100 / denominator ))
+        return 0
+    fi
+    return 1
+}
+
+record_count_percent() {
+    local record="$1" numerator denominator
+    if [[ "$record" =~ \([[:space:]]*([0-9]+)[[:space:]]*/[[:space:]]*([0-9]+)[[:space:]]*\) ]]; then
+        numerator="${BASH_REMATCH[1]}"
+        denominator="${BASH_REMATCH[2]}"
+        [[ "$denominator" =~ ^[0-9]+$ ]] && (( denominator > 0 )) || return 1
+        (( numerator < 0 )) && numerator=0
+        (( numerator > denominator )) && numerator="$denominator"
+        printf '%s' $(( numerator * 100 / denominator ))
+        return 0
+    fi
+    return 1
+}
+
+record_download_percent() {
+    local record="$1" count_pct=0 total_pct=0
+    count_pct="$(record_count_percent "$record" 2>/dev/null || printf '0')"
+    total_pct="$(last_percent_in_text "$record" 2>/dev/null || printf '0')"
+    (( total_pct > count_pct )) && printf '%s' "$total_pct" || printf '%s' "$count_pct"
+}
+
+flatpak_fraction_percent() {
+    local record="$1" numerator denominator pct
+    if [[ "$record" =~ (Updating|Installing|Downloading|Pulling|Deploying|Uninstalling)[[:space:]]+([0-9]+)[[:space:]]*/[[:space:]]*([0-9]+) ]]; then
+        numerator="${BASH_REMATCH[2]}"
+        denominator="${BASH_REMATCH[3]}"
+        [[ "$denominator" =~ ^[0-9]+$ ]] && (( denominator > 0 )) || return 1
+        if [[ "${FLATPAK_SEEN_COUNT:-0}" =~ ^[0-9]+$ ]] && (( numerator > FLATPAK_SEEN_COUNT )); then
+            FLATPAK_SEEN_COUNT="$numerator"
+        fi
+
+        if pct="$(last_percent_in_text "$record")"; then
+            FLATPAK_FRACTION_PERCENT=$(( ((numerator > 0 ? numerator - 1 : 0) * 100 + pct) / denominator ))
+        else
+            FLATPAK_FRACTION_PERCENT=$(( (numerator > 0 ? numerator - 1 : 0) * 100 / denominator ))
+        fi
         return 0
     fi
     return 1
@@ -277,25 +345,25 @@ progress_from_transaction_record() {
     local pre_base pre_span package_base package_span post_base post_span
 
     if [[ "$profile" == "aur" ]]; then
-        download_base=58; download_span=4
-        keys_base=62; keys_span=4
-        integrity_base=66; integrity_span=4
-        load_base=70; load_span=2
-        conflicts_base=72; conflicts_span=2
-        disk_base=74; disk_span=2
-        pre_base=76; pre_span=3
-        package_base=79; package_span=11
-        post_base=90; post_span=8
+        download_base=50; download_span=6
+        keys_base=56; keys_span=1
+        integrity_base=57; integrity_span=1
+        load_base=58; load_span=1
+        conflicts_base=59; conflicts_span=1
+        disk_base=60; disk_span=1
+        pre_base=61; pre_span=1
+        package_base=62; package_span=34
+        post_base=96; post_span=3
     else
-        download_base=12; download_span=24
-        keys_base=36; keys_span=4
-        integrity_base=40; integrity_span=8
-        load_base=48; load_span=4
-        conflicts_base=52; conflicts_span=4
-        disk_base=56; disk_span=4
-        pre_base=60; pre_span=4
-        package_base=64; package_span=24
-        post_base=88; post_span=10
+        download_base=8; download_span=42
+        keys_base=50; keys_span=2
+        integrity_base=52; integrity_span=3
+        load_base=55; load_span=1
+        conflicts_base=56; conflicts_span=1
+        disk_base=57; disk_span=1
+        pre_base=58; pre_span=2
+        package_base=60; package_span=36
+        post_base=96; post_span=3
     fi
 
     case "$record" in
@@ -384,6 +452,10 @@ progress_from_transaction_record() {
         emit_weighted_stage_progress "$stage" "$post_base" "$post_span" "$pct" "$record"
         return 0
     fi
+    if [[ "$section" == "download" && "$record" == *"Total ("* ]] && pct="$(record_download_percent "$record")"; then
+        emit_weighted_stage_progress "$stage" "$download_base" "$download_span" "$pct" "$record"
+        return 0
+    fi
     if [[ "$section" == "download" ]] && pct="$(record_fraction_percent "$record")"; then
         emit_weighted_stage_progress "$stage" "$download_base" "$download_span" "$pct" "$record"
         return 0
@@ -438,8 +510,76 @@ progress_from_aur_build_record() {
 
     completed_units=$(( (current_index - 1) * 100 + subpct ))
     pct=$(( completed_units / expected ))
-    emit_weighted_stage_progress "aur" 6 52 "$pct" "$record"
+    emit_weighted_stage_progress "aur" 6 44 "$pct" "$record"
     return 0
+}
+
+flatpak_record_ref() {
+    local record="$1" ref=""
+    if [[ "$record" =~ (app|runtime|extension|appstream)/[A-Za-z0-9._@+-]+/[A-Za-z0-9._@+-]+/[A-Za-z0-9._@+-]+ ]]; then
+        ref="${BASH_REMATCH[0]}"
+    elif [[ "$record" =~ ([A-Za-z0-9._-]+\.[A-Za-z0-9._-]+[A-Za-z0-9._-]*) ]]; then
+        ref="${BASH_REMATCH[1]}"
+    else
+        return 1
+    fi
+
+    ref="${ref//[^A-Za-z0-9@._+\/-]/}"
+    [[ -n "$ref" ]] || return 1
+    printf '%s' "$ref"
+}
+
+progress_from_flatpak_record() {
+    local record="$1" ref="" expected pct item_pct
+
+    case "$record" in
+        Looking\ for\ updates*|*"Looking for updates"*)
+            emit_stage_progress flatpak 2 "$record"
+            return 0
+            ;;
+        Required\ runtime*|*"Required runtime"*)
+            emit_stage_progress flatpak 4 "$record"
+            return 0
+            ;;
+    esac
+
+    if item_pct="$(record_item_percent "$record")"; then
+        emit_stage_progress flatpak "$item_pct" "$record"
+        return 0
+    fi
+
+    if flatpak_fraction_percent "$record"; then
+        item_pct="$FLATPAK_FRACTION_PERCENT"
+        (( item_pct < 6 )) && item_pct=6
+        (( item_pct > 98 )) && item_pct=98
+        emit_stage_progress flatpak "$item_pct" "$record"
+        return 0
+    fi
+
+    if [[ "$record" =~ (Updating|Installing|Downloading|Pulling|Deploying|Uninstalling)[[:space:]]+(app|runtime|extension|appstream)/ ]]; then
+        ref="$(flatpak_record_ref "$record" 2>/dev/null || true)"
+        if [[ -n "$ref" && -z "${FLATPAK_SEEN_REFS[$ref]+x}" ]]; then
+            FLATPAK_SEEN_REFS[$ref]=1
+            FLATPAK_SEEN_COUNT=$(( FLATPAK_SEEN_COUNT + 1 ))
+        fi
+
+        expected="$FLATPAK_EXPECTED_COUNT"
+        [[ "$expected" =~ ^[0-9]+$ ]] && (( expected > 0 )) || expected=1
+        (( FLATPAK_SEEN_COUNT > expected )) && FLATPAK_SEEN_COUNT="$expected"
+
+        pct=$(( FLATPAK_SEEN_COUNT * 100 / expected ))
+        (( pct < 6 )) && pct=6
+        (( pct > 98 )) && pct=98
+        emit_stage_progress flatpak "$pct" "$record"
+        return 0
+    fi
+
+    if pct="$(last_percent_in_text "$record")"; then
+        emit_stage_progress flatpak "$pct" "$record"
+        return 0
+    fi
+
+    return 1
 }
 
 progress_from_record() {
@@ -457,9 +597,13 @@ progress_from_record() {
         if progress_from_transaction_record "aur" "$record" "aur"; then
             return 0
         fi
+    elif [[ "$stage" == "flatpak" ]]; then
+        if progress_from_flatpak_record "$record"; then
+            return 0
+        fi
     fi
 
-    if [[ "$record" =~ [Tt]otal|[Oo]verall|[Pp]rogress || "$stage" == "flatpak" ]]; then
+    if [[ "$record" =~ [Tt]otal|[Oo]verall|[Pp]rogress ]]; then
         if pct="$(last_percent_in_text "$record")"; then
             emit_stage_progress "$stage" "$pct" "$record"
         fi
@@ -895,17 +1039,10 @@ validate_sudo_with_askpass() {
     return "$status"
 }
 
-ensure_sudo() {
-    local stage="$1"
-    if sudo -n true 2>/dev/null; then
-        start_sudo_keepalive
+prepare_sudo_askpass() {
+    if [[ -n "${SUDO_ASKPASS:-}" ]] && [[ -f "$SUDO_ASKPASS" ]]; then
         return 0
     fi
-    if [[ -n "$SUDO_ASKPASS" ]] && [[ -f "$SUDO_ASKPASS" ]]; then
-        validate_sudo_with_askpass
-        return $?
-    fi
-
     export SUDO_PASS_FILE="/tmp/quickshell_sudo_pass_$$"
     export SUDO_CACHE_FILE="/tmp/quickshell_sudo_cache_$$"
     export SUDO_CACHE_OK_FILE="/tmp/quickshell_sudo_cache_ok_$$"
@@ -969,8 +1106,24 @@ rm -f "$SUDO_PASS_FILE" "$SUDO_CANCEL_FILE"
 exit 1
 EOF
     chmod +x "$SUDO_ASKPASS"
+}
+
+ensure_sudo() {
+    local stage="$1"
+    if sudo -n true 2>/dev/null; then
+        start_sudo_keepalive
+        return 0
+    fi
+    prepare_sudo_askpass
     validate_sudo_with_askpass
     return $?
+}
+
+prepare_deferred_sudo() {
+    prepare_sudo_askpass
+    if sudo -n true 2>/dev/null; then
+        start_sudo_keepalive
+    fi
 }
 
 run_aur_bounded() {
@@ -991,6 +1144,244 @@ EOF
     chmod +x "$wrapper_path"
 
     PATH="$wrapper_dir:$PATH" run_bounded "$helper" "$@"
+}
+
+copy_file_to_clipboard() {
+    local file="$1"
+    if has wl-copy; then
+        wl-copy < "$file"
+        return $?
+    fi
+    if has xclip; then
+        xclip -selection clipboard < "$file"
+        return $?
+    fi
+    if has xsel; then
+        xsel --clipboard --input < "$file"
+        return $?
+    fi
+    if has pbcopy; then
+        pbcopy < "$file"
+        return $?
+    fi
+    return 1
+}
+
+yay_build_dir() {
+    local helper="$1" build_dir=""
+
+    if has jq; then
+        build_dir="$("$helper" -P -g 2>/dev/null | jq -r '.buildDir // empty' 2>/dev/null || true)"
+    fi
+    if [[ -z "$build_dir" ]]; then
+        build_dir="$("$helper" -P -g 2>/dev/null | sed -n 's/^[[:space:]]*"buildDir":[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1 || true)"
+    fi
+    [[ -n "$build_dir" ]] || build_dir="$HOME/.cache/yay"
+    printf '%s' "$build_dir"
+}
+
+update_package_names() {
+    local updates="$1" line pkg
+    while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
+        pkg="${line%%[[:space:]]*}"
+        pkg="${pkg#aur/}"
+        [[ -n "$pkg" ]] && printf '%s\n' "$pkg"
+    done <<< "$updates" | awk '!seen[$0]++'
+}
+
+find_yay_cache_dir() {
+    local build_dir="$1" pkg="$2" dir
+
+    dir="$build_dir/$pkg"
+    if [[ -d "$dir/.git" ]]; then
+        printf '%s' "$dir"
+        return 0
+    fi
+
+    for dir in "$build_dir"/*; do
+        [[ -d "$dir/.git" && -f "$dir/.SRCINFO" ]] || continue
+        if awk -F= -v pkg="$pkg" '
+            /^[[:space:]]*pkg(base|name)[[:space:]]*=/ {
+                value = $2
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+                if (value == pkg) found = 1
+            }
+            END { exit found ? 0 : 1 }
+        ' "$dir/.SRCINFO"; then
+            printf '%s' "$dir"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+write_yay_cache_pkgbuild_diffs() {
+    local helper="$1" updates="$2" diff_file="$3"
+    local build_dir pkg pkg_dir pkg_diff wrote_pkg=0 wrote_diff=0
+
+    build_dir="$(yay_build_dir "$helper")"
+    : > "$diff_file"
+
+    while IFS= read -r pkg; do
+        [[ -n "$pkg" ]] || continue
+        wrote_pkg=1
+        pkg_diff="$AUR_REVIEW_TMP_DIR/${pkg//[^A-Za-z0-9._+-]/_}.diff"
+        rm -f "$pkg_diff"
+
+        {
+            printf '===== %s =====\n\n' "$pkg"
+            if pkg_dir="$(find_yay_cache_dir "$build_dir" "$pkg")"; then
+                if git -C "$pkg_dir" rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+                    git -C "$pkg_dir" diff --no-ext-diff --no-color HEAD~1..HEAD -- PKGBUILD .SRCINFO > "$pkg_diff" 2>/dev/null || true
+                else
+                    git -C "$pkg_dir" show --format= --no-ext-diff --no-color HEAD -- PKGBUILD .SRCINFO > "$pkg_diff" 2>/dev/null || true
+                fi
+
+                if [[ -s "$pkg_diff" ]]; then
+                    cat "$pkg_diff"
+                    wrote_diff=1
+                else
+                    printf '# No PKGBUILD diff was produced by yay for this package.\n'
+                fi
+            else
+                printf '# Could not find yay build files for this package.\n'
+            fi
+            printf '\n'
+        } >> "$diff_file"
+    done < <(update_package_names "$updates")
+
+    if [[ "$wrote_pkg" -eq 0 ]]; then
+        printf '===== yay =====\n\n# No AUR package names were reported by yay.\n' > "$diff_file"
+    fi
+
+    [[ "$wrote_diff" -eq 1 ]]
+}
+
+run_capture_bounded() {
+    local output_file="$1"
+    shift
+    local cmd_pid="" cmd_status=0
+
+    rm -f "$output_file"
+    {
+        printf '$'
+        printf ' %q' "$@"
+        printf '\n'
+    } >> "$LOG_FILE"
+
+    printf '%s\n' "$@" > "$CURRENT_CMD_ARGS_FILE"
+    if has script; then
+        local cmd_string
+        cmd_string="$(quoted_command "$@")"
+        if has setsid; then
+            ( trap - INT QUIT TERM; exec setsid script -qefc "$cmd_string" /dev/null ) > "$output_file" 2>&1 &
+        else
+            ( trap - INT QUIT TERM; exec script -qefc "$cmd_string" /dev/null ) > "$output_file" 2>&1 &
+        fi
+    else
+        if has setsid; then
+            ( trap - INT QUIT TERM; exec setsid "$@" ) > "$output_file" 2>&1 &
+        else
+            ( trap - INT QUIT TERM; exec "$@" ) > "$output_file" 2>&1 &
+        fi
+    fi
+
+    cmd_pid=$!
+    echo "$cmd_pid" > "$CURRENT_CMD_PID_FILE"
+    ps -o pgid= -p "$cmd_pid" 2>/dev/null | tr -d '[:space:]' > "$CURRENT_CMD_PGID_FILE" || true
+    ps -o sid= -p "$cmd_pid" 2>/dev/null | tr -d '[:space:]' > "$CURRENT_CMD_SID_FILE" || true
+
+    wait "$cmd_pid"
+    cmd_status=$?
+    cat "$output_file" >> "$LOG_FILE" 2>/dev/null || true
+    rm -f "$CURRENT_CMD_PID_FILE" "$CURRENT_CMD_PGID_FILE" "$CURRENT_CMD_SID_FILE" "$CURRENT_CMD_ARGS_FILE"
+
+    if [[ -f "$CANCEL_FILE" ]]; then
+        finish_cancelled
+    fi
+
+    return "$cmd_status"
+}
+
+generate_yay_pkgbuild_diffs() {
+    local helper="$1" updates="$2" diff_file="$3"
+    local raw_file="$AUR_REVIEW_TMP_DIR/yay-native-diff.raw"
+    local fake_makepkg="$AUR_REVIEW_TMP_DIR/makepkg"
+    local status=0
+
+    mkdir -p "$AUR_REVIEW_TMP_DIR" "$(dirname "$diff_file")"
+    cat > "$fake_makepkg" << 'EOF'
+#!/usr/bin/env bash
+printf '[ArchTools] review-only run stopped before build/install.\n' >&2
+exit 42
+EOF
+    chmod +x "$fake_makepkg"
+
+    emit_stage_progress aur 6 "Fetching native yay PKGBUILD diffs..."
+    run_capture_bounded "$raw_file" "$helper" -Sua --noconfirm \
+        --diffmenu --answerdiff All \
+        --redownload \
+        --answerclean None --answeredit None \
+        --makepkg "$fake_makepkg"
+    status=$?
+
+    if ! write_yay_cache_pkgbuild_diffs "$helper" "$updates" "$diff_file"; then
+        printf '[aur/review] yay diffmenu exited with status %s, but no PKGBUILD hunks were found in the yay cache.\n' "$status" >> "$LOG_FILE"
+    fi
+}
+
+confirm_yay_pkgbuild_review() {
+    local diff_file="$1" count="$2"
+    local copied_note action body preview bytes
+
+    if copy_file_to_clipboard "$diff_file"; then
+        copied_note="Full PKGBUILD diff copied to clipboard."
+    else
+        copied_note="Could not copy to clipboard. Full diff saved to: $diff_file"
+    fi
+
+    bytes="$(wc -c < "$diff_file" 2>/dev/null || echo 0)"
+    preview="$(head -c "$AUR_REVIEW_NOTIFY_CHARS" "$diff_file" 2>/dev/null || true)"
+    if [[ "$bytes" =~ ^[0-9]+$ ]] && (( bytes > AUR_REVIEW_NOTIFY_CHARS )); then
+        preview+=$'\n\n[Notification preview truncated. Full diff is in the clipboard and saved on disk.]'
+    fi
+
+    body="$copied_note"$'\n\n'"$preview"
+    printf '[aur/review] Waiting for PKGBUILD review action. diff=%s packages=%s copied=%s\n' "$diff_file" "$count" "$copied_note" >> "$LOG_FILE"
+
+    if ! has notify-send; then
+        printf '[aur/review] notify-send is unavailable; cancelling for safety.\n' >> "$LOG_FILE"
+        return 1
+    fi
+
+    action="$(notify-send -a "ArchTools" -i dialog-warning -u critical -t 0 \
+        -A "continue=Continue update" \
+        -A "cancel=Cancel update" \
+        "Review AUR PKGBUILD diffs" "$body" 2>/dev/null || true)"
+
+    case "$action" in
+        continue)
+            printf '[aur/review] User accepted PKGBUILD diffs.\n' >> "$LOG_FILE"
+            return 0
+            ;;
+        *)
+            printf '[aur/review] User cancelled or dismissed PKGBUILD review. action=%s\n' "$action" >> "$LOG_FILE"
+            return 1
+            ;;
+    esac
+}
+
+review_yay_pkgbuilds() {
+    local helper="$1" updates="$2" count="$3"
+    emit aur running "detail=Reviewing PKGBUILD diffs before install..."
+    generate_yay_pkgbuild_diffs "$helper" "$updates" "$AUR_REVIEW_DIFF_FILE"
+    abort_if_cancelled
+    if ! confirm_yay_pkgbuild_review "$AUR_REVIEW_DIFF_FILE" "$count"; then
+        finish_cancelled
+    fi
+    emit aur running "detail=PKGBUILD review accepted, continuing..."
 }
 
 
@@ -1073,8 +1464,13 @@ run_aur() {
     AUR_BUILD_SEEN=()
     AUR_TRANSACTION_SECTION=""
 
-    if ! ensure_sudo "aur"; then
-        return 1
+    if [[ "$helper" == "yay" ]]; then
+        review_yay_pkgbuilds "$helper" "$before" "$n_before"
+        prepare_deferred_sudo
+    else
+        if ! ensure_sudo "aur"; then
+            return 1
+        fi
     fi
     abort_if_cancelled
 
@@ -1082,7 +1478,9 @@ run_aur() {
     case "$helper" in
         yay)
             CURRENT_UPDATE_STAGE="aur"
-            run_aur_bounded "$helper" -Sua --noconfirm --sudoflags "-A" --sudoloop
+            run_aur_bounded "$helper" -Sua --noconfirm \
+                --answerclean None --answerdiff None --answeredit None \
+                --sudoflags "-A"
             aur_status=$?
             ;;
         paru)
@@ -1128,6 +1526,9 @@ run_flatpak() {
     fi
 
     emit flatpak running "detail=Updating $n_before Flatpak apps..."
+    FLATPAK_EXPECTED_COUNT="$n_before"
+    FLATPAK_SEEN_COUNT=0
+    FLATPAK_SEEN_REFS=()
 
     CURRENT_UPDATE_STAGE="flatpak"
     if ! run_bounded flatpak update -y --noninteractive; then

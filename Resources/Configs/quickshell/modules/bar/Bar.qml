@@ -291,7 +291,12 @@ Variants {
 
                     function finishClose() {
                         var L = (switcher.pendingIndex === 0 ? loaderA : loaderB);
-                        L.sourceComponent = null;
+                        if (L.item && L.item.keepWarmOnClose) {
+                            L.opacity = 0.0;
+                            L.scale = 1.0;
+                        } else {
+                            L.sourceComponent = null;
+                        }
                         switcher.shownOverlay = "";
                         switcher.pendingIndex = -1;
                         switcher.activeDur = switcher.dur;
@@ -299,7 +304,12 @@ Variants {
 
                     function finishSwap() {
                         var outL = (switcher.pendingIndex === 0 ? loaderA : loaderB);
-                        outL.sourceComponent = null;
+                        if (outL.item && outL.item.keepWarmOnClose) {
+                            outL.opacity = 0.0;
+                            outL.scale = 1.0;
+                        } else {
+                            outL.sourceComponent = null;
+                        }
                         switcher.activeIndex = (switcher.pendingIndex === 0 ? 1 : 0);
                         switcher.shownOverlay = switcher.pendingShownOverlay;
                         switcher.pendingIndex = -1;
@@ -333,6 +343,20 @@ Variants {
                         interval: switcher.activeDur
                         repeat: false
                         onTriggered: switcher.finishSwap()
+                    }
+                    Timer {
+                        id: prewarmArchTools
+                        interval: 1800
+                        repeat: false
+                        running: true
+                        onTriggered: switcher.prewarmOverlay("arch")
+                    }
+                    Timer {
+                        id: prewarmNetworkPopup
+                        interval: 2600
+                        repeat: false
+                        running: true
+                        onTriggered: switcher.prewarmOverlay("connection")
                     }
 
                     Keys.onPressed: {
@@ -413,6 +437,26 @@ Variants {
                     function otherLoader() {
                         return activeIndex === 0 ? loaderB : loaderA;
                     }
+                    function loaderIndex(loader) {
+                        return loader === loaderA ? 0 : 1;
+                    }
+                    function warmLoaderForComponent(comp) {
+                        if (loaderA.sourceComponent === comp)
+                            return loaderA;
+                        if (loaderB.sourceComponent === comp)
+                            return loaderB;
+                        return null;
+                    }
+                    function emptyLoader() {
+                        if (loaderA.sourceComponent === null)
+                            return loaderA;
+                        if (loaderB.sourceComponent === null)
+                            return loaderB;
+                        return null;
+                    }
+                    function loaderForOpen(comp) {
+                        return warmLoaderForComponent(comp) || emptyLoader() || currentLoader();
+                    }
                     function overlayEnterDurationFor(loader) {
                         if (!popupAnimationsEnabled)
                             return 0;
@@ -431,6 +475,19 @@ Variants {
                     function overlayOwnsCloseAnimation(loader) {
                         var item = loader ? loader.item : null;
                         return !!(item && item.overlayOwnsCloseAnimation);
+                    }
+                    function requestOverlayOpenAnimation(loader) {
+                        var item = loader ? loader.item : null;
+                        if (!item || item.beginOverlayOpen === undefined)
+                            return false;
+                        if (item.popupTargetVisible !== undefined && item.popupTargetVisible)
+                            return true;
+                        if (!popupAnimationsEnabled && item.openInstant !== undefined) {
+                            item.openInstant();
+                            return true;
+                        }
+                        item.beginOverlayOpen();
+                        return true;
                     }
                     function prepareOverlayOpen(loader) {
                         var ownsOpen = overlayOwnsOpenAnimation(loader);
@@ -468,15 +525,45 @@ Variants {
                         }
                         return dur;
                     }
+                    function prewarmOverlay(which) {
+                        if (!which || shownOverlay !== "" || pendingIndex !== -1)
+                            return;
+                        var comp = compFor(which);
+                        if (!comp)
+                            return;
+                        var L = warmLoaderForComponent(comp) || emptyLoader();
+                        if (!L)
+                            return;
+
+                        L.animateTransition = false;
+                        L.opacity = 0.0;
+                        L.scale = 1.0;
+                        L.sourceComponent = comp;
+
+                        if (L.item) {
+                            if (L.item.beginOverlayClose !== undefined)
+                                L.item.beginOverlayClose();
+                            if (L.item.closeInstant !== undefined)
+                                L.item.closeInstant();
+                        }
+
+                        L.animateTransition = true;
+                    }
 
                     function open(which) {
                         if (!which)
                             return;
                         ThemePkg.Theme.globalCloseAllPopups();
-                        var L = currentLoader();
-                        L.sourceComponent = compFor(which);
+                        var comp = compFor(which);
+                        if (!comp)
+                            return;
+                        var L = loaderForOpen(comp);
+                        activeIndex = loaderIndex(L);
+                        if (L.sourceComponent !== comp)
+                            L.sourceComponent = comp;
                         activeDur = overlayEnterDurationFor(L);
                         prepareOverlayOpen(L);
+                        requestOverlayOpenAnimation(L);
                         requestOverlayOpenInstant(L);
                         L.opacity = 1.0;
                         L.scale = 1.0;
@@ -520,11 +607,17 @@ Variants {
                         if (!which || which === shownOverlay)
                             return;
                         var outL = currentLoader();
-                        var inL = otherLoader();
+                        var targetComp = compFor(which);
+                        if (!targetComp)
+                            return;
+                        var warmTarget = warmLoaderForComponent(targetComp);
+                        var inL = warmTarget && warmTarget !== outL ? warmTarget : otherLoader();
 
-                        inL.sourceComponent = compFor(which);
+                        if (inL.sourceComponent !== targetComp)
+                            inL.sourceComponent = targetComp;
                         activeDur = Math.max(overlayExitDurationFor(outL), overlayEnterDurationFor(inL));
                         prepareOverlayOpen(inL);
+                        requestOverlayOpenAnimation(inL);
                         requestOverlayOpenInstant(inL);
 
                         if (overlayOwnsCloseAnimation(outL)) {
