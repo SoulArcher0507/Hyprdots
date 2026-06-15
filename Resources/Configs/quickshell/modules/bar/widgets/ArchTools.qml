@@ -31,7 +31,7 @@ Item {
     readonly property real barPanelCenterY: barPanelHeight / 2
     readonly property int overlayEnterDuration: 515
     readonly property int overlayExitDuration: 375
-    readonly property bool keepWarmOnClose: true
+    readonly property bool keepWarmOnClose: false
     readonly property bool overlayOwnsOpenAnimation: true
     readonly property bool overlayOwnsCloseAnimation: true
     readonly property int detailsExpandDuration: 360

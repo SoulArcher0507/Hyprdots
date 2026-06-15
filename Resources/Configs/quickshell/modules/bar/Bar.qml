@@ -344,21 +344,6 @@ Variants {
                         repeat: false
                         onTriggered: switcher.finishSwap()
                     }
-                    Timer {
-                        id: prewarmArchTools
-                        interval: 1800
-                        repeat: false
-                        running: true
-                        onTriggered: switcher.prewarmOverlay("arch")
-                    }
-                    Timer {
-                        id: prewarmNetworkPopup
-                        interval: 2600
-                        repeat: false
-                        running: true
-                        onTriggered: switcher.prewarmOverlay("connection")
-                    }
-
                     Keys.onPressed: {
                         if (event.key === Qt.Key_Escape) {
                             var loader = switcher.currentLoader();
@@ -525,31 +510,6 @@ Variants {
                         }
                         return dur;
                     }
-                    function prewarmOverlay(which) {
-                        if (!which || shownOverlay !== "" || pendingIndex !== -1)
-                            return;
-                        var comp = compFor(which);
-                        if (!comp)
-                            return;
-                        var L = warmLoaderForComponent(comp) || emptyLoader();
-                        if (!L)
-                            return;
-
-                        L.animateTransition = false;
-                        L.opacity = 0.0;
-                        L.scale = 1.0;
-                        L.sourceComponent = comp;
-
-                        if (L.item) {
-                            if (L.item.beginOverlayClose !== undefined)
-                                L.item.beginOverlayClose();
-                            if (L.item.closeInstant !== undefined)
-                                L.item.closeInstant();
-                        }
-
-                        L.animateTransition = true;
-                    }
-
                     function open(which) {
                         if (!which)
                             return;
