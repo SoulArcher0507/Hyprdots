@@ -86,9 +86,11 @@ return {
                         vim.lsp.buf.signature_help({ border = border })
                     end, opts)
                     vim.keymap.set('n', 'rn', '<cmd>lua vim.lsp.buf.rename()<cr>', opts)
-                    vim.keymap.set({ 'n', 'x' }, '<F3>', function()
-                        indent.apply(event.buf)
-                        vim.lsp.buf.format({ async = true })
+                    vim.keymap.set('n', '<F3>', function()
+                        indent.reindent(event.buf)
+                    end, opts)
+                    vim.keymap.set('x', '<F3>', function()
+                        indent.reindent_visual(event.buf)
                     end, opts)
                     vim.keymap.set('n', 'vca', '<cmd>lua vim.lsp.buf.code_action()<cr>', opts)
                     vim.keymap.set('n', '<leader>vd', '<cmd>lua vim.diagnostic.open_float()<cr>')
@@ -106,10 +108,7 @@ return {
                                 return
                             end
 
-                            indent.apply(event.buf)
-                            vim.lsp.buf.format({
-                                async = false,
-                            })
+                            indent.format(event.buf, { async = false })
                         end,
                     })
                 end,
@@ -127,7 +126,7 @@ return {
                         lspconfig.clangd.setup({
                             cmd = {
                                 'clangd',
-                                '--fallback-style={BasedOnStyle: LLVM, IndentWidth: 4, TabWidth: 4, UseTab: Never}',
+                                '--fallback-style={BasedOnStyle: LLVM, IndentWidth: 4, ContinuationIndentWidth: 4, TabWidth: 4, UseTab: Never}',
                             },
                         })
                     end,

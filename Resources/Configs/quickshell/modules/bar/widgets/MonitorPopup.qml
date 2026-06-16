@@ -40,6 +40,8 @@ Item {
     readonly property color sapphire: ThemePkg.Theme.c14
 
     property int activeEditIndex: 0
+    property string primaryMonitorName: ""
+    property string configuredPrimaryMonitorName: ""
     property real uiScale: 0.10
     property int originalLayoutOriginX: 0
     property int originalLayoutOriginY: 0
@@ -357,6 +359,62 @@ Item {
         root.forceActiveFocus();
     }
 
+    function monitorCanBePrimary(name) {
+        if (!name)
+            return false;
+        for (var i = 0; i < monitorsModel.count; i++) {
+            var monitor = monitorsModel.get(i);
+            if (monitor.name === name)
+                return !(monitor.isMirror && monitor.mirrorTarget);
+        }
+        return false;
+    }
+
+    function ensurePrimaryMonitor(preferredName) {
+        if (root.monitorCanBePrimary(preferredName)) {
+            root.primaryMonitorName = preferredName;
+            return;
+        }
+
+        if (root.monitorCanBePrimary(root.primaryMonitorName))
+            return;
+
+        if (root.activeEditIndex >= 0 && root.activeEditIndex < monitorsModel.count) {
+            var activeMonitor = monitorsModel.get(root.activeEditIndex);
+            if (!(activeMonitor.isMirror && activeMonitor.mirrorTarget)) {
+                root.primaryMonitorName = activeMonitor.name;
+                return;
+            }
+        }
+
+        for (var i = 0; i < monitorsModel.count; i++) {
+            var monitor = monitorsModel.get(i);
+            if (!(monitor.isMirror && monitor.mirrorTarget)) {
+                root.primaryMonitorName = monitor.name;
+                return;
+            }
+        }
+
+        root.primaryMonitorName = "";
+    }
+
+    function isPrimaryMonitor(name) {
+        return root.primaryMonitorName !== "" && root.primaryMonitorName === name;
+    }
+
+    function setPrimaryMonitor(index) {
+        if (index < 0 || index >= monitorsModel.count)
+            return;
+
+        root.commitPendingEditorState();
+        var monitor = monitorsModel.get(index);
+        root.primaryMonitorName = monitor.name;
+        if (monitor.isMirror) {
+            monitorsModel.setProperty(index, "isMirror", false);
+            monitorsModel.setProperty(index, "mirrorTarget", "");
+        }
+    }
+
     function normalizedMonitorLayout() {
         var rects = [];
         for (var i = 0; i < monitorsModel.count; i++) {
@@ -386,8 +444,12 @@ Item {
             return a.name.localeCompare(b.name);
         });
 
+        root.ensurePrimaryMonitor("");
+
         var minX = 999999;
         var minY = 999999;
+        var anchorX = 999999;
+        var anchorY = 999999;
         for (var j = 0; j < rects.length; j++) {
             var r = rects[j];
             if (r.isMirror && r.mirrorTarget)
@@ -398,19 +460,27 @@ Item {
             r.layoutY = layoutY;
             minX = Math.min(minX, layoutX);
             minY = Math.min(minY, layoutY);
+            if (root.isPrimaryMonitor(r.name)) {
+                anchorX = layoutX;
+                anchorY = layoutY;
+            }
         }
 
         if (minX === 999999)
             minX = 0;
         if (minY === 999999)
             minY = 0;
+        if (anchorX === 999999)
+            anchorX = minX;
+        if (anchorY === 999999)
+            anchorY = minY;
 
         for (var k = 0; k < rects.length; k++) {
             var item = rects[k];
             if (item.isMirror && item.mirrorTarget)
                 continue;
-            item.layoutX = Math.round(item.layoutX - minX);
-            item.layoutY = Math.round(item.layoutY - minY);
+            item.layoutX = Math.round(item.layoutX - anchorX);
+            item.layoutY = Math.round(item.layoutY - anchorY);
         }
 
         return rects;
@@ -455,11 +525,14 @@ Item {
     function triggerApplyAll() {
         if (monitorsModel.count === 0) return;
         root.commitPendingEditorState();
+        root.ensurePrimaryMonitor("");
+        root.configuredPrimaryMonitorName = root.primaryMonitorName;
 
         var layout = root.normalizedMonitorLayout();
         var configLines = [
             "-- " + "-".repeat(53),
             "-- Monitor",
+            "-- Primary monitor: " + root.primaryMonitorName,
             "-- " + "-".repeat(53)
         ];
         var summaryParts = [];
@@ -697,6 +770,27 @@ Item {
     }
 
     Process {
+        id: primaryConfigPoller
+        command: [
+            "bash",
+            "-lc",
+            "profile=$(" + root.shellQuote(root.deviceProfileScriptPath) + " 2>/dev/null || printf desktop)" +
+            " && target=" + root.shellQuote(root.profileConfigDir) + "/\"$profile\"/monitor.lua" +
+            " && if [ -f \"$target\" ]; then sed -n 's/^-- Primary monitor: //p' \"$target\" | tail -n 1; fi"
+        ]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var configuredName = this.text.trim();
+                if (configuredName !== "") {
+                    root.configuredPrimaryMonitorName = configuredName;
+                    root.ensurePrimaryMonitor(configuredName);
+                }
+            }
+        }
+    }
+
+    Process {
         id: displayPoller
         command: ["hyprctl", "monitors", "-j"]
         running: true
@@ -704,6 +798,8 @@ Item {
             onStreamFinished: {
                 try {
                     var data = JSON.parse(this.text.trim());
+                    var previousPrimary = root.primaryMonitorName;
+                    var focusedName = "";
                     monitorsModel.clear();
                     var minX = 999999, minY = 999999;
                     for (var i = 0; i < data.length; i++) {
@@ -729,8 +825,12 @@ Item {
                             isMirror: false,
                             mirrorTarget: ""
                         });
-                        if (data[i].focused) root.activeEditIndex = i;
+                        if (data[i].focused) {
+                            root.activeEditIndex = i;
+                            focusedName = data[i].name;
+                        }
                     }
+                    root.ensurePrimaryMonitor(previousPrimary || root.configuredPrimaryMonitorName || focusedName);
                     root.syncCustomInputs();
                     root.forceLayoutUpdate();
                 } catch (e) {}
@@ -1014,6 +1114,7 @@ Item {
 
                                 Item {
                                     property bool isActive: root.activeEditIndex === index
+                                    property bool isPrimary: root.isPrimaryMonitor(model.name)
 
                                     Rectangle {
                                         id: monitorCard
@@ -1022,8 +1123,8 @@ Item {
                                         height: (root.displayH(model) / model.sysScale) * root.uiScale
                                         radius: 8
                                         color: isActive ? root.surface1 : root.crust
-                                        border.color: isActive ? root.selectedResAccent : root.surface2
-                                        border.width: isActive ? 2 : 1
+                                        border.color: isActive ? root.selectedResAccent : (isPrimary ? root.green : root.surface2)
+                                        border.width: (isActive || isPrimary) ? 2 : 1
                                         z: isActive ? 5 : 0
                                         Behavior on x { enabled: !ghostMa.drag.active; NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
                                         Behavior on y { enabled: !ghostMa.drag.active; NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
@@ -1088,6 +1189,7 @@ Item {
 
                             Item {
                                 property bool isActive: root.activeEditIndex === index
+                                property bool isPrimary: root.isPrimaryMonitor(model.name)
                                 property real monitorW: (root.displayW(model) / model.sysScale) * root.uiScale
                                 property real monitorH: (root.displayH(model) / model.sysScale) * root.uiScale
 
@@ -1104,6 +1206,27 @@ Item {
                                 Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
                                 Behavior on height { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
 
+                                Rectangle {
+                                    anchors.top: parent.top
+                                    anchors.right: parent.right
+                                    anchors.margins: 5
+                                    width: 20
+                                    height: 16
+                                    radius: 5
+                                    visible: isPrimary
+                                    color: Qt.alpha(root.green, 0.22)
+                                    border.color: root.green
+                                    border.width: 1
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "P"
+                                        font.family: "JetBrains Mono"
+                                        font.pixelSize: 9
+                                        font.weight: Font.Black
+                                        color: root.green
+                                    }
+                                }
+
                                 ColumnLayout {
                                     anchors.centerIn: parent
                                     width: Math.max(0, parent.width - 12)
@@ -1113,7 +1236,7 @@ Item {
                                         Layout.alignment: Qt.AlignHCenter
                                         font.family: "CaskaydiaMono Nerd Font"
                                         font.pixelSize: Math.max(14, Math.min(28, parent.parent.height * 0.28))
-                                        color: isActive ? root.selectedResAccent : root.text
+                                        color: isActive ? root.selectedResAccent : (isPrimary ? root.green : root.text)
                                         text: "󰍹"
                                         renderType: Text.NativeRendering
                                         Behavior on color { ColorAnimation { duration: 300 } }
@@ -1473,89 +1596,136 @@ Item {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 34
                         Layout.leftMargin: 8; Layout.rightMargin: 8
-                        visible: monitorsModel.count > 1
+                        visible: monitorsModel.count > 0
 
                         Row {
                             anchors.verticalCenter: parent.verticalCenter
-                            spacing: 10
+                            spacing: 18
 
-                            Rectangle {
-                                id: mirrorCheckbox
-                                width: 22; height: 22; radius: 6
-                                color: {
-                                    if (monitorsModel.count === 0) return root.mantle;
-                                    var m = monitorsModel.get(root.activeEditIndex);
-                                    return m.isMirror ? Qt.alpha(root.accent, 0.3) : (mirrorCbMa.containsMouse ? root.surface0 : root.mantle);
-                                }
-                                border.color: {
-                                    if (monitorsModel.count === 0) return root.surface0;
-                                    return monitorsModel.get(root.activeEditIndex).isMirror ? root.accent : root.surface1;
-                                }
-                                border.width: 1
-                                Behavior on color { ColorAnimation { duration: 200 } }
-                                Behavior on border.color { ColorAnimation { duration: 200 } }
+                            Row {
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 10
 
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: "✓"; font.pixelSize: 14; font.weight: Font.Bold
-                                    color: root.accent; visible: monitorsModel.count > 0 && monitorsModel.get(root.activeEditIndex).isMirror
-                                }
+                                Rectangle {
+                                    id: primaryCheckbox
+                                    width: 22; height: 22; radius: 6
+                                    property bool selected: monitorsModel.count > 0 && root.isPrimaryMonitor(monitorsModel.get(root.activeEditIndex).name)
+                                    color: selected ? Qt.alpha(root.green, 0.3) : (primaryCbMa.containsMouse ? root.surface0 : root.mantle)
+                                    border.color: selected ? root.green : root.surface1
+                                    border.width: 1
+                                    Behavior on color { ColorAnimation { duration: 200 } }
+                                    Behavior on border.color { ColorAnimation { duration: 200 } }
 
-                                MouseArea {
-                                    id: mirrorCbMa; anchors.fill: parent; hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        if (monitorsModel.count === 0) return;
-                                        var m = monitorsModel.get(root.activeEditIndex);
-                                        var newVal = !m.isMirror;
-                                        monitorsModel.setProperty(root.activeEditIndex, "isMirror", newVal);
-                                        if (newVal && !m.mirrorTarget) {
-                                            var others = root.otherMonitorNames();
-                                            if (others.length > 0)
-                                                monitorsModel.setProperty(root.activeEditIndex, "mirrorTarget", others[0]);
-                                        }
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "✓"; font.pixelSize: 14; font.weight: Font.Bold
+                                        color: root.green; visible: primaryCheckbox.selected
+                                    }
+
+                                    MouseArea {
+                                        id: primaryCbMa; anchors.fill: parent; hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: root.setPrimaryMonitor(root.activeEditIndex)
                                     }
                                 }
-                            }
 
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: "Mirror"; font.family: "JetBrains Mono"; font.pixelSize: 12
-                                font.weight: Font.Bold; color: root.text
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: "Primary"; font.family: "JetBrains Mono"; font.pixelSize: 12
+                                    font.weight: Font.Bold; color: primaryCheckbox.selected ? root.green : root.text
+                                    Behavior on color { ColorAnimation { duration: 200 } }
+                                }
                             }
 
                             Row {
                                 anchors.verticalCenter: parent.verticalCenter
-                                spacing: 6
-                                visible: monitorsModel.count > 0 && monitorsModel.get(root.activeEditIndex).isMirror
+                                spacing: 10
+                                visible: monitorsModel.count > 1
 
-                                Repeater {
-                                    model: {
-                                        var arr = [];
-                                        for (var i = 0; i < monitorsModel.count; i++) {
-                                            if (i !== root.activeEditIndex) arr.push(monitorsModel.get(i).name);
-                                        }
-                                        return arr;
+                                Rectangle {
+                                    id: mirrorCheckbox
+                                    width: 22; height: 22; radius: 6
+                                    color: {
+                                        if (monitorsModel.count === 0) return root.mantle;
+                                        var m = monitorsModel.get(root.activeEditIndex);
+                                        return m.isMirror ? Qt.alpha(root.accent, 0.3) : (mirrorCbMa.containsMouse ? root.surface0 : root.mantle);
+                                    }
+                                    border.color: {
+                                        if (monitorsModel.count === 0) return root.surface0;
+                                        return monitorsModel.get(root.activeEditIndex).isMirror ? root.accent : root.surface1;
+                                    }
+                                    border.width: 1
+                                    Behavior on color { ColorAnimation { duration: 200 } }
+                                    Behavior on border.color { ColorAnimation { duration: 200 } }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "✓"; font.pixelSize: 14; font.weight: Font.Bold
+                                        color: root.accent; visible: monitorsModel.count > 0 && monitorsModel.get(root.activeEditIndex).isMirror
                                     }
 
-                                    delegate: Rectangle {
-                                        width: mirrorTargetText.implicitWidth + 16; height: 24; radius: 8
-                                        property bool isSel: monitorsModel.count > 0 && monitorsModel.get(root.activeEditIndex).mirrorTarget === modelData
-                                        color: isSel ? Qt.alpha(root.accent, 0.2) : (mirrorTargetMa.containsMouse ? root.surface0 : root.mantle)
-                                        border.color: isSel ? root.accent : "transparent"; border.width: isSel ? 1 : 0
-                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                    MouseArea {
+                                        id: mirrorCbMa; anchors.fill: parent; hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            if (monitorsModel.count === 0) return;
+                                            var m = monitorsModel.get(root.activeEditIndex);
+                                            var newVal = !m.isMirror;
+                                            monitorsModel.setProperty(root.activeEditIndex, "isMirror", newVal);
+                                            var targetName = m.mirrorTarget;
+                                            if (newVal && !m.mirrorTarget) {
+                                                var others = root.otherMonitorNames();
+                                                if (others.length > 0) {
+                                                    targetName = others[0];
+                                                    monitorsModel.setProperty(root.activeEditIndex, "mirrorTarget", others[0]);
+                                                }
+                                            }
+                                            if (newVal && root.isPrimaryMonitor(m.name)) {
+                                                root.ensurePrimaryMonitor(targetName);
+                                            }
+                                        }
+                                    }
+                                }
 
-                                        Text {
-                                            id: mirrorTargetText; anchors.centerIn: parent
-                                            text: modelData; font.family: "JetBrains Mono"; font.pixelSize: 10
-                                            font.weight: isSel ? Font.Bold : Font.Normal
-                                            color: isSel ? root.accent : root.subtext0
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: "Mirror"; font.family: "JetBrains Mono"; font.pixelSize: 12
+                                    font.weight: Font.Bold; color: root.text
+                                }
+
+                                Row {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 6
+                                    visible: monitorsModel.count > 0 && monitorsModel.get(root.activeEditIndex).isMirror
+
+                                    Repeater {
+                                        model: {
+                                            var arr = [];
+                                            for (var i = 0; i < monitorsModel.count; i++) {
+                                                if (i !== root.activeEditIndex) arr.push(monitorsModel.get(i).name);
+                                            }
+                                            return arr;
                                         }
 
-                                        MouseArea {
-                                            id: mirrorTargetMa; anchors.fill: parent; hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: monitorsModel.setProperty(root.activeEditIndex, "mirrorTarget", modelData)
+                                        delegate: Rectangle {
+                                            width: mirrorTargetText.implicitWidth + 16; height: 24; radius: 8
+                                            property bool isSel: monitorsModel.count > 0 && monitorsModel.get(root.activeEditIndex).mirrorTarget === modelData
+                                            color: isSel ? Qt.alpha(root.accent, 0.2) : (mirrorTargetMa.containsMouse ? root.surface0 : root.mantle)
+                                            border.color: isSel ? root.accent : "transparent"; border.width: isSel ? 1 : 0
+                                            Behavior on color { ColorAnimation { duration: 150 } }
+
+                                            Text {
+                                                id: mirrorTargetText; anchors.centerIn: parent
+                                                text: modelData; font.family: "JetBrains Mono"; font.pixelSize: 10
+                                                font.weight: isSel ? Font.Bold : Font.Normal
+                                                color: isSel ? root.accent : root.subtext0
+                                            }
+
+                                            MouseArea {
+                                                id: mirrorTargetMa; anchors.fill: parent; hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: monitorsModel.setProperty(root.activeEditIndex, "mirrorTarget", modelData)
+                                            }
                                         }
                                     }
                                 }
