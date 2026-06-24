@@ -10,7 +10,7 @@ Hyprdots is my personal Arch Linux + Hyprland configuration built around Hyprlan
 ## Features
 - Custom Quickshell UI with smooth animations 
 - Static wallpapers through awww, animated wallpapers through mpvpaper, and matugen-based dynamic colors
-- Dynamic colors applied to Hyprland, Quickshell, Kitty and Qt/KDE
+- Dynamic colors applied to Hyprland, Quickshell, Kitty, GTK and Qt/KDE
 - Quickshell screenshot tool with region, window, screen, OCR, color picker and save-folder actions
 
 ## Default Apps

@@ -8,7 +8,7 @@ hl.on("hyprland.start", function()
         "~/.config/hypr/scripts/quickshell/qs-priority.sh -c ~/.config/quickshell/overview -d &",
         "~/.config/hypr/scripts/quickshell/qs-priority.sh -c ~/.config/quickshell/launcher -d &",
         "~/.config/hypr/scripts/quickshell/qs-priority.sh -c ~/.config/quickshell/gamelauncher -d &",
-        "~/.config/hypr/scripts/quickshell/tray/trayctl.sh watch &",
+        "sh -c 'systemctl --user start plasma-xembedsniproxy.service >/dev/null 2>&1 || (command -v xembedsniproxy >/dev/null 2>&1 && exec xembedsniproxy)' &",
         "python3 ~/.config/hypr/scripts/quickshell/archtools/focus_daemon.py",
         "python3 ~/.config/hypr/scripts/quickshell/archtools/arch-news.py --fetch",
         "python3 ~/.config/hypr/scripts/quickshell/archtools/updates-daemon.py &",

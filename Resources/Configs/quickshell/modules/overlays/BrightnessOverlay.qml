@@ -74,7 +74,8 @@ Scope {
     }
 
     function refreshBrightness() {
-        brightnessPoller.running = true;
+        if (!brightnessPoller.running)
+            brightnessPoller.running = true;
     }
 
     function revealWithRefresh() {
@@ -252,7 +253,10 @@ Scope {
         running: root.shouldShowOsd
         repeat: true
         triggeredOnStart: true
-        onTriggered: brightnessPoller.running = true
+        onTriggered: {
+            if (!brightnessPoller.running)
+                brightnessPoller.running = true;
+        }
     }
 
     LazyLoader {

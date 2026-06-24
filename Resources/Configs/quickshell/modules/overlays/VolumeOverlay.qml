@@ -16,7 +16,8 @@ Scope {
         shouldShowOsd = true;
         showPopup();
         hideTimer.restart();
-        overlayVolPoller.running = true;
+        if (!overlayVolPoller.running)
+            overlayVolPoller.running = true;
     }
 
     PwObjectTracker { objects: [Pipewire.defaultAudioSink] }
@@ -191,7 +192,10 @@ Scope {
         running: root.shouldShowOsd
         repeat: true
         triggeredOnStart: true
-        onTriggered: overlayVolPoller.running = true
+        onTriggered: {
+            if (!overlayVolPoller.running)
+                overlayVolPoller.running = true;
+        }
     }
 
     Connections {

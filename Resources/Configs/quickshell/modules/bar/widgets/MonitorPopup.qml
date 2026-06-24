@@ -89,7 +89,8 @@ Item {
     property real globalOrbitAngle: 0
     NumberAnimation on globalOrbitAngle {
         from: 0; to: Math.PI * 2; duration: 90000
-        loops: Animation.Infinite; running: true
+        loops: Animation.Infinite
+        running: root.popupTargetVisible && ThemePkg.Theme.rotationalAnimationsEnabled
     }
 
     property real introProgress: 0.0
@@ -904,6 +905,7 @@ Item {
                 radius: parent.radius
                 borderWidth: parent.border.width
                 accentColor: root.accent
+                active: root.popupTargetVisible
             }
 
             MouseArea {

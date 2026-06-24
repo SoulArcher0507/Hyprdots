@@ -17,6 +17,7 @@ Item {
     property real selectionWidth: 0
     property real selectionHeight: 0
     property var freehandPoints: []
+    property bool selectionInProgress: false
 
     onSelectionXChanged: overlay.requestPaint()
     onSelectionYChanged: overlay.requestPaint()
@@ -238,6 +239,7 @@ Item {
         z: 3
 
         onPressed: (mouse) => {
+            root.selectionInProgress = true
             root.startPos = Qt.point(mouse.x, mouse.y)
             root.resetSelection()
 
@@ -264,8 +266,18 @@ Item {
                 root.updateSelectionFromDrag(mouse.x, mouse.y)
 
             const selection = root.buildSelection()
+            root.selectionInProgress = false
             if (selection)
                 root.regionSelected(selection)
         }
+
+        onCanceled: {
+            root.selectionInProgress = false
+        }
+    }
+
+    onVisibleChanged: {
+        if (!visible)
+            root.selectionInProgress = false
     }
 }

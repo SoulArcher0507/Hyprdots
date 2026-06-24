@@ -44,6 +44,7 @@ Item {
     property int iconLookupCacheSize: 0
     property string notificationSnapshot: ""
     property int dismissAnimationDuration: 220
+    property int maxTrackedNotifications: 32
 
     function popupOriginLift() {
         return root.barPanelCenterY - (root.popupClosedHeight / 2);
@@ -187,6 +188,7 @@ Item {
         const values = server && server.trackedNotifications && server.trackedNotifications.values
             ? server.trackedNotifications.values
             : [];
+        root.trimTrackedNotifications(values);
         root._prunePendingDismissals(values);
         DndMod.DndState.notificationCount = Math.max(0, (values.length || 0) - root._pendingNotificationCountFor(values));
         const snapshot = root.notificationSnapshotFor(values);
@@ -194,6 +196,20 @@ Item {
             return;
         root.notificationSnapshot = snapshot;
         root.rebuildGroupedNotifications(values);
+    }
+
+    function trimTrackedNotifications(values) {
+        const items = values || [];
+        const overflow = items.length - root.maxTrackedNotifications;
+        if (overflow <= 0)
+            return;
+
+        for (let i = 0; i < overflow; ++i) {
+            const notification = items[i];
+            if (!notification)
+                continue;
+            notification.tracked = false;
+        }
     }
 
     function notificationSnapshotFor(values) {
@@ -514,7 +530,9 @@ Item {
         const nextExpanded = {};
         const now = Date.now();
         const previousReceivedTimes = root.notificationReceivedTimes || ({});
+        const previousExpandedBodies = root.expandedBodies || ({});
         const nextReceivedTimes = {};
+        const nextExpandedBodies = {};
         const previousGroupModifiedTimes = root.groupModifiedTimes || ({});
         const previousGroupSnapshots = root.groupSnapshots || ({});
         const nextGroupModifiedTimes = {};
@@ -529,6 +547,8 @@ Item {
                 : now;
             if (id !== "")
                 nextReceivedTimes[id] = receivedAt;
+            if (id !== "" && previousExpandedBodies[id] !== undefined)
+                nextExpandedBodies[id] = previousExpandedBodies[id];
 
             if (!byKey[key]) {
                 byKey[key] = {
@@ -583,6 +603,7 @@ Item {
         }
 
         root.notificationReceivedTimes = nextReceivedTimes;
+        root.expandedBodies = nextExpandedBodies;
         root.groupSnapshots = nextGroupSnapshots;
         root.groupModifiedTimes = nextGroupModifiedTimes;
         root.expandedGroups = nextExpanded;
@@ -775,6 +796,10 @@ Item {
         keepOnReload: true
         onNotification: (n) => {
             n.tracked = true;
+            Qt.callLater(function() {
+                const values = server.trackedNotifications.values || [];
+                root.trimTrackedNotifications(values);
+            });
             root.scheduleNotificationCountRefresh();
             if (!root.doNotDisturb) {
                 let iconHint = "";

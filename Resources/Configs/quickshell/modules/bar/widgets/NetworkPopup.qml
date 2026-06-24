@@ -883,16 +883,18 @@ Item {
                     });
                 }
             }
-            nodes.push({
-                id: "action_scan",
-                name: "Device List",
-                icon: "󰍉",
-                action: "Switch View",
-                isInfoNode: true,
-                isActionable: true,
-                cmdStr: "TOGGLE_VIEW",
-                parentIndex: -1
-            });
+            if (!(window.activeMode === "wifi" && window.isEthConn)) {
+                nodes.push({
+                    id: "action_scan",
+                    name: "Device List",
+                    icon: "󰍉",
+                    action: "Switch View",
+                    isInfoNode: true,
+                    isActionable: true,
+                    cmdStr: "TOGGLE_VIEW",
+                    parentIndex: -1
+                });
+            }
         }
         if (window.isListLocked)
             window.nextInfoList = nodes;

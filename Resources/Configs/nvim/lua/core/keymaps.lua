@@ -2,12 +2,12 @@ vim.g.mapleader = " "
 local indent = require("core.indent")
 
 -- Change file
-vim.keymap.set("n", "<leader>pv", vim.cmd.Ex)
+vim.keymap.set("n", "<leader>ve", vim.cmd.Ex, { desc = "Open netrw explorer" })
 
 -- Tabs (next, previous, close)
-vim.keymap.set("n", "<leader>n", ":bn<cr>")
-vim.keymap.set("n", "<leader>p", ":bp<cr>")
-vim.keymap.set("n", "<leader>x", ":bd<cr>")
+vim.keymap.set("n", "<leader>n", "<cmd>bnext<cr>", { desc = "Next buffer" })
+vim.keymap.set("n", "<leader>p", "<cmd>bprevious<cr>", { desc = "Previous buffer" })
+vim.keymap.set("n", "<leader>x", "<cmd>bdelete<cr>", { desc = "Close buffer" })
 
 -- Copy to clipboard
 vim.keymap.set({"n", "v"}, "<leader>y", [["+y]])

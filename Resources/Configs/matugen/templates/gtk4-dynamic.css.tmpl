@@ -1,0 +1,173 @@
+/*
+ * GTK 4 and libadwaita color variables.
+ *
+ * Modern libadwaita widgets consume these variables directly; the legacy
+ * @define-color aliases in colors.css are kept for GTK 3 and older apps.
+ */
+
+:root {
+  --accent-bg-color: {{accent}};
+  --accent-fg-color: {{selection_fg}};
+  --accent-color: {{accent_color}};
+  --destructive-bg-color: {{danger}};
+  --destructive-fg-color: {{danger_fg}};
+  --destructive-color: {{danger_color}};
+  --success-bg-color: {{success}};
+  --success-fg-color: {{success_fg}};
+  --success-color: {{success_color}};
+  --warning-bg-color: {{warning}};
+  --warning-fg-color: {{warning_fg}};
+  --warning-color: {{warning_color}};
+  --error-bg-color: {{danger}};
+  --error-fg-color: {{danger_fg}};
+  --error-color: {{danger_color}};
+
+  --window-bg-color: {{window_bg}};
+  --window-fg-color: {{fg}};
+  --view-bg-color: {{view_bg}};
+  --view-fg-color: {{fg}};
+  --headerbar-bg-color: {{header_bg}};
+  --headerbar-fg-color: {{header_fg}};
+  --headerbar-border-color: {{fg}};
+  --headerbar-backdrop-color: {{inactive_title_bg}};
+  --headerbar-shade-color: alpha({{fg}}, 0.16);
+  --headerbar-darker-shade-color: alpha({{bg}}, 0.72);
+
+  --sidebar-bg-color: {{comp_bg}};
+  --sidebar-fg-color: {{fg}};
+  --sidebar-backdrop-color: {{sidebar_backdrop_bg}};
+  --sidebar-border-color: alpha({{fg}}, 0.14);
+  --sidebar-shade-color: alpha({{bg}}, 0.34);
+  --secondary-sidebar-bg-color: {{alt_bg}};
+  --secondary-sidebar-fg-color: {{fg}};
+  --secondary-sidebar-backdrop-color: {{secondary_sidebar_backdrop_bg}};
+  --secondary-sidebar-border-color: alpha({{fg}}, 0.12);
+  --secondary-sidebar-shade-color: alpha({{bg}}, 0.28);
+
+  --card-bg-color: {{panel_bg}};
+  --card-fg-color: {{fg}};
+  --card-shade-color: alpha({{fg}}, 0.12);
+  --dialog-bg-color: {{dialog_bg}};
+  --dialog-fg-color: {{fg}};
+  --popover-bg-color: {{popover_bg}};
+  --popover-fg-color: {{fg}};
+  --popover-shade-color: alpha({{bg}}, 0.45);
+  --thumbnail-bg-color: {{thumbnail_bg}};
+  --thumbnail-fg-color: {{fg}};
+  --overview-bg-color: {{overview_bg}};
+  --overview-fg-color: {{fg}};
+  --active-toggle-bg-color: {{active_toggle_bg}};
+  --active-toggle-fg-color: {{active_toggle_fg}};
+
+  --shade-color: alpha({{fg}}, 0.12);
+  --scrollbar-outline-color: alpha({{bg}}, 0.72);
+  --border-color: alpha({{fg}}, 0.18);
+  --border-opacity: 18%;
+  --dim-opacity: 62%;
+  --disabled-opacity: 48%;
+
+  --dynamic-hover-bg-color: {{hover_bg}};
+  --dynamic-hover-fg-color: {{hover_fg}};
+  --dynamic-active-bg-color: {{pressed_bg}};
+  --dynamic-active-fg-color: {{pressed_fg}};
+
+  -gtk-icon-palette:
+    success var(--success-color),
+    warning var(--warning-color),
+    error var(--error-color),
+    accent var(--accent-color);
+}
+
+/* GTK 4 menu-model items are buttons with .model, not GTK 3 menuitems. */
+popover.menu button.model:hover,
+popover.menu button.model:selected,
+popover.menu button.model.has-open-popup,
+popover.menu modelbutton:hover,
+popover.menu modelbutton:selected,
+popover.menu modelbutton.has-open-popup {
+  background-color: var(--dynamic-hover-bg-color);
+  color: var(--dynamic-hover-fg-color);
+}
+
+popover.menu button.model:active,
+popover.menu modelbutton:active {
+  background-color: var(--dynamic-active-bg-color);
+  color: var(--dynamic-active-fg-color);
+}
+
+popover.menu button.model:disabled,
+popover.menu modelbutton:disabled {
+  background-color: transparent;
+  color: alpha({{fg}}, 0.48);
+}
+
+/* Drop-down popovers use list rows rather than menu model buttons. */
+dropdown popover listview,
+dropdown popover listview > row {
+  background-color: transparent;
+  color: var(--popover-fg-color);
+}
+
+dropdown popover listview > row:hover {
+  background-color: var(--dynamic-hover-bg-color);
+  color: var(--dynamic-hover-fg-color);
+}
+
+dropdown popover listview > row:selected {
+  background-color: var(--accent-bg-color);
+  color: var(--accent-fg-color);
+}
+
+/* Keep modern libadwaita shell surfaces on the same KDE semantic roles. */
+toolbarview > .top-bar,
+toolbarview > .bottom-bar {
+  background-color: var(--headerbar-bg-color);
+  color: var(--headerbar-fg-color);
+}
+
+toolbarview > content,
+navigationview,
+navigationpage,
+preferencespage,
+adwpreferencespage {
+  background-color: var(--window-bg-color);
+  color: var(--window-fg-color);
+}
+
+taboverview,
+taboverview > child,
+tabgrid {
+  background-color: var(--overview-bg-color);
+  color: var(--overview-fg-color);
+}
+
+tabbar,
+tabbar .box {
+  background-color: var(--headerbar-bg-color);
+  color: var(--headerbar-fg-color);
+  border-color: var(--border-color);
+}
+
+tabbar tab:hover,
+tabbox tab:hover {
+  background-color: var(--dynamic-hover-bg-color);
+  color: var(--dynamic-hover-fg-color);
+}
+
+tabbar tab:selected,
+tabbox tab:selected {
+  background-color: var(--active-toggle-bg-color);
+  color: var(--active-toggle-fg-color);
+}
+
+banner {
+  background-color: {{selection_alt_bg}};
+  color: {{selection_alt_fg}};
+}
+
+toast,
+toastoverlay toast {
+  background-color: var(--popover-bg-color);
+  color: var(--popover-fg-color);
+  border-color: var(--border-color);
+}

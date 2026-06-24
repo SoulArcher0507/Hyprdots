@@ -19,8 +19,9 @@ hl.window_rule({ match = { class = ".*" }, idle_inhibit = "fullscreen" })
 
 -- workspaces
 hl.window_rule({ match = { class = "^(discord|vesktop)$" }, workspace = "3 silent" })
-hl.window_rule({ match = { class = "^steam$" }, workspace = "4 silent" })
+-- hl.window_rule({ match = { class = "^steam$" }, workspace = "4 silent" }
 hl.window_rule({ match = { class = "^(.*Spotify.*)$" }, workspace = "4", tile = true })
 hl.window_rule({ match = { class = "^(.*feishin.*)$" }, workspace = "4", tile = true })
 hl.window_rule({ match = { title = "^(.*Steam\\sBig\\sPicture\\sMode.*)$" }, workspace = "1" })
 hl.window_rule({ match = { initial_class = "^steam_app_\\d+$" }, workspace = "1" })
+hl.window_rule({ match = { class = "^(.*com.moonlight_stream.Moonlight.*)$" }, workspace = "7", tile = true })

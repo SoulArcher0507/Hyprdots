@@ -558,18 +558,74 @@ QtObject {
 
     property Component browseFilesComponent: Component {
         Process {
-            id: mountProc
+            id: proc
             property string deviceId: ""
-            command: root.busctlCall("/modules/kdeconnect/devices/" + deviceId + "/sftp", "org.kde.kdeconnect.device.sftp", "mountAndWait")
+            property int attempts: 0
+            property int maxAttempts: 5
+            property bool finished: false
+            command: root.busctlCall("/modules/kdeconnect/devices/" + deviceId + "/sftp", "org.kde.kdeconnect.device.sftp", "isMounted")
+
+            function finish() {
+                if (proc.finished)
+                    return;
+
+                proc.finished = true;
+                proc.destroy();
+            }
+
+            function retryOrReportError() {
+                if (proc.finished || retryTimer.running || errorProc.running)
+                    return;
+
+                if (proc.attempts < proc.maxAttempts) {
+                    retryTimer.restart();
+                    return;
+                }
+
+                errorProc.running = true;
+            }
+
             stdout: StdioCollector {
                 waitForEnd: true
-                onStreamFinished: rootDirProc.running = true
+                onStreamFinished: {
+                    if (root.busctlData(text) === true)
+                        rootDirProc.running = true;
+                    else
+                        mountProc.running = true;
+                }
             }
-            onExited: if (exitCode !== 0)
-                mountProc.destroy()
+            onExited: (exitCode, exitStatus) => {
+                if (exitCode !== 0)
+                    mountProc.running = true;
+            }
+
+            property Timer retryTimer: Timer {
+                interval: 1800
+                repeat: false
+                onTriggered: mountProc.running = true
+            }
+
+            property Process mountProc: Process {
+                command: root.busctlCall("/modules/kdeconnect/devices/" + proc.deviceId + "/sftp", "org.kde.kdeconnect.device.sftp", "mountAndWait")
+                stdout: StdioCollector {
+                    waitForEnd: true
+                    onStreamFinished: {
+                        if (root.busctlData(text) === true)
+                            rootDirProc.running = true;
+                        else
+                            proc.retryOrReportError();
+                    }
+                }
+                onRunningChanged: if (running)
+                    proc.attempts += 1
+                onExited: (exitCode, exitStatus) => {
+                    if (exitCode !== 0)
+                        proc.retryOrReportError();
+                }
+            }
 
             property Process rootDirProc: Process {
-                command: root.busctlCall("/modules/kdeconnect/devices/" + mountProc.deviceId + "/sftp", "org.kde.kdeconnect.device.sftp", "getDirectories")
+                command: root.busctlCall("/modules/kdeconnect/devices/" + proc.deviceId + "/sftp", "org.kde.kdeconnect.device.sftp", "getDirectories")
                 stdout: StdioCollector {
                     waitForEnd: true
                     onStreamFinished: {
@@ -580,14 +636,32 @@ QtObject {
                             path = keys.length > 0 ? keys[0] : "";
                         }
 
-                        if (path !== "")
+                        if (path !== "") {
                             Quickshell.execDetached(["dolphin", "--new-window", path]);
-
-                        mountProc.destroy();
+                            proc.finish();
+                        } else {
+                            proc.retryOrReportError();
+                        }
                     }
                 }
                 onExited: if (exitCode !== 0)
-                    mountProc.destroy()
+                    proc.retryOrReportError()
+            }
+
+            property Process errorProc: Process {
+                command: root.busctlCall("/modules/kdeconnect/devices/" + proc.deviceId + "/sftp", "org.kde.kdeconnect.device.sftp", "getMountError")
+                stdout: StdioCollector {
+                    waitForEnd: true
+                    onStreamFinished: {
+                        const message = root.busctlData(text);
+                        root.lastError = message ? String(message) : "Unable to browse device files";
+                        proc.finish();
+                    }
+                }
+                onExited: if (exitCode !== 0) {
+                    root.lastError = "Unable to browse device files";
+                    proc.finish();
+                }
             }
         }
     }

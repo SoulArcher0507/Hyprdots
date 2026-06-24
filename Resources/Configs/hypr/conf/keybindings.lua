@@ -174,8 +174,8 @@ end
 -- @bind Workspaces :: SUPER + SHIFT + 9 :: hl.dsp.window.move({ workspace = 9 }) :: Move Active Window to Workspace 9
 -- @bind Workspaces :: SUPER + SHIFT + 0 :: hl.dsp.window.move({ workspace = 10 }) :: Move Active Wwindow to Workspace 10
 
--- @bind Workspaces :: SUPER + Tab :: hl.dsp.focus({ workspace = [[m+1]] }) :: Open Next Workspace
-bind(mainMod .. " + Tab", hl.dsp.focus({ workspace = "m+1" }))
+-- @bind Workspaces :: SUPER + Tab :: hl.dsp.exec_cmd([[~/.config/hypr/scripts/workspace-next-or-new.sh]]) :: Open Next Workspace or One New Empty Workspace
+bind(mainMod .. " + Tab", hl.dsp.exec_cmd("~/.config/hypr/scripts/workspace-next-or-new.sh"))
 -- @bind Workspaces :: SUPER + SHIFT + Tab :: hl.dsp.focus({ workspace = [[m-1]] }) :: Open Previous Workspace
 bind(mainMod .. " + SHIFT + Tab", hl.dsp.focus({ workspace = "m-1" }))
 -- @bind Workspaces :: SUPER + CTRL + Tab :: move_window_to_next_empty_workspace() :: Move Active Window to Next Empty Workspace

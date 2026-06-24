@@ -62,26 +62,6 @@ Item {
     readonly property string textFont: "Fira Sans"
     readonly property string scriptsDir: Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/music"
 
-    IpcHandler {
-        target: "music"
-        function toggle(): void {
-            if (!root.popupTargetVisible) {
-                ThemePkg.Theme.globalCloseAllPopups();
-            }
-            if (root.popupTargetVisible)
-                root._hideMusicPopup();
-            else
-                root._showMusicPopup();
-        }
-        function show(): void {
-            ThemePkg.Theme.globalCloseAllPopups();
-            root._showMusicPopup();
-        }
-        function hide(): void {
-            root._hideMusicPopup();
-        }
-    }
-
     Connections {
         target: ThemePkg.Theme
         function onGlobalCloseShellPopups() {
@@ -195,6 +175,21 @@ Item {
         root.popupCardY = root.popupOriginY();
         root.parallaxReveal = 0.0;
         root.visualizerLevels = root.emptyVisualizerLevels();
+    }
+
+    function showPopup() {
+        root._showMusicPopup();
+    }
+
+    function hidePopup() {
+        root._hideMusicPopup();
+    }
+
+    function togglePopup() {
+        if (root.popupTargetVisible)
+            root._hideMusicPopup();
+        else
+            root._showMusicPopup();
     }
 
     function _showMusicPopup() {

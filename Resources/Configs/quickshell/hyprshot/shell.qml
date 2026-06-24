@@ -13,8 +13,11 @@ import "../modules/bar/widgets" as BarWidgets
 Hyprshot.FreezeScreen {
     id: root
     visible: false
+    signal sessionFinished()
+
     property bool autoStart: true
     property bool sessionActive: false
+    readonly property bool effectsActive: root.visible && root.sessionActive && root.edgeAnimationsEnabled
 
     property var _j: ({
             special: {
@@ -162,7 +165,7 @@ Hyprshot.FreezeScreen {
 
     property real globalOrbitAngle: 0
     NumberAnimation on globalOrbitAngle {
-        from: 0; to: Math.PI * 2; duration: 40000; loops: Animation.Infinite; running: true
+        from: 0; to: Math.PI * 2; duration: 40000; loops: Animation.Infinite; running: root.effectsActive
     }
 
     property bool edgeAnimationsEnabled: true
@@ -201,7 +204,7 @@ Hyprshot.FreezeScreen {
         accentColor: root.accent
         radius: 12
         borderWidth: 1
-        animationsEnabled: root.edgeAnimationsEnabled
+        animationsEnabled: root.effectsActive
     }
 
     function modeColor(modeName) {
@@ -447,6 +450,7 @@ Hyprshot.FreezeScreen {
 
         root.sessionActive = false
         root.resetSessionState()
+        root.sessionFinished()
     }
 
     function startCapture() {
@@ -961,7 +965,7 @@ Hyprshot.FreezeScreen {
 
             SequentialAnimation on scale {
                 loops: Animation.Infinite
-                running: true
+                running: root.effectsActive
                 NumberAnimation {
                     to: toggleBubble.hovered ? 1.14 : 1.08
                     duration: toggleBubble.hovered ? 800 : 2000
@@ -992,7 +996,7 @@ Hyprshot.FreezeScreen {
 
             Timer {
                 interval: 45
-                running: parent.visible
+                running: root.effectsActive && parent.visible
                 repeat: true
                 onTriggered: {
                     const time = Date.now() / 1000
@@ -1717,7 +1721,7 @@ Hyprshot.FreezeScreen {
  
     Rectangle {
         id: actionPanel
-        visible: !root.externalPickerLaunching
+        visible: !root.externalPickerLaunching && !(root.mode === "region" && regionSelector.selectionInProgress)
         z: 5
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
@@ -1797,7 +1801,7 @@ Hyprshot.FreezeScreen {
             property real drift: 0
             SequentialAnimation on drift {
                 loops: Animation.Infinite
-                running: true
+                running: root.effectsActive
                 NumberAnimation { to: -10; duration: 4000; easing.type: Easing.InOutSine }
                 NumberAnimation { to: 0; duration: 4000; easing.type: Easing.InOutSine }
             }

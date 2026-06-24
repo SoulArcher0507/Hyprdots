@@ -1326,7 +1326,10 @@ Variants {
                             interval: 3000
                             running: true
                             repeat: true
-                            onTriggered: wifiPoller.running = true
+                            onTriggered: {
+                                if (!wifiPoller.running)
+                                    wifiPoller.running = true;
+                            }
                         }
 
                         Process {
@@ -1347,7 +1350,10 @@ Variants {
                             interval: 3000
                             running: true
                             repeat: true
-                            onTriggered: btPoller.running = true
+                            onTriggered: {
+                                if (!btPoller.running)
+                                    btPoller.running = true;
+                            }
                         }
 
                         Row {
@@ -1965,22 +1971,30 @@ Variants {
                             interval: 20000
                             running: true
                             repeat: true
-                            onTriggered: batPctProc.exec(["bash", "-lc", batteryButton._pctCmd])
+                            onTriggered: {
+                                if (!batPctProc.running)
+                                    batPctProc.exec(["bash", "-lc", batteryButton._pctCmd]);
+                            }
                         }
                         Timer {
                             interval: 60000
                             running: true
                             repeat: true
                             onTriggered: {
-                                batTteProc.exec(["bash", "-lc", batteryButton._tteCmd]);
-                                batTtfProc.exec(["bash", "-lc", batteryButton._ttfCmd]);
+                                if (!batTteProc.running)
+                                    batTteProc.exec(["bash", "-lc", batteryButton._tteCmd]);
+                                if (!batTtfProc.running)
+                                    batTtfProc.exec(["bash", "-lc", batteryButton._ttfCmd]);
                             }
                         }
 
                         Component.onCompleted: {
-                            batPctProc.exec(["bash", "-lc", batteryButton._pctCmd]);
-                            batTteProc.exec(["bash", "-lc", batteryButton._tteCmd]);
-                            batTtfProc.exec(["bash", "-lc", batteryButton._ttfCmd]);
+                            if (!batPctProc.running)
+                                batPctProc.exec(["bash", "-lc", batteryButton._pctCmd]);
+                            if (!batTteProc.running)
+                                batTteProc.exec(["bash", "-lc", batteryButton._tteCmd]);
+                            if (!batTtfProc.running)
+                                batTtfProc.exec(["bash", "-lc", batteryButton._ttfCmd]);
                         }
                     }
 

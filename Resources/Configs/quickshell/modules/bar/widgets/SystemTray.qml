@@ -24,13 +24,15 @@ Item {
 
     readonly property int baseIconSize: 22
     readonly property int baseIconSpacing: 8
-    readonly property int baseIconPadding: 4
+    readonly property int baseIconPadding: 8
 
     readonly property int iconSize: baseIconSize * scaleFactor
     readonly property int iconSpacing: baseIconSpacing * scaleFactor
     readonly property int iconPadding: baseIconPadding * scaleFactor
 
-    width: Math.max(0, trayRow.children.length * (iconSize + iconSpacing) - iconSpacing)
+    readonly property int trayContentWidth: trayRepeater.count > 0 ? trayRepeater.count * (iconSize + iconSpacing) - iconSpacing : 0
+
+    width: trayContentWidth > 0 ? trayContentWidth + iconPadding * 2 : 0
 
     readonly property string launcherScriptDir: Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/launcher/"
 
@@ -141,6 +143,7 @@ Item {
         spacing: iconSpacing
 
         Repeater {
+            id: trayRepeater
             model: SystemTray.items
 
             MouseArea {

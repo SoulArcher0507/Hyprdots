@@ -141,8 +141,11 @@ Scope {
     function _removeToastById(toastId) {
         const key = String(toastId);
         const nextPayloads = Object.assign({}, root.toastPayloads);
+        const nextExpandedBodies = Object.assign({}, root.expandedToastBodies);
         delete nextPayloads[key];
+        delete nextExpandedBodies[key];
         root.toastPayloads = nextPayloads;
+        root.expandedToastBodies = nextExpandedBodies;
 
         for (let i = 0; i < toastModel.count; ++i) {
             if (toastModel.get(i).toastId === toastId) {
@@ -312,33 +315,31 @@ Scope {
         focusClientProc.running = true;
     }
 
-    LazyLoader {
-        active: toastModel.count > 0
+    PanelWindow {
+        id: toastWin
+        visible: toastModel.count > 0
+        anchors.top: true
+        anchors.right: true
+        exclusiveZone: 0
+        color: "transparent"
+        mask: Region { item: toastColumn }
+        margins { top: 0; right: 16 }
+        implicitWidth: root.toastWidth + 20
+        implicitHeight: 720
 
-        PanelWindow {
-            id: toastWin
-            anchors.top: true
-            anchors.right: true
-            exclusiveZone: 0
-            color: "transparent"
-            mask: Region { item: toastColumn }
-            margins { top: 0; right: 16 }
-            width: root.toastWidth + 20
-            height: toastColumn.implicitHeight + 20
+        Column {
+            id: toastColumn
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.topMargin: 10
+            anchors.rightMargin: 10
+            width: root.toastWidth
+            spacing: 8
 
-            Column {
-                id: toastColumn
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.topMargin: 10
-                anchors.rightMargin: 10
-                width: root.toastWidth
-                spacing: 8
+            Repeater {
+                model: toastModel
 
-                Repeater {
-                    model: toastModel
-
-                    delegate: Item {
+                delegate: Item {
                         id: toastCard
                         readonly property real toastTargetHeight: Math.ceil(toastContent.implicitHeight + 28)
                         readonly property real toastOpenWidth: root.toastWidth
@@ -689,7 +690,6 @@ Scope {
                                 }
                             }
                         }
-                    }
                 }
             }
         }

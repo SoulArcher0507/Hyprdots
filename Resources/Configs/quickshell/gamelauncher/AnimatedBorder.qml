@@ -15,6 +15,7 @@ Item {
 
     readonly property bool effectEnabled: active && animationsEnabled && borderWidth > 0 && width > 8 && height > 8
     readonly property real glowWidth: Math.max(4, borderWidth * 3)
+    readonly property real coreWidth: Math.max(1, borderWidth * 1.35)
     readonly property real inset: (glowWidth / 2) + 1
     readonly property real frameWidth: Math.max(1, width - (inset * 2))
     readonly property real frameHeight: Math.max(1, height - (inset * 2))
@@ -31,11 +32,11 @@ Item {
     }
 
     function traceBorder(ctx) {
-        var x = inset;
-        var y = inset;
-        var w = frameWidth;
-        var h = frameHeight;
-        var r = cornerRadius;
+        const x = inset;
+        const y = inset;
+        const w = frameWidth;
+        const h = frameHeight;
+        const r = cornerRadius;
 
         ctx.beginPath();
         ctx.moveTo(x + r, y);
@@ -50,17 +51,17 @@ Item {
         ctx.closePath();
     }
 
-    function drawSegment(ctx, lineWidth, alphaValue) {
+    function drawSegment(ctx, lineWidth, alphaValue, offset) {
         traceBorder(ctx);
         ctx.setLineDash([segmentLength, Math.max(1, perimeter - segmentLength)]);
-        ctx.lineDashOffset = -travel;
+        ctx.lineDashOffset = -offset;
         ctx.lineWidth = lineWidth;
         ctx.strokeStyle = withAlpha(accentColor, alphaValue);
         ctx.stroke();
     }
 
     function advanceFrame() {
-        var now = Date.now();
+        const now = Date.now();
         if (lastTickMs > 0)
             travel = (travel + (effectivePixelsPerSecond * Math.min(0.2, (now - lastTickMs) / 1000))) % perimeter;
 
@@ -68,11 +69,15 @@ Item {
         neonCanvas.requestPaint();
     }
 
-    onEffectEnabledChanged: {
+    function resetFrameClock() {
         lastTickMs = 0;
+        if (!effectEnabled)
+            travel = 0;
         neonCanvas.requestPaint();
     }
-    onPerimeterChanged: neonCanvas.requestPaint()
+
+    onEffectEnabledChanged: resetFrameClock()
+    onPerimeterChanged: resetFrameClock()
     onAccentColorChanged: neonCanvas.requestPaint()
     onRadiusChanged: neonCanvas.requestPaint()
     onBorderWidthChanged: neonCanvas.requestPaint()
@@ -85,7 +90,7 @@ Item {
         onWidthChanged: requestPaint()
         onHeightChanged: requestPaint()
         onPaint: {
-            var ctx = getContext("2d");
+            const ctx = getContext("2d");
             if (ctx.reset)
                 ctx.reset();
 
@@ -95,8 +100,8 @@ Item {
 
             ctx.lineCap = "round";
             ctx.lineJoin = "round";
-            root.drawSegment(ctx, root.glowWidth, 0.24);
-            root.drawSegment(ctx, Math.max(1, root.borderWidth * 1.35), 0.95);
+            root.drawSegment(ctx, root.glowWidth, 0.24, root.travel * 1.6);
+            root.drawSegment(ctx, root.coreWidth, 0.95, root.travel);
             ctx.setLineDash([]);
         }
     }

@@ -51,6 +51,17 @@ return {
                 objc = true,
                 objcpp = true,
             }
+            local pyright_handlers = {
+                ["$/progress"] = function() end,
+                ["window/showMessage"] = function(err, result, ctx, config)
+                    if result and result.type == vim.lsp.protocol.MessageType.Error then
+                        local handler = vim.lsp.handlers["window/showMessage"]
+                        if handler then
+                            return handler(err, result, ctx, config)
+                        end
+                    end
+                end,
+            }
 
             -- Add cmp_nvim_lsp capabilities settings to lspconfig
             -- This should be executed before you configure any language server
@@ -121,6 +132,11 @@ return {
                     -- it applies to every language server without a "custom handler"
                     function(server_name)
                         lspconfig[server_name].setup({})
+                    end,
+                    pyright = function()
+                        lspconfig.pyright.setup({
+                            handlers = pyright_handlers,
+                        })
                     end,
                     clangd = function()
                         lspconfig.clangd.setup({

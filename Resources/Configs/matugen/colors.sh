@@ -23,6 +23,7 @@ GTK_THEME_NAME="Dynamic"
 GTK_THEME_DIR="$HOME/.themes/$GTK_THEME_NAME"
 GTK_THEME_INDEX="$GTK_THEME_DIR/index.theme"
 GTK_THEME_COLORS="$GTK_THEME_DIR/colors.css"
+GTK4_THEME_DYNAMIC_CSS="$GTK_THEME_DIR/gtk-4.0/dynamic.css"
 GTK3_THEME_CSS="$GTK_THEME_DIR/gtk-3.0/gtk.css"
 GTK3_THEME_DARK_CSS="$GTK_THEME_DIR/gtk-3.0/gtk-dark.css"
 GTK4_THEME_CSS="$GTK_THEME_DIR/gtk-4.0/gtk.css"
@@ -385,12 +386,14 @@ install_gtk_dynamic_theme() {
   printf '@import url("resource:///org/gtk/libgtk/theme/Adwaita/gtk-contained-dark.css");\n@import url("../colors.css");\n' > "$GTK3_THEME_CSS"
   cp -f -- "$GTK3_THEME_CSS" "$GTK3_THEME_DARK_CSS"
 
-  printf '@import url("resource:///org/gtk/libgtk/theme/Default/Default-dark.css");\n@import url("../colors.css");\n' > "$GTK4_THEME_CSS"
+  printf '@import url("resource:///org/gtk/libgtk/theme/Default/Default-dark.css");\n@import url("../colors.css");\n@import url("dynamic.css");\n' > "$GTK4_THEME_CSS"
   cp -f -- "$GTK4_THEME_CSS" "$GTK4_THEME_DARK_CSS"
 
   {
     printf '@import url("resource:///org/gtk/libgtk/theme/Default/Default-dark.css");\n\n'
     cat "$GTK_THEME_COLORS"
+    printf '\n'
+    cat "$GTK4_THEME_DYNAMIC_CSS"
   } > "$GTK4_USER_CSS"
 
   printf '[Desktop Entry]\nType=X-GNOME-Metatheme\nName=%s\nComment=Hyprdots dynamic GTK theme\nEncoding=UTF-8\n' "$GTK_THEME_NAME" > "$GTK_THEME_INDEX"
@@ -531,7 +534,8 @@ python3 "$SCRIPT_DIR/render_templates.py" \
   "$QS_JSON" \
   "$KITTY_COLORS" \
   "$KDE_COLORS" \
-  "$GTK_THEME_COLORS"
+  "$GTK_THEME_COLORS" \
+  "$GTK4_THEME_DYNAMIC_CSS"
 
 rm -f -- "$DEPRECATED_HYPR_COLORS"
 echo "[OK] Hyprland Lua palette scritta in: $HYPR_LUA"

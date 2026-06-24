@@ -57,6 +57,8 @@ Item {
     property bool isDownloadingWallpaper: false
     property string currentDownloadName: ""
     property bool isApplying: false
+    property string currentFolderPath: ""
+    property string currentFolderName: ""
 
     property string lastSearchName: ""
     property bool isModelChanging: false
@@ -147,6 +149,7 @@ Item {
     }
 
     readonly property string searchDir: Quickshell.env("HOME") + "/.cache/wallpaper_picker/search_thumbs"
+    readonly property string thumbDir: Quickshell.env("HOME") + "/.cache/wallpaper_picker/thumbs"
 
     function isDownloaded(name) {
         if (!name)
@@ -157,6 +160,95 @@ Item {
                 return true;
         }
         return false;
+    }
+
+    function normalizePath(path) {
+        return String(path || "").replace(/^file:\/\//, "");
+    }
+
+    function relativeWallpaperPath(absPath) {
+        let path = window.normalizePath(absPath);
+        let base = window.normalizePath(window.srcDir);
+        if (path.indexOf(base + "/") === 0)
+            return path.substring(base.length + 1);
+        return path;
+    }
+
+    function isGroupedWallpaperRoot(name) {
+        let root = String(name || "").toLowerCase();
+        return root === "static" || root === "dynamic" || root === "live";
+    }
+
+    function isDynamicWallpaperRoot(name) {
+        let root = String(name || "").toLowerCase();
+        return root === "dynamic" || root === "live";
+    }
+
+    function wallpaperRootForPath(absPath) {
+        let rel = window.relativeWallpaperPath(absPath);
+        let parts = rel.split("/").filter(part => part.length > 0);
+        return parts.length > 0 ? String(parts[0]).toLowerCase() : "";
+    }
+
+    function folderInfoForPath(absPath) {
+        let rel = window.relativeWallpaperPath(absPath);
+        let parts = rel.split("/").filter(part => part.length > 0);
+        if (parts.length >= 3 && window.isGroupedWallpaperRoot(parts[0])) {
+            return {
+                path: window.srcDir + "/" + parts[0] + "/" + parts[1],
+                name: parts[1],
+                category: parts[0]
+            };
+        }
+        return {
+            path: "",
+            name: "",
+            category: ""
+        };
+    }
+
+    function enrichRawFile(fileName, filePath) {
+        let folder = window.folderInfoForPath(filePath);
+        return {
+            name: fileName,
+            path: filePath,
+            url: "file://" + filePath,
+            folderPath: folder.path,
+            folderName: folder.name,
+            folderCategory: folder.category,
+            rootCategory: window.wallpaperRootForPath(filePath)
+        };
+    }
+
+    function thumbUrlForName(fileName) {
+        return "file://" + window.thumbDir + "/" + fileName + ".jpg";
+    }
+
+    function openFolder(folderPath, folderName) {
+        if (!folderPath)
+            return;
+        window.currentFolderPath = String(folderPath);
+        window.currentFolderName = String(folderName || "");
+        window.syncProxyModel();
+        Qt.callLater(() => {
+            let targetIndex = proxyModel.count > 1 ? 1 : 0;
+            view.currentIndex = targetIndex;
+            view.positionViewAtIndex(targetIndex, ListView.Center);
+            view.forceActiveFocus();
+        });
+    }
+
+    function closeFolder() {
+        if (window.currentFolderPath === "")
+            return;
+        window.currentFolderPath = "";
+        window.currentFolderName = "";
+        window.syncProxyModel();
+        Qt.callLater(() => {
+            view.currentIndex = 0;
+            view.positionViewAtIndex(0, ListView.Center);
+            view.forceActiveFocus();
+        });
     }
 
     function closePicker() {
@@ -312,11 +404,7 @@ Item {
                 if (parts.length < 2)
                     return;
                 
-                window._rawFilesBuffer.push({
-                    name: parts[0],
-                    path: parts[1],
-                    url: "file://" + parts[1]
-                });
+                window._rawFilesBuffer.push(window.enrichRawFile(parts[0], parts[1]));
             }
         }
         onExited: {
@@ -360,6 +448,10 @@ Item {
             return "Loading wallpapers...";
         if (window.visibleItemCount === 0)
             return "No wallpapers found";
+        if (window.currentFolderPath !== "" && window.currentFilter === "All")
+            return window.currentFolderName;
+        if (window.currentFolderPath !== "" && window.currentFilter !== "Search")
+            return window.currentFolderName + " / " + window.currentFilter;
         if (window.currentFilter === "All")
             return "";
         if (window.currentFilter === "Search")
@@ -539,8 +631,107 @@ Item {
         Quickshell.execDetached(["bash", "-c", extractScript]);
     }
 
+    function isVideoFileName(fileName) {
+        return String(fileName).match(/\.(mp4|mkv|mov|webm|avi|m4v|ogv|ogg|flv|wmv|mpg|mpeg|gif|apng)$/i) !== null;
+    }
+
+    function rawFileMatchesFilter(rawFile) {
+        let fn = rawFile.name;
+        let isVid = window.isVideoFileName(fn);
+        let rootCategory = String(rawFile.rootCategory || "").toLowerCase();
+        let isLiveRoot = window.isDynamicWallpaperRoot(rootCategory);
+        let isStaticRoot = rootCategory === "" || rootCategory === "static";
+
+        if (window.currentFilter === "Video")
+            return isLiveRoot && isVid;
+
+        if (window.currentFilter !== "Search" && (!isStaticRoot || isVid))
+            return false;
+
+        return window.checkItemMatchesFilter(fn, isVid, window.cacheVersion, window.currentFilter);
+    }
+
+    function emptyWallpaperItem(itemType) {
+        return {
+            "itemType": itemType,
+            "fileName": "",
+            "fileUrl": "",
+            "filePath": "",
+            "isVideo": false,
+            "folderPath": "",
+            "folderName": "",
+            "folderCategory": "",
+            "rootCategory": "",
+            "folderCount": 0,
+            "preview1Thumb": "",
+            "preview1File": "",
+            "preview2Thumb": "",
+            "preview2File": "",
+            "preview3Thumb": "",
+            "preview3File": "",
+            "preview4Thumb": "",
+            "preview4File": "",
+            "preview5Thumb": "",
+            "preview5File": "",
+            "preview6Thumb": "",
+            "preview6File": "",
+            "preview7Thumb": "",
+            "preview7File": "",
+            "preview8Thumb": "",
+            "preview8File": ""
+        };
+    }
+
+    function fileItemForRaw(rawFile) {
+        let item = window.emptyWallpaperItem("file");
+        item.fileName = rawFile.name;
+        item.fileUrl = String(rawFile.url);
+        item.filePath = String(rawFile.path);
+        item.isVideo = window.isVideoFileName(rawFile.name);
+        item.folderPath = rawFile.folderPath || "";
+        item.folderName = rawFile.folderName || "";
+        item.folderCategory = rawFile.folderCategory || "";
+        item.rootCategory = rawFile.rootCategory || "";
+        return item;
+    }
+
+    function backItem() {
+        let item = window.emptyWallpaperItem("back");
+        item.fileName = "Back";
+        item.folderName = "Back";
+        return item;
+    }
+
+    function folderItemForGroup(group) {
+        let item = window.emptyWallpaperItem("folder");
+        item.fileName = group.name;
+        item.fileUrl = group.files.length > 0 ? String(group.files[0].url) : "";
+        item.folderPath = group.path;
+        item.folderName = group.name;
+        item.folderCategory = group.category;
+        item.folderCount = group.files.length;
+        item.isVideo = group.hasVideo;
+
+        for (let i = 0; i < Math.min(group.files.length, 8); i++) {
+            let raw = group.files[i];
+            item["preview" + (i + 1) + "Thumb"] = window.thumbUrlForName(raw.name);
+            item["preview" + (i + 1) + "File"] = String(raw.url);
+        }
+
+        return item;
+    }
+
+    function compareByName(a, b) {
+        let aa = String(a.sortName || a.name || a.fileName || "").toLowerCase();
+        let bb = String(b.sortName || b.name || b.fileName || "").toLowerCase();
+        if (aa < bb)
+            return -1;
+        if (aa > bb)
+            return 1;
+        return 0;
+    }
+
     function updateVisibleCount() {
-        let count = 0;
         let targetModel = window.currentFilter === "Search" ? searchProxyModel : proxyModel;
 
         if (!targetModel || targetModel.count === 0) {
@@ -553,12 +744,11 @@ Item {
             return;
         }
 
-        for (let i = 0; i < window.rawFiles.length; i++) {
-            let fn = window.rawFiles[i].name;
-            let isVid = String(fn).match(/\.(mp4|mkv|mov|webm|avi|m4v|ogv|ogg|flv|wmv|mpg|mpeg|gif|apng)$/i) !== null;
-            if (window.checkItemMatchesFilter(fn, isVid, window.cacheVersion, window.currentFilter)) {
+        let count = 0;
+        for (let i = 0; i < proxyModel.count; i++) {
+            let itemType = proxyModel.get(i).itemType || "file";
+            if (itemType !== "back")
                 count++;
-            }
         }
         window.visibleItemCount = count;
     }
@@ -642,6 +832,8 @@ Item {
         window.isModelChanging = false;
 
         window.currentFilter = "All";
+        window.currentFolderPath = "";
+        window.currentFolderName = "";
         window.searchQuery = "";
         window.hasSearched = false;
         window.isOnlineSearch = false;
@@ -743,12 +935,12 @@ Item {
             let fu = searchFolderModel.get(i, "fileUrl");
             let fp = searchFolderModel.get(i, "filePath");
             if (fn !== undefined) {
-                searchProxyModel.append({
-                    "fileName": fn,
-                    "fileUrl": String(fu),
-                    "filePath": String(fp),
-                    "isVideo": false
-                });
+                let item = window.emptyWallpaperItem("file");
+                item.fileName = fn;
+                item.fileUrl = String(fu);
+                item.filePath = String(fp);
+                item.isVideo = false;
+                searchProxyModel.append(item);
             }
         }
 
@@ -790,30 +982,86 @@ Item {
         let newItems = [];
         let count = 0;
 
-        for (let i = 0; i < window.rawFiles.length; i++) {
-            let fn = window.rawFiles[i].name;
-            let fu = window.rawFiles[i].url;
-            let fp = window.rawFiles[i].path;
+        if (window.currentFolderPath !== "") {
+            let folderFiles = [];
+            for (let i = 0; i < window.rawFiles.length; i++) {
+                let raw = window.rawFiles[i];
+                if (raw.folderPath === window.currentFolderPath && window.rawFileMatchesFilter(raw))
+                    folderFiles.push(raw);
+            }
 
-            let isVid = String(fn).match(/\.(mp4|mkv|mov|webm|avi|m4v|ogv|ogg|flv|wmv|mpg|mpeg|gif|apng)$/i) !== null;
-            if (window.checkItemMatchesFilter(fn, isVid, window.cacheVersion, window.currentFilter)) {
-                newItems.push({
-                    "fileName": fn,
-                    "fileUrl": String(fu),
-                    "filePath": String(fp),
-                    "isVideo": isVid
-                });
+            folderFiles.sort((a, b) => window.compareByName({
+                fileName: a.name
+            }, {
+                fileName: b.name
+            }));
+
+            newItems.push(window.backItem());
+            for (let f = 0; f < folderFiles.length; f++) {
+                newItems.push(window.fileItemForRaw(folderFiles[f]));
+                count++;
+            }
+        } else {
+            let folderMap = ({});
+            let folderGroups = [];
+            let rootFiles = [];
+
+            for (let i = 0; i < window.rawFiles.length; i++) {
+                let raw = window.rawFiles[i];
+                if (!window.rawFileMatchesFilter(raw))
+                    continue;
+
+                if (raw.folderPath !== "") {
+                    if (folderMap[raw.folderPath] === undefined) {
+                        folderMap[raw.folderPath] = {
+                            path: raw.folderPath,
+                            name: raw.folderName,
+                            category: raw.folderCategory,
+                            sortName: raw.folderCategory + "/" + raw.folderName,
+                            hasVideo: false,
+                            files: []
+                        };
+                        folderGroups.push(folderMap[raw.folderPath]);
+                    }
+                    folderMap[raw.folderPath].files.push(raw);
+                    if (window.isVideoFileName(raw.name))
+                        folderMap[raw.folderPath].hasVideo = true;
+                } else {
+                    rootFiles.push(raw);
+                }
+            }
+
+            folderGroups.sort(window.compareByName);
+            rootFiles.sort((a, b) => window.compareByName({
+                fileName: a.name
+            }, {
+                fileName: b.name
+            }));
+
+            for (let g = 0; g < folderGroups.length; g++) {
+                folderGroups[g].files.sort((a, b) => window.compareByName({
+                    fileName: a.name
+                }, {
+                    fileName: b.name
+                }));
+                newItems.push(window.folderItemForGroup(folderGroups[g]));
+                count++;
+            }
+
+            for (let f = 0; f < rootFiles.length; f++) {
+                newItems.push(window.fileItemForRaw(rootFiles[f]));
                 count++;
             }
         }
+
         proxyModel.clear();
         if (newItems.length > 0) {
             proxyModel.append(newItems);
         }
         window.visibleItemCount = count;
-        if (targetIndex !== -1 && count > 0) {
-            view.currentIndex = Math.min(targetIndex, count - 1);
-        } else if (count > 0) {
+        if (targetIndex !== -1 && newItems.length > 0) {
+            view.currentIndex = Math.min(targetIndex, newItems.length - 1);
+        } else if (newItems.length > 0) {
             view.currentIndex = 0;
             window.initialFocusSet = true;
         }
@@ -960,6 +1208,11 @@ Item {
         }
     }
     Shortcut {
+        sequence: "Backspace"
+        enabled: window.currentFolderPath !== "" && !searchInput.activeFocus
+        onActivated: window.closeFolder()
+    }
+    Shortcut {
         sequence: "w"
         enabled: !searchInput.activeFocus
         onActivated: window.selectShortcutFilter("All")
@@ -1069,11 +1322,34 @@ Item {
         delegate: Item {
             id: delegateRoot
             readonly property bool isCurrent: ListView.isCurrentItem
-            readonly property real targetWidth: isCurrent ? (window.itemWidth * 1.5) : (window.itemWidth * 0.5)
-            readonly property real targetHeight: isCurrent ? window.currentItemDisplayHeight : window.itemHeight
+            readonly property string modelType: model.itemType !== undefined ? model.itemType : "file"
+            readonly property bool isFolder: modelType === "folder"
+            readonly property bool isBack: modelType === "back"
+            readonly property bool isFile: !isFolder && !isBack
+            readonly property real targetWidth: isBack ? (window.itemWidth * 0.38) : (isCurrent ? (window.itemWidth * 1.5) : (window.itemWidth * 0.5))
+            readonly property real targetHeight: isBack ? (window.itemHeight * 0.74) : (isCurrent ? window.currentItemDisplayHeight : window.itemHeight)
+            readonly property real folderTextBandHeight: isCurrent ? 86 : 58
+            readonly property real folderTextCenterOffset: (((window.itemHeight - targetHeight) / 2) * window.skewFactor) + ((targetHeight - (folderTextBandHeight / 2)) * window.skewFactor)
+            readonly property real folderTextOverlayWidth: Math.max(isCurrent ? 240 : 96, targetWidth * (isCurrent ? 0.72 : 0.64))
 
-            property string thumbUrl: fileUrl !== undefined ? "file://" + Quickshell.env("HOME") + "/.cache/wallpaper_picker/thumbs/" + model.fileName + ".jpg" : ""
+            property string thumbUrl: isFile && fileUrl !== undefined ? window.thumbUrlForName(model.fileName) : ""
             property string activeSource: thumbUrl
+            property string preview1Thumb: model.preview1Thumb !== undefined ? model.preview1Thumb : ""
+            property string preview1File: model.preview1File !== undefined ? model.preview1File : ""
+            property string preview2Thumb: model.preview2Thumb !== undefined ? model.preview2Thumb : ""
+            property string preview2File: model.preview2File !== undefined ? model.preview2File : ""
+            property string preview3Thumb: model.preview3Thumb !== undefined ? model.preview3Thumb : ""
+            property string preview3File: model.preview3File !== undefined ? model.preview3File : ""
+            property string preview4Thumb: model.preview4Thumb !== undefined ? model.preview4Thumb : ""
+            property string preview4File: model.preview4File !== undefined ? model.preview4File : ""
+            property string preview5Thumb: model.preview5Thumb !== undefined ? model.preview5Thumb : ""
+            property string preview5File: model.preview5File !== undefined ? model.preview5File : ""
+            property string preview6Thumb: model.preview6Thumb !== undefined ? model.preview6Thumb : ""
+            property string preview6File: model.preview6File !== undefined ? model.preview6File : ""
+            property string preview7Thumb: model.preview7Thumb !== undefined ? model.preview7Thumb : ""
+            property string preview7File: model.preview7File !== undefined ? model.preview7File : ""
+            property string preview8Thumb: model.preview8Thumb !== undefined ? model.preview8Thumb : ""
+            property string preview8File: model.preview8File !== undefined ? model.preview8File : ""
 
             width: targetWidth + window.spacing
             height: targetHeight
@@ -1097,7 +1373,25 @@ Item {
             }
 
             function pickWallpaper() {
+                if (delegateRoot.isBack) {
+                    window.closeFolder();
+                    return;
+                }
+                if (delegateRoot.isFolder) {
+                    window.openFolder(model.folderPath, model.folderName);
+                    return;
+                }
                 window.applyWallpaper(model.filePath);
+            }
+
+            function previewThumbAt(previewIndex) {
+                let previews = [delegateRoot.preview1Thumb, delegateRoot.preview2Thumb, delegateRoot.preview3Thumb, delegateRoot.preview4Thumb, delegateRoot.preview5Thumb, delegateRoot.preview6Thumb, delegateRoot.preview7Thumb, delegateRoot.preview8Thumb];
+                return previews[Math.max(0, Math.min(previewIndex, previews.length - 1))];
+            }
+
+            function previewFileAt(previewIndex) {
+                let previews = [delegateRoot.preview1File, delegateRoot.preview2File, delegateRoot.preview3File, delegateRoot.preview4File, delegateRoot.preview5File, delegateRoot.preview6File, delegateRoot.preview7File, delegateRoot.preview8File];
+                return previews[Math.max(0, Math.min(previewIndex, previews.length - 1))];
             }
 
             MouseArea {
@@ -1123,6 +1417,7 @@ Item {
 
                 Image {
                     anchors.fill: parent
+                    visible: delegateRoot.isFile
                     source: delegateRoot.activeSource
                     sourceSize: Qt.size(1024, 1024)
                     fillMode: Image.Stretch
@@ -1144,6 +1439,7 @@ Item {
                     clip: true
 
                     Image {
+                        visible: delegateRoot.isFile
                         anchors.centerIn: parent
                         anchors.horizontalCenterOffset: -50
                         width: (window.itemWidth * 1.5) + (window.currentItemDisplayHeight * Math.abs(window.skewFactor)) + 50
@@ -1157,6 +1453,182 @@ Item {
                             matrix: Qt.matrix4x4(1, s, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
                         }
                     }
+
+                    Item {
+                        visible: delegateRoot.isFolder
+                        anchors.centerIn: parent
+                        anchors.horizontalCenterOffset: -50
+                        width: (window.itemWidth * 1.5) + (window.currentItemDisplayHeight * Math.abs(window.skewFactor)) + 50
+                        height: window.currentItemDisplayHeight
+                        transform: Matrix4x4 {
+                            property real s: -window.skewFactor
+                            matrix: Qt.matrix4x4(1, s, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
+                        }
+
+                        Item {
+                            id: folderCollage
+                            anchors.fill: parent
+                            readonly property int tileCount: 8
+                            readonly property int tileColumns: delegateRoot.isCurrent ? 4 : 2
+                            readonly property int tileRows: Math.ceil(tileCount / tileColumns)
+
+                            Grid {
+                                id: folderPreviewGrid
+                                anchors.fill: parent
+                                columns: folderCollage.tileColumns
+                                spacing: 3
+
+                                Repeater {
+                                    model: folderCollage.tileCount
+                                    delegate: Rectangle {
+                                        width: Math.max(1, (folderPreviewGrid.width - folderPreviewGrid.spacing * (folderPreviewGrid.columns - 1)) / folderPreviewGrid.columns)
+                                        height: Math.max(1, (folderPreviewGrid.height - folderPreviewGrid.spacing * (folderCollage.tileRows - 1)) / folderCollage.tileRows)
+                                        radius: 0
+                                        clip: true
+                                        color: Qt.rgba(t_text.r, t_text.g, t_text.b, 0.08)
+
+                                        property string primarySource: delegateRoot.previewThumbAt(index)
+                                        property string fallbackSource: delegateRoot.previewFileAt(index)
+                                        property string activePreviewSource: primarySource
+
+                                        onPrimarySourceChanged: activePreviewSource = primarySource
+
+                                        Image {
+                                            anchors.fill: parent
+                                            visible: parent.activePreviewSource !== ""
+                                            source: parent.activePreviewSource
+                                            sourceSize: Qt.size(512, 512)
+                                            fillMode: Image.PreserveAspectCrop
+                                            asynchronous: true
+                                            onStatusChanged: {
+                                                if (status === Image.Error && parent.activePreviewSource === parent.primarySource)
+                                                    parent.activePreviewSource = parent.fallbackSource;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.bottom: parent.bottom
+                                height: delegateRoot.isCurrent ? 86 : 58
+                                color: Qt.rgba(0, 0, 0, 0.56)
+                            }
+                        }
+                    }
+
+                    Item {
+                        visible: delegateRoot.isBack
+                        anchors.centerIn: parent
+                        anchors.horizontalCenterOffset: -50
+                        width: (window.itemWidth * 1.5) + (window.currentItemDisplayHeight * Math.abs(window.skewFactor)) + 50
+                        height: window.currentItemDisplayHeight
+                        transform: Matrix4x4 {
+                            property real s: -window.skewFactor
+                            matrix: Qt.matrix4x4(1, s, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
+                        }
+
+                        Item {
+                            anchors.centerIn: parent
+                            width: 110
+                            height: 150
+
+                            Rectangle {
+                                id: backButtonShape
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                anchors.top: parent.top
+                                width: 76
+                                height: 76
+                                radius: 12
+                                color: Qt.rgba(t_surface2.r, t_surface2.g, t_surface2.b, 0.78)
+                                border.color: delegateRoot.isCurrent ? Qt.rgba(t_text.r, t_text.g, t_text.b, 0.45) : Qt.rgba(t_text.r, t_text.g, t_text.b, 0.18)
+                                border.width: delegateRoot.isCurrent ? 2 : 1
+
+                                Canvas {
+                                    anchors.centerIn: parent
+                                    width: 34
+                                    height: 34
+                                    property color arrowColor: t_text
+                                    onArrowColorChanged: requestPaint()
+                                    onPaint: {
+                                        let ctx = getContext("2d");
+                                        ctx.reset();
+                                        ctx.lineWidth = 3;
+                                        ctx.lineCap = "round";
+                                        ctx.lineJoin = "round";
+                                        ctx.strokeStyle = arrowColor;
+                                        ctx.beginPath();
+                                        ctx.moveTo(21, 8);
+                                        ctx.lineTo(11, 17);
+                                        ctx.lineTo(21, 26);
+                                        ctx.stroke();
+                                    }
+                                }
+                            }
+
+                            Text {
+                                anchors.top: backButtonShape.bottom
+                                anchors.topMargin: 14
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                width: parent.width
+                                horizontalAlignment: Text.AlignHCenter
+                                text: "Back"
+                                color: t_text
+                                elide: Text.ElideRight
+                                font.family: window.textFont
+                                font.pixelSize: 14
+                                font.bold: true
+                            }
+                        }
+                    }
+                }
+            }
+
+            Item {
+                visible: delegateRoot.isFolder
+                z: 30
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.horizontalCenterOffset: delegateRoot.folderTextCenterOffset
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: delegateRoot.isCurrent ? 30 : 29
+                width: delegateRoot.folderTextOverlayWidth
+                height: delegateRoot.isCurrent ? 54 : 24
+
+                Text {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: folderOverlayCountText.visible ? folderOverlayCountText.top : parent.bottom
+                    anchors.bottomMargin: folderOverlayCountText.visible ? 2 : 0
+                    horizontalAlignment: Text.AlignHCenter
+                    text: model.folderName
+                    color: t_text
+                    elide: Text.ElideRight
+                    font.family: window.textFont
+                    font.pixelSize: delegateRoot.isCurrent ? 23 : 14
+                    font.bold: true
+                    renderType: Text.NativeRendering
+                    style: Text.Outline
+                    styleColor: Qt.rgba(0, 0, 0, 0.78)
+                }
+
+                Text {
+                    id: folderOverlayCountText
+                    visible: delegateRoot.isCurrent
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    horizontalAlignment: Text.AlignHCenter
+                    text: model.folderCount + (model.folderCount === 1 ? " wallpaper" : " wallpapers")
+                    color: Qt.rgba(t_text.r, t_text.g, t_text.b, 0.72)
+                    elide: Text.ElideRight
+                    font.family: window.textFont
+                    font.pixelSize: 12
+                    font.bold: true
+                    renderType: Text.NativeRendering
+                    style: Text.Outline
+                    styleColor: Qt.rgba(0, 0, 0, 0.72)
                 }
             }
         }

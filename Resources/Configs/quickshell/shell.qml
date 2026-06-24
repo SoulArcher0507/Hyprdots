@@ -16,6 +16,12 @@ import "modules/bar/widgets" as BarWidgets
 ShellRoot {
     id: root
     property bool hyprshotOpenQueued: false
+    property string pendingMusicPopupAction: ""
+    property string pendingKeybindingsPopupAction: ""
+    property string pendingFocusTimePopupAction: ""
+    property string pendingCliphistPopupAction: ""
+    property int pendingCliphistTopMargin: 0
+    property var lazyPopupGuard: null
 
     readonly property string archtoolsScriptsDir: Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/archtools"
     readonly property string archtoolsRepoScriptsDir: Quickshell.env("HOME") + "/.config/hyprdots/Resources/Configs/hypr/scripts/quickshell/archtools"
@@ -83,9 +89,178 @@ ShellRoot {
         ]);
     }
 
+    function unloadClosedLazyPopup(loader) {
+        if (!loader || !loader.active || !loader.item)
+            return;
+        if (!loader.item.popupMounted && !loader.item.popupTargetVisible)
+            loader.active = false;
+    }
+
+    function closeLazyPopup(loader) {
+        if (!loader || root.lazyPopupGuard === loader)
+            return;
+        if (!loader.item) {
+            loader.active = false;
+            return;
+        }
+        if (!loader.item.popupMounted && !loader.item.popupTargetVisible) {
+            loader.active = false;
+            return;
+        }
+        if (typeof loader.item.hidePopup === "function")
+            loader.item.hidePopup();
+        else if (typeof loader.item._hidePopup === "function")
+            loader.item._hidePopup();
+        else if (typeof loader.item._hideMusicPopup === "function")
+            loader.item._hideMusicPopup();
+        else
+            loader.active = false;
+    }
+
+    function withLazyPopupGuard(loader, callback) {
+        root.lazyPopupGuard = loader;
+        callback();
+        root.lazyPopupGuard = null;
+    }
+
+    function dispatchMusicPopupAction(action) {
+        var item = musicPopupLoader.item;
+        if (!item || action === "")
+            return;
+
+        if (action === "hide") {
+            item.hidePopup();
+            return;
+        }
+
+        if (action === "show" || (action === "toggle" && !item.popupTargetVisible)) {
+            root.withLazyPopupGuard(musicPopupLoader, function() {
+                ThemePkg.Theme.globalCloseAllPopups();
+            });
+            item.showPopup();
+            return;
+        }
+
+        if (action === "toggle")
+            item.hidePopup();
+    }
+
+    function runMusicPopup(action) {
+        if (action === "hide" && !musicPopupLoader.active)
+            return;
+        root.pendingMusicPopupAction = action;
+        musicPopupLoader.active = true;
+        if (musicPopupLoader.item) {
+            var pending = root.pendingMusicPopupAction;
+            root.pendingMusicPopupAction = "";
+            root.dispatchMusicPopupAction(pending);
+        }
+    }
+
+    function dispatchKeybindingsPopupAction(action) {
+        var item = keybindingsPopupLoader.item;
+        if (!item || action === "")
+            return;
+
+        if (action === "hide") {
+            item.hidePopup();
+            return;
+        }
+
+        if (action === "show" || (action === "toggle" && !item.popupTargetVisible)) {
+            root.withLazyPopupGuard(keybindingsPopupLoader, function() {
+                item.preparePopupOpen();
+            });
+            return;
+        }
+
+        if (action === "toggle")
+            item.hidePopup();
+    }
+
+    function runKeybindingsPopup(action) {
+        if (action === "hide" && !keybindingsPopupLoader.active)
+            return;
+        root.pendingKeybindingsPopupAction = action;
+        keybindingsPopupLoader.active = true;
+        if (keybindingsPopupLoader.item) {
+            var pending = root.pendingKeybindingsPopupAction;
+            root.pendingKeybindingsPopupAction = "";
+            root.dispatchKeybindingsPopupAction(pending);
+        }
+    }
+
+    function dispatchFocusTimePopupAction(action) {
+        var item = focusTimePopupLoader.item;
+        if (!item || action === "")
+            return;
+
+        if (action === "hide") {
+            item.hidePopup();
+            return;
+        }
+
+        if (action === "show" || (action === "toggle" && !item.popupTargetVisible)) {
+            root.withLazyPopupGuard(focusTimePopupLoader, function() {
+                item.preparePopupOpen();
+            });
+            return;
+        }
+
+        if (action === "toggle")
+            item.hidePopup();
+    }
+
+    function runFocusTimePopup(action) {
+        if (action === "hide" && !focusTimePopupLoader.active)
+            return;
+        root.pendingFocusTimePopupAction = action;
+        focusTimePopupLoader.active = true;
+        if (focusTimePopupLoader.item) {
+            var pending = root.pendingFocusTimePopupAction;
+            root.pendingFocusTimePopupAction = "";
+            root.dispatchFocusTimePopupAction(pending);
+        }
+    }
+
+    function dispatchCliphistPopupAction(action) {
+        var item = cliphistPopupLoader.item;
+        if (!item || action === "")
+            return;
+
+        if (action === "hide") {
+            item.hidePopup();
+            return;
+        }
+
+        if (action === "show" || action === "showAt" || (action === "toggle" && !item.popupTargetVisible)) {
+            root.withLazyPopupGuard(cliphistPopupLoader, function() {
+                if (action === "showAt")
+                    item.showAt(root.pendingCliphistTopMargin);
+                else
+                    item.showPopup();
+            });
+            return;
+        }
+
+        if (action === "toggle")
+            item.hidePopup();
+    }
+
+    function runCliphistPopup(action, topMargin) {
+        if (action === "hide" && !cliphistPopupLoader.active)
+            return;
+        root.pendingCliphistPopupAction = action;
+        root.pendingCliphistTopMargin = topMargin || 0;
+        cliphistPopupLoader.active = true;
+        if (cliphistPopupLoader.item) {
+            var pending = root.pendingCliphistPopupAction;
+            root.pendingCliphistPopupAction = "";
+            root.dispatchCliphistPopupAction(pending);
+        }
+    }
+
     Component.onCompleted: {
-        Quickshell.execDetached(["killall", "-q", "kded6"]);
-        
         Qt.application.organizationName = "Quickshell";
         Qt.application.organizationDomain = "quickshell.org";
     }
@@ -100,6 +275,10 @@ ShellRoot {
             root.hideLauncherProcess();
             root.hideOverviewProcess();
             root.hideGameLauncherProcess();
+            root.closeLazyPopup(musicPopupLoader);
+            root.closeLazyPopup(keybindingsPopupLoader);
+            root.closeLazyPopup(focusTimePopupLoader);
+            root.closeLazyPopup(cliphistPopupLoader);
         }
     }
 
@@ -224,14 +403,58 @@ ShellRoot {
     IpcHandler {
         target: "keybindings"
         function toggle(): void {
-            ThemePkg.Theme.globalToggleKeybindings();
+            root.runKeybindingsPopup("toggle");
+        }
+        function show(): void {
+            root.runKeybindingsPopup("show");
+        }
+        function hide(): void {
+            root.runKeybindingsPopup("hide");
         }
     }
 
     IpcHandler {
         target: "focustime"
         function toggle(): void {
-            ThemePkg.Theme.globalToggleFocusTime();
+            root.runFocusTimePopup("toggle");
+        }
+        function show(): void {
+            root.runFocusTimePopup("show");
+        }
+        function hide(): void {
+            root.runFocusTimePopup("hide");
+        }
+    }
+
+    IpcHandler {
+        target: "music"
+        function toggle(): void {
+            root.runMusicPopup("toggle");
+        }
+        function show(): void {
+            root.runMusicPopup("show");
+        }
+        function hide(): void {
+            root.runMusicPopup("hide");
+        }
+    }
+
+    IpcHandler {
+        target: "cliphist"
+        function show(): void {
+            root.runCliphistPopup("show", 0);
+        }
+        function showAt(px: int): void {
+            root.runCliphistPopup("showAt", px);
+        }
+        function toggle(): void {
+            root.runCliphistPopup("toggle", 0);
+        }
+        function hide(): void {
+            root.runCliphistPopup("hide", 0);
+        }
+        function opened(): bool {
+            return !!(cliphistPopupLoader.item && cliphistPopupLoader.item.popupTargetVisible);
         }
     }
 
@@ -390,32 +613,100 @@ ShellRoot {
     }
 
     Loader {
-        active: true
+        id: cliphistPopupLoader
+        active: false
         asynchronous: true
         sourceComponent: cliphistPopupComponent
+
+        onLoaded: {
+            var pending = root.pendingCliphistPopupAction;
+            root.pendingCliphistPopupAction = "";
+            root.dispatchCliphistPopupAction(pending);
+        }
+
+        Connections {
+            target: cliphistPopupLoader.item
+            function onPopupMountedChanged() {
+                root.unloadClosedLazyPopup(cliphistPopupLoader);
+            }
+            function onPopupTargetVisibleChanged() {
+                root.unloadClosedLazyPopup(cliphistPopupLoader);
+            }
+        }
     }
 
     Loader {
-        active: true
+        id: musicPopupLoader
+        active: false
         asynchronous: true
         sourceComponent: musicPopupComponent
+
+        onLoaded: {
+            var pending = root.pendingMusicPopupAction;
+            root.pendingMusicPopupAction = "";
+            root.dispatchMusicPopupAction(pending);
+        }
+
+        Connections {
+            target: musicPopupLoader.item
+            function onPopupMountedChanged() {
+                root.unloadClosedLazyPopup(musicPopupLoader);
+            }
+            function onPopupTargetVisibleChanged() {
+                root.unloadClosedLazyPopup(musicPopupLoader);
+            }
+        }
     }
 
     Loader {
-        active: true
+        id: keybindingsPopupLoader
+        active: false
         asynchronous: true
         sourceComponent: keybindingsPopupComponent
+
+        onLoaded: {
+            var pending = root.pendingKeybindingsPopupAction;
+            root.pendingKeybindingsPopupAction = "";
+            root.dispatchKeybindingsPopupAction(pending);
+        }
+
+        Connections {
+            target: keybindingsPopupLoader.item
+            function onPopupMountedChanged() {
+                root.unloadClosedLazyPopup(keybindingsPopupLoader);
+            }
+            function onPopupTargetVisibleChanged() {
+                root.unloadClosedLazyPopup(keybindingsPopupLoader);
+            }
+        }
     }
 
     Loader {
-        active: true
+        id: focusTimePopupLoader
+        active: false
         asynchronous: true
         sourceComponent: focusTimePopupComponent
+
+        onLoaded: {
+            var pending = root.pendingFocusTimePopupAction;
+            root.pendingFocusTimePopupAction = "";
+            root.dispatchFocusTimePopupAction(pending);
+        }
+
+        Connections {
+            target: focusTimePopupLoader.item
+            function onPopupMountedChanged() {
+                root.unloadClosedLazyPopup(focusTimePopupLoader);
+            }
+            function onPopupTargetVisibleChanged() {
+                root.unloadClosedLazyPopup(focusTimePopupLoader);
+            }
+        }
     }
 
     Loader {
         id: hyprshotLoader
-        active: true
+        active: false
         asynchronous: true
 
         Component.onCompleted: {
@@ -430,6 +721,13 @@ ShellRoot {
 
             root.hyprshotOpenQueued = false;
             item.open();
+        }
+
+        Connections {
+            target: hyprshotLoader.item
+            function onSessionFinished() {
+                hyprshotLoader.active = false;
+            }
         }
     }
 }

@@ -104,6 +104,29 @@ Item {
             root.openInstant();
     }
 
+    function showPopup() {
+        root._preparePopupOpen(root.defaultTopMarginPx);
+    }
+
+    function showAt(px) {
+        root._preparePopupOpen(px);
+    }
+
+    function togglePopup() {
+        if (root.popupTargetVisible)
+            root._hidePopup();
+        else
+            root._preparePopupOpen(root.defaultTopMarginPx);
+    }
+
+    function hidePopup() {
+        root._hidePopup();
+    }
+
+    function opened() {
+        return root.popupTargetVisible;
+    }
+
     function _hidePopup() {
         popupTargetVisible = false;
         popupEnterAnim.stop();
@@ -130,33 +153,6 @@ Item {
         popupTargetVisible = false;
         popupMounted = false;
         ThemePkg.Theme.setPopupCardClosed(root);
-    }
-
-    Io.IpcHandler {
-        target: "cliphist"
-
-        function show(): void {
-            root._preparePopupOpen(root.defaultTopMarginPx);
-        }
-
-        function showAt(px: int): void {
-            root._preparePopupOpen(px);
-        }
-
-        function toggle(): void {
-            if (root.popupTargetVisible) {
-                root._hidePopup();
-                return;
-            }
-            root._preparePopupOpen(root.defaultTopMarginPx);
-        }
-
-        function hide(): void {
-            root._hidePopup();
-        }
-        function opened(): bool {
-            return root.popupTargetVisible;
-        }
     }
 
     Timer {

@@ -15,7 +15,7 @@ start_once({
     "~/.config/hypr/scripts/quickshell/qs-priority.sh -p ~/.config/quickshell/overview -d &",
     "~/.config/hypr/scripts/quickshell/qs-priority.sh -p ~/.config/quickshell/launcher -d &",
     "~/.config/hypr/scripts/quickshell/qs-priority.sh -p ~/.config/quickshell/gamelauncher -d &",
-    "~/.config/hypr/scripts/quickshell/tray/trayctl.sh watch &",
+    "sh -c 'systemctl --user start plasma-xembedsniproxy.service >/dev/null 2>&1 || (command -v xembedsniproxy >/dev/null 2>&1 && exec xembedsniproxy)' &",
     "python3 ~/.config/hypr/scripts/quickshell/archtools/focus_daemon.py",
     "python3 ~/.config/hypr/scripts/quickshell/archtools/arch-news.py --fetch",
     "python3 ~/.config/hypr/scripts/quickshell/archtools/updates-daemon.py &",
@@ -38,17 +38,16 @@ start_once({
     "kdeconnect-indicator &",
     "sh -c 'command -v solaar >/dev/null 2>&1 && exec solaar --window=hide' &",
     "sh -c 'sleep 3 && command -v flatpak >/dev/null 2>&1 && exec flatpak run --env=HYPRLAND_INSTANCE_SIGNATURE=\"$HYPRLAND_INSTANCE_SIGNATURE\" com.core447.StreamController -b' &",
-    "sh -c 'command -v steam >/dev/null 2>&1 && exec steam --window=hide' &",
     "sh -c 'command -v easyeffects >/dev/null 2>&1 && exec easyeffects --hide-window' &",
     "sh -c 'command -v localsend >/dev/null 2>&1 && exec localsend --hidden' &",
     "sh -c 'command -v sunshine >/dev/null 2>&1 && exec sunshine' &",
-    "sh -c 'sleep 6 && exec ~/.config/hypr/scripts/quickshell/tray/trayctl.sh launch 30 discord' &",
     "sh -c 'sleep 3 && exec ~/.config/hypr/scripts/soundboard.sh' &",
     "sh -c 'command -v feishin >/dev/null 2>&1 && sleep 5 && exec feishin' &"
 })
 
 hl.on("hyprland.start", function()
-    hl.timer(function()
-        hl.exec_cmd("zen-browser", { workspace = "2" })
-    end, { timeout = 2000, type = "oneshot" })
+    hl.exec_cmd("sh -c 'command -v steam >/dev/null 2>&1 && exec steam &'", { workspace = "4 silent" })
+    hl.exec_cmd("sh -c 'command -v feishin >/dev/null 2>&1 && exec feishin &'", { workspace = "4 silent" })
+    hl.exec_cmd("sh -c 'command -v discord >/dev/null 2>&1 && exec discord &'", { workspace = "3 silent" })
+    hl.exec_cmd("sh -c 'command -v zen-browser >/dev/null 2>&1 && exec zen-browser &'", { workspace = "2 silent" })
 end)
